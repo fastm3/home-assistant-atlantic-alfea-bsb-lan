@@ -64,14 +64,17 @@ La barre de commandes est optionnelle (`show_controls: true` par défaut) :
 - **Par circuit** : `Off` / `Auto` — via `climate.set_hvac_mode`. `Auto` reprend la saison
   sélectionnée dans le mode PAC (chauffage ou rafraîchissement) ; il est désactivé
   tant que le mode PAC est `Off`.
-- **Consigne circuit** : **slider** dans la barre de commandes (pas de 0,5 °C), ou
-  `−` / `+`. La valeur écrite est la **consigne programmée** (710/902/1010/1202) via
+- **Consigne circuit** : **clic sur la valeur affichée dans la carte** (« Consigne
+  chauffage » / « Consigne rafraîch. ») ouvre un panneau avec **slider** (7–35 °C en
+  chauffage, 7–30 °C en rafraîchissement, pas de 0,5 °C). Les boutons `−` / `+` restent
+  disponibles. La valeur écrite est la **consigne programmée** (710/902/1010/1202) via
   les entités `number` de l'intégration, avec confirmation BSB. Si les paramètres
   701/1001/10991 ne sont pas disponibles en écriture, la dérogation native ne peut pas
   être modifiée directement : c'est la consigne programmée qui change, et la consigne
   effective reste affichée séparément (`Eff.`).
-- **Consigne ECS** : **slider** (pas de 1 °C) ou `−` / `+`. Écrit la consigne confort
-  1610 à la valeur demandée, puis la consigne éco 1612 à `confort − ecs_eco_delta`.
+- **Consigne ECS** : **clic sur « Consigne confort »** ouvre un slider 40–65 °C
+  (pas de 1 °C). Écrit la consigne confort 1610 à la valeur demandée, puis la consigne
+  éco 1612 à `confort − ecs_eco_delta`.
 
 Les noms affichés se règlent avec `circuit_1_name` et `circuit_2_name`. Les entités
 restent `C1`/`C2` ; seuls les libellés changent.

@@ -6,12 +6,15 @@
   (défaut RDC / Étage), sans changer les entités C1/C2.
 - Barre de commandes optionnelle (`show_controls`, vrai par défaut) :
   mode PAC Off / Chauffage / Refroidissement, Off / Auto par circuit.
-- Consigne circuit éditable par **slider** dans la barre de commandes (pas de 0,5 °C),
-  ou par `−` / `+`. Écriture de la consigne programmée 710/902/1010/1202 via
-  les entités `number` de l'intégration, avec confirmation BSB.
-- Consigne ECS éditable par **slider** (pas de 1 °C) : écrit 1610 à la valeur demandée
-  puis 1612 à `confort − ecs_eco_delta` (écart paramétrable, défaut 3 °C).
-- Les popups `window.prompt` sont supprimés.
+- Consigne circuit : **clic sur la valeur affichée dans la carte** (Consigne
+  chauffage / rafraîch.) ouvre un panneau avec **slider** (pas de 0,5 °C).
+  Plus de popup navigateur. Écriture de la consigne programmée
+  710/902/1010/1202 via les entités `number` de l'intégration, avec
+  confirmation BSB. Les boutons `−` / `+` restent disponibles.
+- Consigne ECS : **clic sur « Consigne confort »** ouvre un slider 40–65 °C
+  (pas de 1 °C) : écrit 1610 à la valeur demandée puis 1612 à
+  `confort − ecs_eco_delta` (écart paramétrable, défaut 3 °C).
+- Les sliders permanents de la barre de commandes sont retirés.
 - Repli du Climate : si 701/1001/10991 ne sont pas disponibles en écriture,
   `climate.set_temperature` écrit la consigne programmée au lieu d'échouer.
 - Délai de confirmation des consignes porté à 30 s (le round-trip BSB/MQTT
