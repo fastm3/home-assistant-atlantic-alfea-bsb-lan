@@ -394,10 +394,17 @@ class PacSynoptiqueCard extends HTMLElement {
       const auto=mode==='heat'||mode==='cool';
       const offActive=c.mode==='off';
       const autoActive=auto && !offActive;
+      const overrideActive=c.override===true;
+      const tempEnabled=auto && !overrideActive;
+      const plusEnabled=mode==='heat' && !overrideActive;
+      const tempTitle=overrideActive?'Dérogation native active : annule-la avant une nouvelle consigne':
+        tempEnabled?'':'Choisir d’abord Chauffage ou Refroidissement';
+      const plusTitle=overrideActive?tempTitle:mode==='cool'?
+        'En rafraîchissement, seule une consigne plus froide est acceptée':tempTitle;
       return `<div class="ctl-group"><span class="ctl-label">${html(name)}</span><div class="ctl-buttons">
         <button type="button" class="ctl-btn${offActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="off">Off</button>
         <button type="button" class="ctl-btn${autoActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="auto"${auto?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Auto</button>
-        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}">−</button><strong>${html(temp(c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}">+</button></span>
+        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong>${html(temp(c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
       </div></div>`;
     };
     return `<section class="controls" aria-label="Commandes PAC">
