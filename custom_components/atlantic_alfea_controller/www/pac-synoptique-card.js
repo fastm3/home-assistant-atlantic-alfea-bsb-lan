@@ -187,8 +187,12 @@ class PacSynoptiqueCard extends HTMLElement {
     this._resolvedThemeMode=null;
     this._lastThemeName=null;
     this._pendingTemp={};
+    this._sliderEditing=false;
     if(typeof this.shadowRoot?.addEventListener==='function'){
       this.shadowRoot.addEventListener('click', event=>this._onClick(event));
+      this.shadowRoot.addEventListener('input', event=>this._onInput(event));
+      this.shadowRoot.addEventListener('change', event=>this._onChange(event));
+      this.shadowRoot.addEventListener('pointercancel', ()=>{ if(this._sliderEditing){this._sliderEditing=false;this._render();} });
     }
   }
   static getStubConfig() {return {theme_mode:'auto',layout_orientation:'auto',show_diagnostics:true,show_controls:true,circuit_1_name:'RDC',circuit_2_name:'Étage'};}
@@ -223,6 +227,8 @@ class PacSynoptiqueCard extends HTMLElement {
   set hass(hass) {
     this._hass=hass;
     if(!this._config) return;
+    // Ne pas reconstruire le DOM pendant qu'un slider est manipulé.
+    if(this._sliderEditing) return;
     // La palette suit automatiquement le thème HA, même sans changement des capteurs.
     const selected = this._config.theme_mode || 'auto';
     const actual = typeof hass.themes?.darkMode === 'boolean'
@@ -336,8 +342,8 @@ class PacSynoptiqueCard extends HTMLElement {
     const viaPac=(p.includes('chauffe par pac')||p.includes('pac appoint electrique')) && pump!==false && this._b('compressor')!==false;
     const withElectric=electric===true||p==='appoint electrique'||p.includes('pac appoint electrique');
     const tempBallon=this._v('ecsTemp') ?? this._a('ecsHeater','current_temperature');
-    const comfortSetpoint=this._v('ecsComfortSetpoint');
-    const ecoSetpoint=this._v('ecsEcoSetpoint');
+    const comfortSetpoint=this._pendingEcs?String(this._pendingEcs.comfort):this._v('ecsComfortSetpoint');
+    const ecoSetpoint=this._pendingEcs?String(this._pendingEcs.eco):this._v('ecsEcoSetpoint');
     const target=comfortSetpoint ?? this._a('ecsHeater','temperature');
     return {production:clean(production||this._v('ecsState')||'Indisponible',56),
       viaPac,withElectric,pump,electric,tempBallon,target,comfortSetpoint,ecoSetpoint};
@@ -404,9 +410,6 @@ class PacSynoptiqueCard extends HTMLElement {
         await this._setEcs(current+delta);
         return;
       }
-      if(action==='edit'){
-        await this._editTemperature(target.dataset.target,circuit);
-      }
     }catch(err){
       if(typeof console!=='undefined') console.warn('PAC Synoptique: commande refusée',err);
     }
@@ -422,6 +425,8 @@ class PacSynoptiqueCard extends HTMLElement {
     const delta=Math.max(0,Math.min(15,Number(this._config?.ecs_eco_delta ?? 3)));
     const comfortValue=Math.round(Math.max(40,Math.min(65,value)));
     const ecoValue=Math.round(Math.max(5,Math.min(65,comfortValue-delta)));
+    this._pendingEcs={comfort:comfortValue,eco:ecoValue};
+    if(typeof setTimeout==='function') setTimeout(()=>{this._pendingEcs=null;this._render();},15000);
     await this._hass.callService('number','set_value',{entity_id:comfort,value:comfortValue});
     await this._hass.callService('number','set_value',{entity_id:eco,value:ecoValue});
   }
@@ -432,27 +437,35 @@ class PacSynoptiqueCard extends HTMLElement {
     if(!entity) return;
     const clamped=season==='cool'?Math.max(7,Math.min(30,value)):Math.max(7,Math.min(35,value));
     const rounded=Math.round(clamped*2)/2;
+    this._pendingTemp[entity]=rounded;
+    if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];this._render();},15000);
     await this._hass.callService('number','set_value',{entity_id:entity,value:rounded});
   }
-  async _editTemperature(target,circuit){
-    const isEcs=target==='ecs';
-    const entityId=isEcs?this._ids?.ecsComfortSetpoint:this._ids?.[`circuit${circuit}`];
-    if(!entityId) return;
-    const current=isEcs?this._num(this._v('ecsComfortSetpoint')):this._num(this._v(`${this._resolveMode()==='cool'?'cool':'heat'}SetpointC${circuit}`));
-    const label=isEcs?'ECS':this._circuitName(circuit);
-    if(typeof window==='undefined' || typeof window.prompt!=='function') return;
-    const raw=window.prompt(`Consigne ${label} (°C)`,current===null?'':current.toFixed(1).replace('.',','));
-    if(raw===null) return;
-    const value=this._num(raw);
-    if(value===null) return;
-    if(isEcs){ await this._setEcs(value); return; }
-    const entity=this._ids?.[`${this._resolveMode()==='cool'?'cool':'heat'}SetpointC${circuit}`];
-    if(entity){
-      this._pendingTemp[entity]=value;
-      if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];},15000);
-      this._render();
+  _sliderTarget(event){
+    const path=typeof event.composedPath==='function'?event.composedPath():[];
+    return path.find(node=>node && node.dataset && node.dataset.pacAction==='slide');
+  }
+  _onInput(event){
+    const target=this._sliderTarget(event);
+    if(!target) return;
+    this._sliderEditing=true;
+    const key=target.dataset.target==='ecs'?'ecs':target.dataset.circuit;
+    const label=this.shadowRoot.querySelector(`[data-slider-value="${key}"]`);
+    if(label) label.textContent=temp(target.value);
+  }
+  async _onChange(event){
+    const target=this._sliderTarget(event);
+    if(!target) return;
+    this._sliderEditing=false;
+    const value=Number(target.value);
+    if(!Number.isFinite(value)){ this._render(); return; }
+    try{
+      if(target.dataset.target==='ecs') await this._setEcs(value);
+      else await this._setCircuitTarget(Number(target.dataset.circuit),value);
+    }catch(err){
+      if(typeof console!=='undefined') console.warn('PAC Synoptique: commande refusée',err);
     }
-    await this._setCircuitTarget(circuit,value);
+    this._render();
   }
   _controlsHtml(mode,c1,c2,ecs){
     const season=mode==='heat'?'Chauffage':mode==='cool'?'Refroidissement':'Off';
@@ -472,16 +485,22 @@ class PacSynoptiqueCard extends HTMLElement {
         tempEnabled?'':'Choisir d’abord Chauffage ou Refroidissement';
       const plusTitle=overrideActive?tempTitle:mode==='cool'?
         'En rafraîchissement, seule une consigne plus froide est acceptée':tempTitle;
+      const season=mode==='cool'?'cool':'heat';
+      const sliderValue=Number.isFinite(Number(c.programmed))?Number(c.programmed):20;
       return `<div class="ctl-group"><span class="ctl-label">${html(name)}</span><div class="ctl-buttons">
         <button type="button" class="ctl-btn${offActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="off">Off</button>
         <button type="button" class="ctl-btn${autoActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="auto"${auto?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Auto</button>
-        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong class="editable" data-pac-action="edit" data-target="circuit" data-circuit="${i}" title="Cliquer pour modifier">${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
-      </div></div>`;
+        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong data-slider-value="${i}">${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
+      </div>
+      <input class="ctl-slider" type="range" min="7" max="${season==='cool'?30:35}" step="0.5" value="${sliderValue}" data-pac-action="slide" data-target="circuit" data-circuit="${i}"${tempEnabled?'':' disabled'} aria-label="Consigne ${html(name)}">
+      </div>`;
     };
     const ecsGroup=ecs?.comfortSetpoint?`<div class="ctl-group"><span class="ctl-label">ECS · Ballon</span><div class="ctl-buttons">
-      <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
+      <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong data-slider-value="ecs">${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
       ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
-    </div></div>`:'';
+    </div>
+    <input class="ctl-slider" type="range" min="40" max="65" step="1" value="${Number.isFinite(Number(ecs.comfortSetpoint))?Number(ecs.comfortSetpoint):49}" data-pac-action="slide" data-target="ecs" aria-label="Consigne ECS">
+    </div>`:'';
     return `<section class="controls" aria-label="Commandes PAC">
       <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${globalBtn('Refroidissement','cool')}</div></div>
       ${circuit(c1,1)}${circuit(c2,2)}${ecsGroup}
@@ -554,7 +573,7 @@ class PacSynoptiqueCard extends HTMLElement {
           <div class="out-status">${html(c.actionText)}</div></div>
         <span class="state-dot ${branchTone(c)}"></span></div>
       <div class="out-values"><div><span>Température ambiante</span><strong>${html(temp(c.current))}</strong></div>
-        <div><span>Consigne ${c.season==='cool'?'rafraîch.':'chauffage'}</span><strong class="editable" data-pac-action="edit" data-target="circuit" data-circuit="${c.number}" title="Cliquer pour modifier">${html(temp(c.programmed ?? c.target))}</strong></div></div>
+        <div><span>Consigne ${c.season==='cool'?'rafraîch.':'chauffage'}</span><strong>${html(temp(c.programmed ?? c.target))}</strong></div></div>
       <div class="out-foot">${chip(c.nativePreset?.label ?? (c.off?'OFF':'Régime indisponible'),c.nativePreset?.tone ?? 'dim')}
         ${chip(c.native??'État BSB-LAN indisponible','dim')}
         ${c.target!=null?chip('Eff. '+temp(c.target),'dim'):''}
@@ -1176,8 +1195,8 @@ class PacSynoptiqueCard extends HTMLElement {
         font-size:16px;font-weight:700;width:28px;height:28px;border-radius:7px;cursor:pointer}
       .ctl-temp button:hover{background:var(--soft)}
       .ctl-temp strong{min-width:58px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
-      .editable{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
-      .editable:hover{color:var(--blue)}
+      .ctl-slider{width:100%;max-width:190px;margin-top:2px;accent-color:var(--blue);cursor:pointer}
+      .ctl-slider:disabled{opacity:.4;cursor:not-allowed}
       @media(prefers-reduced-motion:reduce){.ctl-btn{transition:none}}
     </style>
     <ha-card><div class="wrap">
@@ -1244,7 +1263,7 @@ class PacSynoptiqueCard extends HTMLElement {
               <div class="out-title">ECS <span>· Ballon</span></div><div class="out-status">${html(ecsText)}</div></div>
               <span class="state-dot ${ecsTone}"></span></div>
             <div class="out-values"><div><span>Température ballon</span><strong>${html(temp(ecs.tempBallon))}</strong></div>
-              <div><span>Consigne confort</span><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.target))}</strong></div></div>
+              <div><span>Consigne confort</span><strong>${html(temp(ecs.target))}</strong></div></div>
             <div class="out-foot">${chip(ecs.pump===true?'Pompe active':ecs.pump===false?'Pompe arrêtée':'Pompe inconnue',ecs.pump===true?'positive':'dim')}
               ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
               ${ecs.withElectric?chip('Appoint électrique actif','warning'):''}</div>

@@ -36,6 +36,8 @@ assert(html.includes('data-pac-action="temp"'),"commande consigne absente");
 assert(html.includes('data-value="Chauffage"'),"option Chauffage absente");
 assert(html.includes('data-value="Refroidissement"'),"option Refroidissement absente");
 assert(html.includes("ECS · Ballon"),"commande ECS absente");
+assert(html.includes('data-pac-action="slide"'),"slider de consigne absent");
+assert(html.includes('type="range"'),"input range absent");
 assert(html.includes("fan-shell running"),"ventilateur non animé à 50 %");
 assert(html.includes("--fan-duration:1.2s"),"vitesse ventilateur non proportionnelle");
 
