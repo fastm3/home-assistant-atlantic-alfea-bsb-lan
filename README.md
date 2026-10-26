@@ -319,21 +319,30 @@ L'intégration détecte automatiquement les paramètres connus. Les paramètres 
 
 ## Installation via HACS (dépôt personnalisé)
 
-Le dépôt est compatible avec HACS en tant que **Custom Repository**.
+Ce fork s'installe comme **Custom Repository** HACS.
 
 1. Dans Home Assistant, ouvrez **HACS**.
 2. Ouvrez le menu **⋮** en haut à droite puis **Custom repositories**.
-3. Ajoutez l'URL du dépôt :
+3. Ajoutez l'URL du fork :
 
-   `https://github.com/Jrmysmallstep/home-assistant-atlantic-alfea-bsb-lan`
+   `https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan`
 
 4. Sélectionnez le type **Integration**.
 5. Cliquez sur **Add**.
-6. Recherchez ensuite **Atlantic Alfea BSB-LAN** dans HACS et installez l'intégration.
-7. Redémarrez Home Assistant après l'installation.
+6. Recherchez **Atlantic Alfea BSB-LAN** dans HACS et installez la version **1.5.23**.
+7. **Redémarrez Home Assistant** (les changements `climate.py` / `number.py` ne sont chargés qu'au redémarrage).
 8. Ouvrez **Paramètres → Appareils et services → Ajouter une intégration** puis recherchez **Atlantic Alfea BSB-LAN**.
+9. Ajoutez la ressource Lovelace de type **Module JavaScript** :
 
-HACS installera automatiquement l'intégration dans `custom_components/atlantic_alfea_controller/`.
+   `/alfea-synoptique/pac-synoptique-card.js?v=1.5.23`
+
+10. Faites un **hard refresh** (`Ctrl+Shift+R`) puis ajoutez la carte **PAC Synoptique**.
+
+HACS installera l'intégration dans `custom_components/atlantic_alfea_controller/`.
+
+> Si l'intégration d'origine (`Jrmysmallstep`) est déjà installée via HACS, retirez son
+> dépôt personnalisé avant d'installer le fork : sinon HACS continuera à proposer les
+> mises à jour du dépôt d'origine et écrasera la carte modifiée.
 
 ## Documentation BSB-LAN
 
