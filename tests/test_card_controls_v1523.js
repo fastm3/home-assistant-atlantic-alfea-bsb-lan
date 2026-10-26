@@ -69,6 +69,18 @@ const click=dataset=>card._onClick({composedPath:()=>[{dataset}],stopPropagation
   assert.equal(calls[4][2].value,50);
   assert.equal(calls[5][2].value,47);
 
+  card._hass.callApi=async()=>[[
+    {state:"19.8",last_changed:new Date(Date.now()-2*3600e3).toISOString()},
+    {state:"21.2",last_changed:new Date(Date.now()-1*3600e3).toISOString()},
+    {state:"20.5",last_changed:new Date().toISOString()}
+  ]];
+  await click({pacAction:"history",entity:"sensor.test_temp",label:"Température test"});
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert(card.shadowRoot.innerHTML.includes("hist-svg"),"graphique 3 h absent");
+  assert(card.shadowRoot.innerHTML.includes("Température test"),"titre graphique absent");
+  card._handleKeyDown({key:"Escape",stopPropagation(){}});
+  assert(!card.shadowRoot.innerHTML.includes('class="ctl-modal"'),"Échap ne ferme pas le graphique");
+
   card.setConfig({show_controls:false});
   assert(!card.shadowRoot.innerHTML.includes('data-pac-action="global"'),"show_controls=false ignoré");
   assert(card.shadowRoot.innerHTML.includes("Alarmes et surveillance"),"alarmes perdues");

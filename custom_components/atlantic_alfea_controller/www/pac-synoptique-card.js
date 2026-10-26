@@ -1,7 +1,7 @@
 /**
- * PAC Synoptique v2.10.0 (intégration V1.5.23) — Atlantic Alféa Extensa Duo / BSB-LAN
+ * PAC Synoptique v2.11.0 (intégration V1.5.24) — Atlantic Alféa Extensa Duo / BSB-LAN
  * Home Assistant Lovelace custom card (sans dependance) • supervision + commandes
- * Inclus dans atlantic_alfea_controller 1.5.23
+ * Inclus dans atlantic_alfea_controller 1.5.24
  * Commandes optionnelles via les entités Climate/Select de l'intégration.
  */
 (() => {
@@ -61,6 +61,8 @@ const FIELDS = {
   heatSetpointC2:  ['number','C2 - Chauffage T. Conf'],
   coolSetpointC1:  ['number','C1 - Rafraîch. T. Conf'],
   coolSetpointC2:  ['number','C2 - Rafraîch. T. Conf'],
+  roomTemp1: ['sensor','Room temperature actual value 1'],
+  roomTemp2: ['sensor','Room temperature actual value 2'],
   ecsPump:         ['binary_sensor','ECS - Pompe'],
   ecsElectric:     ['binary_sensor','ECS - Appoint électrique'],
   compressorHours: ['sensor','COMP - Heures de fonctionnement'],
@@ -189,10 +191,26 @@ class PacSynoptiqueCard extends HTMLElement {
     this._pendingTemp={};
     this._sliderEditing=false;
     this._editor=null;
+    this._history=null;
+    this._historyOpen=false;
+    this._onKeyDown=event=>this._handleKeyDown(event);
+    this._keyboardBound=false;
     if(typeof this.shadowRoot?.addEventListener==='function'){
       this.shadowRoot.addEventListener('click', event=>this._onClick(event));
       this.shadowRoot.addEventListener('input', event=>this._onInput(event));
       this.shadowRoot.addEventListener('change', event=>this._onChange(event));
+    }
+  }
+  connectedCallback(){
+    if(!this._keyboardBound && typeof document!=='undefined' && typeof document.addEventListener==='function'){
+      document.addEventListener('keydown',this._onKeyDown);
+      this._keyboardBound=true;
+    }
+  }
+  disconnectedCallback(){
+    if(this._keyboardBound && typeof document!=='undefined' && typeof document.removeEventListener==='function'){
+      document.removeEventListener('keydown',this._onKeyDown);
+      this._keyboardBound=false;
     }
   }
   static getStubConfig() {return {theme_mode:'auto',layout_orientation:'auto',show_diagnostics:true,show_controls:true,circuit_1_name:'RDC',circuit_2_name:'Étage'};}
@@ -227,8 +245,8 @@ class PacSynoptiqueCard extends HTMLElement {
   set hass(hass) {
     this._hass=hass;
     if(!this._config) return;
-    // Ne pas reconstruire le DOM pendant qu'un slider est manipulé.
-    if(this._sliderEditing) return;
+    // Ne pas reconstruire le DOM pendant qu'un slider ou un graphique est manipulé.
+    if(this._sliderEditing || this._historyOpen) return;
     // La palette suit automatiquement le thème HA, même sans changement des capteurs.
     const selected = this._config.theme_mode || 'auto';
     const actual = typeof hass.themes?.darkMode === 'boolean'
@@ -414,6 +432,14 @@ class PacSynoptiqueCard extends HTMLElement {
         this._openEditor(target.dataset.target,Number(target.dataset.circuit||0));
         return;
       }
+      if(action==='history'){
+        this._openHistory(target.dataset.entity,target.dataset.label);
+        return;
+      }
+      if(action==='close-history'){
+        this._closeHistory();
+        return;
+      }
       if(action==='close-editor'){
         this._editor=null;
         this._sliderEditing=false;
@@ -499,6 +525,130 @@ class PacSynoptiqueCard extends HTMLElement {
       if(typeof console!=='undefined') console.warn('PAC Synoptique: commande refusée',err);
     }
   }
+  _tempLink(value,entity,label){
+    const text=html(temp(value));
+    if(!entity) return `<strong>${text}</strong>`;
+    return `<strong class="temp-link" data-pac-action="history" data-entity="${html(entity)}" data-label="${html(label)}" title="Historique sur 3 h">${text}</strong>`;
+  }
+  _roomTempEntity(i){return this._ids?.[`roomTemp${i}`];}
+  _openHistory(entity,label){
+    if(!entity) return;
+    this._editor=null;
+    this._sliderEditing=false;
+    this._history={entity,label:label||entity,loading:true,points:[],error:null};
+    this._historyOpen=true;
+    this._render();
+    this._loadHistory();
+  }
+  async _loadHistory(){
+    const current=this._history;
+    if(!current) return;
+    const entity=current.entity;
+    try{
+      const points=await this._historyPoints(entity);
+      if(this._history?.entity!==entity) return;
+      this._history={entity,label:current.label,loading:false,points,error:null};
+    }catch(err){
+      if(this._history?.entity!==entity) return;
+      this._history={entity,label:current.label,loading:false,points:[],error:'Historique indisponible : '+String(err?.message||err)};
+    }
+    this._render();
+  }
+  async _historyPoints(entity){
+    const end=Date.now();
+    const start=end-3*3600*1000;
+    const cleanRows=rows=>rows.map(row=>{
+      const raw=row.mean!==null && row.mean!==undefined ? row.mean : (row.state??row.s);
+      return {
+        t:new Date(row.last_changed||row.last_updated||row.lc||row.lu||row.start).getTime(),
+        v:raw===null||raw===undefined?NaN:Number(raw)
+      };
+    }).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.v));
+    let history=[];
+    try{
+      const url=`history/period/${new Date(start).toISOString()}?filter_entity_id=${encodeURIComponent(entity)}&minimal_response`;
+      const data=await this._hass.callApi('GET',url);
+      history=cleanRows(Array.isArray(data)&&Array.isArray(data[0])?data[0]:[]);
+    }catch(_err){ /* historique indisponible : on tentera les statistiques */ }
+    let stats=[];
+    if(typeof this._hass.callWS==='function'){
+      try{
+        const result=await this._hass.callWS({
+          type:'recorder/statistics_during_period',
+          start_time:new Date(start).toISOString(),
+          end_time:new Date(end).toISOString(),
+          statistic_ids:[entity],
+          period:'5minute',
+          types:['mean','state']
+        });
+        stats=cleanRows(result?.[entity]||[]);
+      }catch(_err){ /* pas de statistiques pour cette entité */ }
+    }
+    const best=stats.length>=history.length?stats:history;
+    const current=this._hass.states?.[entity];
+    const value=current && !isMissing(current.state)?Number(current.state):NaN;
+    if(Number.isFinite(value)) best.push({t:end,v:value});
+    best.sort((a,b)=>a.t-b.t);
+    const dedup=[];
+    for(const point of best){
+      if(dedup.length && point.t-dedup[dedup.length-1].t<1000) dedup[dedup.length-1]=point;
+      else dedup.push(point);
+    }
+    return dedup;
+  }
+  _closeHistory(){
+    this._history=null;
+    this._historyOpen=false;
+    this._render();
+  }
+  _handleKeyDown(event){
+    if(event.key!=='Escape') return;
+    if(this._historyOpen){ this._closeHistory(); event.stopPropagation(); return; }
+    if(this._editor){ this._editor=null; this._sliderEditing=false; this._render(); event.stopPropagation(); }
+  }
+  _historyHtml(){
+    const h=this._history;
+    if(!h) return '';
+    const body=h.loading?'<div class="hist-note">Chargement de l’historique…</div>':
+      h.error?`<div class="hist-note error">${html(h.error)}</div>`:
+      h.points.length<2?'<div class="hist-note">Pas assez de points sur les 3 dernières heures.</div>':
+      this._historySvg(h);
+    const legend=h.points.length>=2?`<div class="hist-legend">
+      <span>Min <b>${html(temp(Math.min(...h.points.map(p=>p.v))))}</b></span>
+      <span>Max <b>${html(temp(Math.max(...h.points.map(p=>p.v))))}</b></span>
+      <span>Actuel <b>${html(temp(h.points[h.points.length-1].v))}</b></span></div>`:'';
+    return `<div class="ctl-modal" data-pac-action="close-history">
+      <div class="ctl-modal-panel" data-pac-action="modal-panel" role="dialog" aria-modal="true" aria-label="Historique ${html(h.label)}">
+        <div class="ctl-modal-head"><span>${html(h.label)} · 3 h</span><button type="button" class="ctl-modal-close" data-pac-action="close-history" aria-label="Fermer">×</button></div>
+        ${body}${legend}
+        <div class="ctl-modal-actions"><button type="button" class="ctl-btn" data-pac-action="close-history">Fermer</button></div>
+      </div></div>`;
+  }
+  _historySvg(h){
+    const points=h.points;
+    const w=320,hgt=160,pad=14,top=10,bottom=18;
+    const t0=points[0].t,t1=points[points.length-1].t;
+    const values=points.map(p=>p.v);
+    let min=Math.min(...values),max=Math.max(...values);
+    if(max-min<0.5){const mid=(max+min)/2;min=mid-0.5;max=mid+0.5;}
+    const x=t=>pad+((t-t0)/(t1-t0||1))*(w-2*pad);
+    const y=v=>hgt-bottom-((v-min)/(max-min))*(hgt-top-bottom);
+    const path=points.map((p,i)=>`${i?'L':'M'}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' ');
+    const area=`${path} L${x(t1).toFixed(1)} ${hgt-bottom} L${x(t0).toFixed(1)} ${hgt-bottom} Z`;
+    const time=t=>new Intl.DateTimeFormat('fr-FR',{hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+    const grid=[0,.5,1].map(f=>{
+      const yy=top+(hgt-top-bottom)*f;
+      const vv=max-(max-min)*f;
+      return `<line class="hist-grid" x1="${pad}" x2="${w-pad}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}"/><text class="hist-axis" x="${pad}" y="${(yy-3).toFixed(1)}">${decimal.format(vv)}</text>`;
+    }).join('');
+    return `<svg class="hist-svg" viewBox="0 0 ${w} ${hgt}" role="img" aria-label="Historique ${html(h.label)} sur 3 heures">
+      ${grid}
+      <path d="${area}" fill="var(--blue)" opacity=".12"></path>
+      <path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+      <text class="hist-axis" x="${pad}" y="${hgt-4}">${time(t0)}</text>
+      <text class="hist-axis" x="${w-pad}" y="${hgt-4}" text-anchor="end">${time(t1)}</text>
+    </svg>`;
+  }
   _controlsHtml(mode,c1,c2,ecs){
     const season=mode==='heat'?'Chauffage':mode==='cool'?'Refroidissement':'Off';
     const globalBtn=(label,tone='')=>{
@@ -536,7 +686,10 @@ class PacSynoptiqueCard extends HTMLElement {
     const st=this._s(key);
     const raw=this._v(key);
     const value=(['compressorStarts','startsToday','startsLastHour','shortCycles6h','cycleAverage','cycleLast','stopLast','minimumRun','minimumOff','startsActualRate','startsMaxRate','compressorHours'].includes(key) && nvalue(raw)!==null) ? formatted(raw,unit,0) : unit ? formatted(raw,unit,decimals) : (key.startsWith('alarm') || ['compressor','defrost','ecsPump','ecsElectric','override1','override2','pump1','pump2'].includes(key)) ? (raw==='on'?(['pump1','pump2'].includes(key)?'En marche':'Actif'):raw==='off'?(['pump1','pump2'].includes(key)?'Arrêté':'Inactif'):clean(raw)) : clean(raw);
-    return `<div class="detail-row"><span>${html(label)}</span><strong class="${!st||raw==null?'na':''}">${html(value)}</strong></div>`;
+    const linked = key==='outdoor' && this._ids?.outdoor
+      ? this._tempLink(raw,this._ids.outdoor,label)
+      : `<strong class="${!st||raw==null?'na':''}">${html(value)}</strong>`;
+    return `<div class="detail-row"><span>${html(label)}</span>${linked}</div>`;
   }
   _diagGroup(title,body){return `<section class="diag-group"><h4>${html(title)}</h4>${body}</section>`;}
   _render(){
@@ -588,7 +741,6 @@ class PacSynoptiqueCard extends HTMLElement {
       norm(ecs.production)==='inactive'?'En attente':'État non confirmé';
     const ecsTone=ecs.viaPac?'heat':ecs.withElectric?'electric':'idle';
     const gauge=nvalue(this._v('modulation'));
-    const air=temp(this._v('outdoor'));
     const pacDelta= nvalue(this._v('flow'))!==null && nvalue(this._v('returnTemp'))!==null ?
       `${decimal.format(nvalue(this._v('flow'))-nvalue(this._v('returnTemp')))} °C` : '—';
     // Les pastilles affichent exclusivement l'état BSB natif remonté par l'entité.
@@ -598,7 +750,7 @@ class PacSynoptiqueCard extends HTMLElement {
         <div class="out-head"><div class="out-title">Circuit ${c.number} <span>· ${html(this._circuitName(c.number))}</span></div>
           <div class="out-status">${html(c.actionText)}</div></div>
         <span class="state-dot ${branchTone(c)}"></span></div>
-      <div class="out-values"><div><span>Température ambiante</span><strong>${html(temp(c.current))}</strong></div>
+      <div class="out-values"><div><span>Température ambiante</span>${this._tempLink(c.current,this._roomTempEntity(c.number),'Température ambiante C'+c.number)}</div>
         <div><span>Consigne ${c.season==='cool'?'rafraîch.':'chauffage'}</span><strong class="editable" data-pac-action="edit" data-target="circuit" data-circuit="${c.number}" title="Cliquer pour modifier">${html(temp(c.programmed ?? c.target))}</strong></div></div>
       <div class="out-foot">${chip(c.nativePreset?.label ?? (c.off?'OFF':'Régime indisponible'),c.nativePreset?.tone ?? 'dim')}
         ${chip(c.native??'État BSB-LAN indisponible','dim')}
@@ -1223,6 +1375,16 @@ class PacSynoptiqueCard extends HTMLElement {
       .ctl-temp strong{min-width:58px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
       .editable{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
       .editable:hover{color:var(--blue)}
+      .temp-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+      .temp-link:hover{color:var(--blue)}
+      .hist-svg{width:100%;height:auto;display:block;margin:2px 0}
+      .hist-grid{stroke:var(--line);stroke-width:.6;opacity:.7}
+      .hist-axis{fill:var(--sub);font-size:9px;font-variant-numeric:tabular-nums}
+      .hist-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
+        font-size:11px;color:var(--sub)}
+      .hist-legend b{color:var(--text);font-variant-numeric:tabular-nums}
+      .hist-note{color:var(--sub);font-size:12px;text-align:center;padding:14px 6px;line-height:1.4}
+      .hist-note.error{color:var(--warn-text)}
       .ctl-modal{position:fixed;inset:0;z-index:999;display:grid;place-items:center;padding:16px;
         background:rgba(8,14,20,.45)}
       .ctl-modal-panel{width:min(360px,100%);background:var(--bg);color:var(--text);
@@ -1261,7 +1423,7 @@ class PacSynoptiqueCard extends HTMLElement {
               <circle class="fan-hub" cx="90" cy="77" r="9"/>
               <path class="unit-feet" d="M37 145V150H55V145 M126 145V150H144V145"/>
             </svg></div></div>
-          <div><div class="field-title">Air extérieur</div><div class="big-value">${html(air)}</div></div>
+          <div><div class="field-title">Air extérieur</div><div class="big-value">${this._tempLink(this._v('outdoor'),this._ids?.outdoor,'Air extérieur')}</div></div>
           <div class="machine-stat"><div class="field-title">Compresseur</div><div>${chip(compressorText,compressionTone==='active'?'positive':'dim')}</div></div>
           <div class="machine-stat"><div class="field-title">Modulation du compresseur</div><div class="big-value">${html(formatted(gauge,'%'))}</div>
             <div class="mod-bar"><i style="width:${gauge!==null?Math.max(0,Math.min(100,gauge)):0}%"></i></div></div>
@@ -1283,8 +1445,8 @@ class PacSynoptiqueCard extends HTMLElement {
             </svg><span class="exch-caption">${mode==='cool'?'Échange froid':mode==='heat'?'Échange chaud':'Côté intérieur'}</span></div>
           </div></div>
           <div class="pac-metrics">
-            <div><span>Départ PAC</span><strong>${html(temp(this._v('flow')))}</strong></div>
-            <div><span>Retour PAC</span><strong>${html(temp(this._v('returnTemp')))}</strong></div>
+            <div><span>Départ PAC</span>${this._tempLink(this._v('flow'),this._ids?.flow,'Départ PAC')}</div>
+            <div><span>Retour PAC</span>${this._tempLink(this._v('returnTemp'),this._ids?.returnTemp,'Retour PAC')}</div>
             <div><span>Consigne départ</span><strong>${html(temp(this._v('targetFlow')))}</strong></div>
             <div><span>ΔT départ − retour</span><strong>${html(pacDelta)}</strong></div>
           </div><div class="pac-bottom">Températures communes aux circuits · pas de mesure séparée ${html(this._circuitName(1))} / ${html(this._circuitName(2))}</div>
@@ -1299,7 +1461,7 @@ class PacSynoptiqueCard extends HTMLElement {
             <div class="out-top"><div class="tank-mini" aria-hidden="true"></div><div class="out-head">
               <div class="out-title">ECS <span>· Ballon</span></div><div class="out-status">${html(ecsText)}</div></div>
               <span class="state-dot ${ecsTone}"></span></div>
-            <div class="out-values"><div><span>Température ballon</span><strong>${html(temp(ecs.tempBallon))}</strong></div>
+            <div class="out-values"><div><span>Température ballon</span>${this._tempLink(ecs.tempBallon,this._ids?.ecsTemp,'Température ballon ECS')}</div>
               <div><span>Consigne confort</span><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.target))}</strong></div></div>
             <div class="out-foot">${chip(ecs.pump===true?'Pompe active':ecs.pump===false?'Pompe arrêtée':'Pompe inconnue',ecs.pump===true?'positive':'dim')}
               ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
@@ -1319,6 +1481,7 @@ class PacSynoptiqueCard extends HTMLElement {
         <div class="diag-grid">${diagComp}${diagPac}${diagCircs}</div>
       </details>`:''}
       ${this._editor?this._editorHtml():''}
+      ${this._history?this._historyHtml():''}
 
     </div></ha-card>`;
   }

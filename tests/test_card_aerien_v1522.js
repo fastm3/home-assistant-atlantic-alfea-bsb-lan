@@ -52,7 +52,7 @@ ed.shadowRoot.listeners.change({target:{id:"pac-layout-choice",value:"classic"}}
 assert.equal(ed.calls.at(-1).detail.config.layout_style,"classic");
 assert.throws(()=>new Card().setConfig({layout_style:"other"}),/layout_style/);
 const f=source.match(/const FIELDS = \{([\s\S]*?)\n\};/);
-assert(f&&(f[1].match(/^\s+[A-Za-z_]\w*\s*:/gm)||[]).length===71,"keep all 71 entity mappings");
+assert(f&&(f[1].match(/^\s+[A-Za-z_]\w*\s*:/gm)||[]).length===73,"keep all 73 entity mappings");
 assert(source.includes("chip(c.nativePreset?.label"),"presets missing");
 assert(source.includes("chip(c.native??'État BSB-LAN indisponible'"),"raw BSB state missing");
 assert(source.includes("Circulateur arrêté"),"pump badge missing");

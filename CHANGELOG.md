@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.24 — Historique 3 h au clic
+
+- **Températures mesurées cliquables** : air extérieur, départ PAC, retour PAC,
+  température ambiante C1/C2 et température ballon ECS. Un clic ouvre un
+  graphique des 3 dernières heures.
+- Le graphique privilégie les **statistiques 5 minutes**
+  (`recorder/statistics_during_period`) et retombe sur l'historique brut ;
+  le point actuel est ajouté.
+- Fermeture par `×`, **Fermer**, clic sur le fond ou **Échap** (ferme aussi
+  le panneau de consigne).
+- Les consignes et les commandes ne sont pas cliquables.
+- **73 correspondances d'entités** (ajout des températures ambiantes 8740/8770).
+- Tests carte mis à jour.
+
 ## 1.5.23 — Noms de circuits configurables et commandes optionnelles (fork fastm3)
 
 - `circuit_1_name` / `circuit_2_name` : libellés des circuits configurables
