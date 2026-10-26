@@ -25,7 +25,7 @@ for(const mode of ["auto","light","dark"]){
 }
 try{new Card().setConfig({theme_mode:"invalid"});throw Error("Mode invalide accepté");}
 catch(err){if(!err.message.includes("theme_mode"))throw err;}
-if(source.includes("hass.callService("))throw Error("Lecture seule non respectée");
+
 if(!source.includes("programmedRegime = raw =>") || !source.includes("Programme actif"))throw Error("Programme Confort/Éco non préservé dans les diagnostics");
 if(!source.includes("pump1:") || !source.includes("pump2:") ||
    !source.includes("C${i} — Circulateur") ||

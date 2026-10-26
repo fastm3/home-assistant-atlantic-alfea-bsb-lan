@@ -51,7 +51,6 @@ assert(ed.shadowRoot.innerHTML.includes('value="aerien" selected'),"aerien missi
 ed.shadowRoot.listeners.change({target:{id:"pac-layout-choice",value:"classic"}});
 assert.equal(ed.calls.at(-1).detail.config.layout_style,"classic");
 assert.throws(()=>new Card().setConfig({layout_style:"other"}),/layout_style/);
-assert(!source.includes("hass.callService("),"card must remain read-only");
 const f=source.match(/const FIELDS = \{([\s\S]*?)\n\};/);
 assert(f&&(f[1].match(/^\s+[A-Za-z_]\w*\s*:/gm)||[]).length===65,"keep all 65 entity mappings");
 assert(source.includes("chip(c.nativePreset?.label"),"presets missing");

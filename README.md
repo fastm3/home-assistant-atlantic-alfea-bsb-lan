@@ -2,7 +2,11 @@
 
 Intégration personnalisée Home Assistant pour piloter et surveiller une pompe à chaleur **Atlantic Alféa Extensa Duo** via **BSB-LAN**.
 
-> Dernière version publiée : **1.5.22**
+> Dernière version publiée : **1.5.23**
+
+> **Fork `fastm3`** : noms de circuits configurables (`circuit_1_name` / `circuit_2_name`)
+> et commandes optionnelles dans la carte (mode PAC, Off/Auto par circuit, consignes),
+> via les entités Climate/Select de l'intégration.
 
 
 ## Synoptique Aérien (V1.5.22)
@@ -22,7 +26,8 @@ bordures sont plus discrets.
   réelle de chauffage/rafraîchissement, ECS colorée pendant une production
   confirmée, jauge de modulation interpolée.
 - Aucune pression frigorifique, puissance ou vanne fictive ; pas d'aller/retour
-  hydraulique inventé. **La carte est uniquement en lecture seule**.
+  hydraulique inventé. **La carte est une supervision** ; les commandes sont
+  optionnelles (`show_controls`) et passent par les entités Climate de l'intégration.
 - **Classique** et **Épurée** restent disponibles comme avant.
 
 Dans l'éditeur visuel, choisir **Présentation des circuits → Aérien** ou :
@@ -33,12 +38,15 @@ layout_style: aerien
 layout_orientation: auto
 theme_mode: auto
 show_diagnostics: true
+show_controls: true
+circuit_1_name: RDC
+circuit_2_name: Étage
 grid_options:
   columns: full
   rows: auto
 ```
 Après mise à jour HACS et redémarrage Home Assistant, versionner la ressource :
-`/alfea-synoptique/pac-synoptique-card.js?v=1.5.22`.
+`/alfea-synoptique/pac-synoptique-card.js?v=1.5.23`.
 
 ## Aperçu de la carte Lovelace
 
@@ -46,7 +54,28 @@ Après mise à jour HACS et redémarrage Home Assistant, versionner la ressource
 
 *Illustration de l'interface avec des valeurs fictives, pour présenter l'organisation des informations. La carte réelle utilise les capteurs de votre installation.*
 
-Le synoptique est **en lecture seule** : il présente les états du compresseur, de la PAC, des circuits de chauffage/rafraîchissement et de l'ECS, avec alarmes et diagnostics repliables. Son éditeur Lovelace permet de choisir une apparence **Automatique / Claire / Sombre** selon le thème Home Assistant.
+Le synoptique présente les états du compresseur, de la PAC, des circuits de chauffage/rafraîchissement et de l'ECS, avec alarmes et diagnostics repliables. Son éditeur Lovelace permet de choisir une apparence **Automatique / Claire / Sombre**, les noms des circuits et l'affichage des commandes.
+
+## Commandes depuis la carte (fork 1.5.23)
+
+La barre de commandes est optionnelle (`show_controls: true` par défaut) :
+
+- **Mode PAC** : `Off`, `Chauffage`, `Refroidissement` — via `select.atlantic_alfea_bsb_lan_mode_global`.
+- **Par circuit** : `Off` / `Auto` — via `climate.set_hvac_mode`. `Auto` reprend la saison
+  sélectionnée dans le mode PAC (chauffage ou rafraîchissement) ; il est désactivé
+  tant que le mode PAC est `Off`.
+- **Consigne** : boutons `−` / `+` par pas de 0,5 °C — via `climate.set_temperature`,
+  donc la **dérogation native** de l'intégration (écart limité, durée, confirmation BSB).
+
+Les noms affichés se règlent avec `circuit_1_name` et `circuit_2_name`. Les entités
+restent `C1`/`C2` ; seuls les libellés changent.
+
+```yaml
+type: custom:pac-synoptique-card
+circuit_1_name: Étage
+circuit_2_name: RDC
+show_controls: true
+```
 
 
 ## Matériel de référence
@@ -174,15 +203,15 @@ show_diagnostics: true
 
 La carte **PAC Synoptique** est incluse dans l'intégration et installée par HACS, dans
 `custom_components/atlantic_alfea_controller/www/pac-synoptique-card.js`.
-Elle est **strictement en lecture seule** (COMP, PAC, chauffage RDC/Étage,
-ECS, alarmes repliables, diagnostics et animations liées aux états).
+Elle affiche COMP, PAC, circuits, ECS, alarmes repliables, diagnostics et animations.
+Les commandes sont optionnelles et passent par les entités Climate/Select de l'intégration.
 
 Après la mise à jour via HACS, **redémarrez Home Assistant**, puis dans
 **Paramètres → Tableaux de bord → Ressources**, ajoutez **une seule fois** la
 ressource de type **Module JavaScript** :
 
 ```text
-/alfea-synoptique/pac-synoptique-card.js?v=1.5.14
+/alfea-synoptique/pac-synoptique-card.js?v=1.5.23
 ```
 
 ### Éditeur visuel (nouveau en V1.5.7)
@@ -192,11 +221,14 @@ le sélecteur de cartes Lovelace. Dans **Modifier la carte**, l'onglet éditeur
 visuel propose :
 
 - **Apparence** : Automatique (thème Home Assistant), Clair, Sombre.
+- **Nom du circuit 1 / du circuit 2** : libellés affichés (RDC/Étage par défaut).
+- **Afficher les commandes** : oui/non (mode PAC, Off/Auto, consignes).
 - **Afficher les diagnostics complémentaires** : oui/non.
 
 Les réglages sont enregistrés comme configuration normale du dashboard,
-sans éditer le YAML. Le synoptique n'ajoute aucune commande PAC. Les alarmes
-et leur nombre restent visibles et repliables quelle que soit l'option.
+sans éditer le YAML. Les commandes sont optionnelles et utilisent les entités
+Climate/Select de l'intégration. Les alarmes et leur nombre restent visibles
+et repliables quelle que soit l'option.
 
 L'onglet **Disposition** standard de Home Assistant permet d'adapter la
 largeur de la carte ; le rendu horizontal reste responsive.
@@ -209,6 +241,9 @@ Dans le YAML d'une carte manuelle :
 type: custom:pac-synoptique-card
 title: Atlantic Alféa Extensa Duo
 show_diagnostics: true
+show_controls: true          # commandes optionnelles
+circuit_1_name: RDC          # libellé affiché (défaut RDC)
+circuit_2_name: Étage        # libellé affiché (défaut Étage)
 grid_options:
   columns: full
   rows: auto
@@ -224,8 +259,9 @@ Cette option est purement visuelle, sans effet sur les consignes ou la régulati
 ressource `/local/pac-synoptique-card.js?v=...` afin de ne pas charger
 deux versions de `pac-synoptique-card`. La configuration YAML ne change pas.
 
-La carte ne contient aucun appel de service Home Assistant et **ne commande pas
-la PAC**. Les couleurs/animations restent indicatives : pas de débitmètre,
+La carte contient des commandes optionnelles (`show_controls`, vrai par défaut) qui
+appellent uniquement les entités Climate/Select de l'intégration, avec la dérogation
+native sécurisée. Les couleurs/animations restent indicatives : pas de débitmètre,
 pas de pression frigorifique ni de puissance instantanée inventés.
 Voir [la documentation synoptique](docs/SYNOPTIQUE_V155.md).
 

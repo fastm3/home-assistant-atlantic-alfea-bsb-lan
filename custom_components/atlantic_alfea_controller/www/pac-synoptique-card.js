@@ -1,8 +1,8 @@
 /**
- * PAC Synoptique v2.9.0 (intégration V1.5.22) — Atlantic Alféa Extensa Duo / BSB-LAN
- * Home Assistant Lovelace custom card (sans dependance) • lecture seule
- * Inclus dans atlantic_alfea_controller 1.5.22
- * Aucun appel de service Home Assistant, aucune commande à la PAC.
+ * PAC Synoptique v2.10.0 (intégration V1.5.23) — Atlantic Alféa Extensa Duo / BSB-LAN
+ * Home Assistant Lovelace custom card (sans dependance) • supervision + commandes
+ * Inclus dans atlantic_alfea_controller 1.5.23
+ * Commandes optionnelles via les entités Climate/Select de l'intégration.
  */
 (() => {
 'use strict';
@@ -180,8 +180,12 @@ class PacSynoptiqueCard extends HTMLElement {
     this._lastDiscovery=0;
     this._resolvedThemeMode=null;
     this._lastThemeName=null;
+    this._pendingTemp={};
+    if(typeof this.shadowRoot?.addEventListener==='function'){
+      this.shadowRoot.addEventListener('click', event=>this._onClick(event));
+    }
   }
-  static getStubConfig() {return {theme_mode:'auto',layout_orientation:'auto',show_diagnostics:true};}
+  static getStubConfig() {return {theme_mode:'auto',layout_orientation:'auto',show_diagnostics:true,show_controls:true,circuit_1_name:'RDC',circuit_2_name:'Étage'};}
   static getConfigElement() {return document.createElement(EDITOR_TAG);}
   setConfig(config) {
     if(!config || typeof config!=='object') throw new Error('Configuration de la carte absente');
@@ -198,7 +202,11 @@ class PacSynoptiqueCard extends HTMLElement {
     if(config.theme_mode != null && !['auto','light','dark'].includes(config.theme_mode)) {
       throw new Error('theme_mode doit être auto, light ou dark');
     }
-    this._config={title:'Atlantic Alféa Extensa Duo',show_diagnostics:true,theme_mode:'auto',layout_orientation:'auto',layout_style:'classic',...config};
+    if(config.show_controls != null && typeof config.show_controls !== 'boolean') throw new Error('show_controls doit être un booléen');
+    for(const key of ['circuit_1_name','circuit_2_name']) {
+      if(config[key] != null && typeof config[key] !== 'string') throw new Error(key+' doit être une chaîne');
+    }
+    this._config={title:'Atlantic Alféa Extensa Duo',show_diagnostics:true,show_controls:true,circuit_1_name:'RDC',circuit_2_name:'Étage',theme_mode:'auto',layout_orientation:'auto',layout_style:'classic',...config};
     this._ids=null;
     this._lastSignature='';
     if(this._hass) this.hass=this._hass;
@@ -324,6 +332,79 @@ class PacSynoptiqueCard extends HTMLElement {
     return `<div class="pipe ${vertical?'vertical':''} ${tone}"><span class="pipe-light"></span></div>`;
   }
   _label(key){return FIELDS[key]?.[1] || key;}
+  _circuitName(i){
+    const raw=this._config?.[`circuit_${i}_name`];
+    const value=typeof raw==='string'?raw.trim():'';
+    return value || (i===1?'RDC':'Étage');
+  }
+  async _onClick(event){
+    const path=typeof event.composedPath==='function'?event.composedPath():[];
+    const target=path.find(node=>node && node.dataset && node.dataset.pacAction) ||
+      (event.target?.dataset?.pacAction?event.target:null);
+    if(!target) return;
+    event.stopPropagation();
+    const action=target.dataset.pacAction;
+    const circuit=Number(target.dataset.circuit||0);
+    try{
+      if(action==='global'){
+        const entity=this._ids?.globalMode;
+        const option=target.dataset.value;
+        if(!entity || !['Off','Chauffage','Refroidissement'].includes(option)) return;
+        await this._hass.callService('select','select_option',{entity_id:entity,option});
+        return;
+      }
+      if(action==='hvac'){
+        const entity=this._ids?.[`circuit${circuit}`];
+        if(!entity) return;
+        let hvac=target.dataset.value;
+        if(hvac==='auto'){
+          const season=this._resolveMode();
+          if(season!=='heat' && season!=='cool') return;
+          hvac=season;
+        }
+        if(!['off','heat','cool'].includes(hvac)) return;
+        await this._hass.callService('climate','set_hvac_mode',{entity_id:entity,hvac_mode:hvac});
+        return;
+      }
+      if(action==='temp'){
+        const entity=this._ids?.[`circuit${circuit}`];
+        if(!entity) return;
+        const current=Number(this._hass.states[entity]?.attributes?.temperature);
+        if(!Number.isFinite(current)) return;
+        const base=Number.isFinite(this._pendingTemp[entity])?this._pendingTemp[entity]:current;
+        const delta=Number(target.dataset.delta);
+        const next=Math.max(5,Math.min(35,Math.round((base+delta)*2)/2));
+        if(next===current) return;
+        this._pendingTemp[entity]=next;
+        if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];},3000);
+        await this._hass.callService('climate','set_temperature',{entity_id:entity,temperature:next});
+      }
+    }catch(err){
+      if(typeof console!=='undefined') console.warn('PAC Synoptique: commande refusée',err);
+    }
+  }
+  _controlsHtml(mode,c1,c2){
+    const season=mode==='heat'?'Chauffage':mode==='cool'?'Refroidissement':'Off';
+    const globalBtn=(label,tone='')=>{
+      const active=season===label;
+      return `<button type="button" class="ctl-btn ${tone}${active?' active':''}" data-pac-action="global" data-value="${label}">${html(label)}</button>`;
+    };
+    const circuit=(c,i)=>{
+      const name=this._circuitName(i);
+      const auto=mode==='heat'||mode==='cool';
+      const offActive=c.mode==='off';
+      const autoActive=auto && !offActive;
+      return `<div class="ctl-group"><span class="ctl-label">${html(name)}</span><div class="ctl-buttons">
+        <button type="button" class="ctl-btn${offActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="off">Off</button>
+        <button type="button" class="ctl-btn${autoActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="auto"${auto?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Auto</button>
+        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}">−</button><strong>${html(temp(c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}">+</button></span>
+      </div></div>`;
+    };
+    return `<section class="controls" aria-label="Commandes PAC">
+      <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${globalBtn('Refroidissement','cool')}</div></div>
+      ${circuit(c1,1)}${circuit(c2,2)}
+    </section>`;
+  }
   _detailRow(label,key,unit='',decimals=1){
     const st=this._s(key);
     const raw=this._v(key);
@@ -382,9 +463,9 @@ class PacSynoptiqueCard extends HTMLElement {
       `${decimal.format(nvalue(this._v('flow'))-nvalue(this._v('returnTemp')))} °C` : '—';
     // Les pastilles affichent exclusivement l'état BSB natif remonté par l'entité.
     // Les programmes horaires et attributs interprétés restent dans les diagnostics.
-    const circHtml=c => `<section class="output-card ${branchTone(c)} regime-${c.mode==='heat'?'heat':c.mode==='cool'?'cool':'idle'}" aria-label="Circuit ${c.number} ${c.number===1?'RDC':'étage'}">
+    const circHtml=c => `<section class="output-card ${branchTone(c)} regime-${c.mode==='heat'?'heat':c.mode==='cool'?'cool':'idle'}" aria-label="Circuit ${c.number} ${html(this._circuitName(c.number))}">
       <div class="out-top"><div class="out-ico">${icon(c.isCooling || (c.mode==='cool' && !c.isHeating)?'snow':'radiant')}</div>
-        <div class="out-head"><div class="out-title">Circuit ${c.number} <span>· ${c.number===1?'RDC':'Étage'}</span></div>
+        <div class="out-head"><div class="out-title">Circuit ${c.number} <span>· ${html(this._circuitName(c.number))}</span></div>
           <div class="out-status">${html(c.actionText)}</div></div>
         <span class="state-dot ${branchTone(c)}"></span></div>
       <div class="out-values"><div><span>Température ambiante</span><strong>${html(temp(c.current))}</strong></div>
@@ -986,10 +1067,34 @@ class PacSynoptiqueCard extends HTMLElement {
         :host([data-layout-style="aerien"]) .state-dot,
         :host([data-layout-style="aerien"]) .mod-bar>i{animation:none!important;transition:none!important}
       }
+      /* Commandes optionnelles (Climate/Select de l'intégration). */
+      .controls{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end;
+        border-top:1px solid var(--line);padding:14px 2px 2px;margin:0 0 4px}
+      .ctl-group{display:flex;flex-direction:column;gap:7px}
+      .ctl-label{font-size:10px;letter-spacing:.7px;text-transform:uppercase;
+        color:var(--sub);font-weight:800}
+      .ctl-buttons{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+      .ctl-btn{font:inherit;font-size:12px;font-weight:650;padding:7px 11px;
+        border-radius:9px;border:1px solid var(--panel-line);background:var(--surface);
+        color:var(--text);cursor:pointer;line-height:1;
+        transition:border-color .15s,background .15s}
+      .ctl-btn:hover:not(:disabled){border-color:var(--blue)}
+      .ctl-btn.active{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue);
+        background:var(--chip-bg)}
+      .ctl-btn.heat.active{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+      .ctl-btn.cool.active{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+      .ctl-btn:disabled{opacity:.42;cursor:not-allowed}
+      .ctl-temp{display:inline-flex;align-items:center;gap:1px;margin-left:4px;
+        background:var(--surface);border:1px solid var(--panel-line);border-radius:9px;padding:2px}
+      .ctl-temp button{border:0;background:transparent;color:var(--text);font:inherit;
+        font-size:16px;font-weight:700;width:28px;height:28px;border-radius:7px;cursor:pointer}
+      .ctl-temp button:hover{background:var(--soft)}
+      .ctl-temp strong{min-width:58px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
+      @media(prefers-reduced-motion:reduce){.ctl-btn{transition:none}}
     </style>
     <ha-card><div class="wrap">
       <!-- Bandeau supprimé ; mode saisonnier présenté dans le module PAC. -->
-      <div class="schematic" aria-label="Unité extérieure compresseur, module PAC et trois usages RDC, étage, ECS">
+      <div class="schematic" aria-label="Unité extérieure compresseur, module PAC et trois usages ${html(this._circuitName(1))}, ${html(this._circuitName(2))}, ECS">
         <section class="machine"><div class="mini-head">Unité extérieure / COMP</div>
           <div class="machine-art"><div class="fan-shell ${fanAnimated?'running':''}" aria-hidden="true"><svg class="fan-svg" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="51" stroke="var(--fan-stroke)" stroke-width="2" fill="var(--soft)"/>
@@ -1038,7 +1143,7 @@ class PacSynoptiqueCard extends HTMLElement {
             <div><span>Retour PAC</span><strong>${html(temp(this._v('returnTemp')))}</strong></div>
             <div><span>Consigne départ</span><strong>${html(temp(this._v('targetFlow')))}</strong></div>
             <div><span>ΔT départ − retour</span><strong>${html(pacDelta)}</strong></div>
-          </div><div class="pac-bottom">Températures communes aux circuits · pas de mesure séparée RDC / étage</div>
+          </div><div class="pac-bottom">Températures communes aux circuits · pas de mesure séparée ${html(this._circuitName(1))} / ${html(this._circuitName(2))}</div>
         </section>
         <div class="outlink" aria-hidden="true"><svg class="linksvg horizontal-link" viewBox="0 0 100 440" preserveAspectRatio="none">
           <path class="track" d="M0 220H33V72H100 M33 220H100 M33 220V368H100"/>
@@ -1057,6 +1162,7 @@ class PacSynoptiqueCard extends HTMLElement {
           </section>
         </div>
       </div>
+      ${this._config.show_controls!==false?this._controlsHtml(mode,c1,c2):''}
       <details data-panel="alarms" class="alarm-details" ${prevAlarms?'open':''}>
         <summary><span>Alarmes et surveillance</span>
           ${chip(`${alertActive.length} alarme${alertActive.length!==1?'s':''} active${alertActive.length!==1?'s':''}`,alertActive.length?'warning':'dim')}</summary>
@@ -1097,6 +1203,12 @@ class PacSynoptiqueCardEditor extends HTMLElement {
         this._changed('show_pump_badges',Boolean(element.checked));
       } else if (element?.id==='pac-show-diagnostics') {
         this._changed('show_diagnostics',Boolean(element.checked));
+      } else if (element?.id==='pac-show-controls') {
+        this._changed('show_controls',Boolean(element.checked));
+      } else if (element?.id==='pac-circuit-1-name') {
+        this._changed('circuit_1_name',element.value);
+      } else if (element?.id==='pac-circuit-2-name') {
+        this._changed('circuit_2_name',element.value);
       }
     });
   }
@@ -1125,6 +1237,9 @@ class PacSynoptiqueCardEditor extends HTMLElement {
     const checkedLinks=config.show_links!==false?' checked':'';
     const checkedMotion=config.animate_flows!==false?' checked':'';
     const checkedPumps=config.show_pump_badges!==false?' checked':'';
+    const checkedControls=config.show_controls!==false?' checked':'';
+    const circuit1Name=typeof config.circuit_1_name==='string'?config.circuit_1_name:'RDC';
+    const circuit2Name=typeof config.circuit_2_name==='string'?config.circuit_2_name:'Étage';
     const selectedLayout=(config.layout_style||'classic');
     const selectedOrientation=['auto','landscape','portrait'].includes(config.layout_orientation)?config.layout_orientation:'auto';
     this.shadowRoot.innerHTML=`
@@ -1143,6 +1258,10 @@ class PacSynoptiqueCardEditor extends HTMLElement {
           padding:10px 12px;cursor:pointer}
         select:focus-visible,input:focus-visible{outline:2px solid
           var(--primary-color,#03a9f4);outline-offset:3px}
+        input[type=text]{display:block;min-height:48px;width:100%;font:inherit;
+          color:var(--primary-text-color,#243443);
+          background:var(--card-background-color,var(--ha-card-background,#fff));
+          border:1px solid var(--divider-color,#8da0b0);border-radius:10px;padding:10px 12px}
         .toggle{display:flex;align-items:center;gap:12px;cursor:pointer}
         input[type=checkbox]{width:19px;height:19px;accent-color:var(--primary-color,#03a9f4);
           flex:none;cursor:pointer}
@@ -1158,6 +1277,20 @@ class PacSynoptiqueCardEditor extends HTMLElement {
             <option value="dark"${selected('dark')}>Sombre</option>
           </select>
           <div class="hint">Automatique suit le thème actuellement utilisé dans Home Assistant.</div>
+        </div>
+        <div class="field">
+          <label for="pac-circuit-1-name">Nom du circuit 1</label>
+          <input id="pac-circuit-1-name" type="text" value="${html(circuit1Name)}" placeholder="RDC">
+          <label for="pac-circuit-2-name">Nom du circuit 2</label>
+          <input id="pac-circuit-2-name" type="text" value="${html(circuit2Name)}" placeholder="Étage">
+          <div class="hint">Noms affichés sur le synoptique. Les entités restent C1/C2 ; les commandes utilisent leurs entités Climate.</div>
+        </div>
+        <div class="field">
+          <label class="toggle" for="pac-show-controls">
+            <input type="checkbox" id="pac-show-controls"${checkedControls}>
+            Afficher les commandes (mode PAC, Off/Auto, consigne)
+          </label>
+          <div class="hint">Les commandes passent par les entités Climate/Select de l'intégration, avec la dérogation native sécurisée.</div>
         </div>
         <div class="field">
           <label for="pac-orientation-choice">Orientation de la carte</label>
@@ -1198,7 +1331,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
           </label>
           <div class="hint">Les alarmes et leur compteur restent toujours visibles et repliables.</div>
         </div>
-        <div class="hint notice">Carte de supervision uniquement · aucune commande envoyée à la PAC.
+        <div class="hint notice">Les commandes sont optionnelles et utilisent les entités Climate de l'intégration.
           La largeur se règle dans l'onglet Disposition du tableau de bord.</div>
       </div>`;
   }
@@ -1208,7 +1341,7 @@ if(!customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG,PacSynoptiq
 if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 window.customCards=window.customCards||[];
 if(!window.customCards.some(c=>c.type===TAG)) window.customCards.push({
-  type:TAG,name:'PAC Synoptique — Atlantic Alféa (lecture seule)',
-  description:'Synoptique BSB-LAN lecture seule : COMP, PAC, RDC, étage, ECS, diagnostics et alarmes.',preview:false
+  type:TAG,name:'PAC Synoptique — Atlantic Alféa',
+  description:'Synoptique BSB-LAN : COMP, PAC, circuits, ECS, diagnostics et alarmes, avec commandes optionnelles.',preview:false
 });
 })();

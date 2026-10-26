@@ -45,7 +45,6 @@ for(const orientation of ["auto","portrait","landscape"]){
 }
 assert(source.includes("chip(c.native??'État BSB-LAN indisponible'"),"raw BSB state badge missing");
 assert(!source.includes("const visibleRegime = c =>"),"interpreted schedule must not replace native BSB state");
-assert(!source.includes("hass.callService("),"must stay read only");
 const count=(source.match(/const FIELDS = \{([\s\S]*?)\n\};/)||[])[1];
 assert(count && (count.match(/^\s+[A-Za-z_]\w*\s*:/gm)||[]).length===65,"entity mapping changed");
 console.log("PASS: portrait auto/manual, unmodified native BSB state on circuits, landscape retained");

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.23 — Noms de circuits configurables et commandes optionnelles (fork fastm3)
+
+- `circuit_1_name` / `circuit_2_name` : libellés des circuits configurables
+  (défaut RDC / Étage), sans changer les entités C1/C2.
+- Barre de commandes optionnelle (`show_controls`, vrai par défaut) :
+  mode PAC Off / Chauffage / Refroidissement, Off / Auto par circuit,
+  consigne ±0,5 °C.
+- Les commandes appellent uniquement les entités Climate/Select de l'intégration :
+  `climate.set_hvac_mode`, `climate.set_temperature` (dérogation native) et
+  `select.select_option` pour le mode global.
+- Éditeur visuel : noms des circuits et affichage des commandes.
+- Tests carte mis à jour ; nouveau test `test_card_controls_v1523.js`.
+- Aucun changement du backend, des entités ni de la logique de régulation.
+
 ## 1.5.22 — Style Aérien du synoptique
 
 - Troisième style graphique **Aérien** sélectionnable, styles Classique/Épurée inchangés.

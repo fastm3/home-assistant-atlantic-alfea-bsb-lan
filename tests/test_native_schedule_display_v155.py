@@ -49,11 +49,12 @@ class TestNativeScheduleDisplay(unittest.TestCase):
         self.assertIn("display_profile = scheduled_profile or profile", climate)
         self.assertIn('"ecriture_consigne_autorisee": profile is not None', climate)
 
-    def test_bundled_card_is_read_only(self):
+    def test_bundled_card_has_optional_commands(self):
         card = (ROOT / "custom_components" / "atlantic_alfea_controller" / "www" / "pac-synoptique-card.js").read_text(encoding="utf-8")
         self.assertIn("class PacSynoptiqueCard extends HTMLElement", card)
-        self.assertNotIn("hass.callService(", card)
-        self.assertNotIn("hass.services.", card)
+        self.assertIn("hass.callService(", card)
+        self.assertIn('data-pac-action="global"', card)
+        self.assertIn("show_controls", card)
         self.assertIn("programmedRegime = raw =>", card)
         self.assertIn("program:this._v(", card)
         self.assertIn("Programme actif", card)
