@@ -504,7 +504,10 @@ class PacSynoptiqueCard extends HTMLElement {
     const defrost=this._b('defrost');
     // Les animations illustrent une activité confirmée, pas la vitesse réelle du ventilateur.
     const exchangerRunning=compressor===true && (mode==='heat'||mode==='cool');
-    const fanAnimated=compressor===true && defrost!==true;
+    // Vitesse proportionnelle à la modulation : 0 % = arrêt, 100 % = rotation rapide.
+    const fanPct=Math.max(0,Math.min(100,nvalue(this._v('modulation'))??0));
+    const fanDuration=fanPct>0?Math.max(0.6,Math.min(12,60/fanPct)):0;
+    const fanAnimated=compressor===true && defrost!==true && fanPct>0;
     const modeText=mode==='heat'?'Mode chauffage':mode==='cool'?'Mode rafraîchissement':mode==='off'?'Mode arrêt':'Mode inconnu';
     const compressorText=compressor===true?'En marche':compressor===false?'À l’arrêt':'État inconnu';
     const compressionTone=compressor===true?'active':compressor===false?'idle':'unknown';
@@ -667,7 +670,7 @@ class PacSynoptiqueCard extends HTMLElement {
       .fan-svg{width:76%;height:82%;color:var(--fan-stroke);overflow:visible}
       .fan-svg .blades{transform-box:view-box;transform-origin:60px 60px}
       /* Illustration du ventilateur synchronisée à l'état compresseur (8400). */
-      .fan-shell.running .blades{animation:spin 5s linear infinite;will-change:transform}
+      .fan-shell.running .blades{animation:spin var(--fan-duration,5s) linear infinite;will-change:transform}
       .fan-shell.running{border-color:var(--green);box-shadow:0 0 0 1px var(--green), inset 0 0 0 6px var(--fan-inset)}
       @keyframes spin{to{transform:rotate(360deg)}}
       .big-value{font-variant-numeric:tabular-nums;font-size:clamp(23px,2.8vw,35px);font-weight:760;line-height:1.12}
@@ -1181,7 +1184,7 @@ class PacSynoptiqueCard extends HTMLElement {
       <!-- Bandeau supprimé ; mode saisonnier présenté dans le module PAC. -->
       <div class="schematic" aria-label="Unité extérieure compresseur, module PAC et trois usages ${html(this._circuitName(1))}, ${html(this._circuitName(2))}, ECS">
         <section class="machine"><div class="mini-head">Unité extérieure / COMP</div>
-          <div class="machine-art"><div class="fan-shell ${fanAnimated?'running':''}" aria-hidden="true"><svg class="fan-svg" viewBox="0 0 120 120">
+          <div class="machine-art"><div class="fan-shell ${fanAnimated?'running':''}" style="--fan-duration:${fanDuration}s" aria-hidden="true"><svg class="fan-svg" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="51" stroke="var(--fan-stroke)" stroke-width="2" fill="var(--soft)"/>
             <g class="blades" fill="var(--fan-stroke)" stroke="var(--panel-line)" stroke-width="1.2">
               <ellipse cx="60" cy="35" rx="14" ry="27"/>

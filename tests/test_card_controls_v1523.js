@@ -15,7 +15,9 @@ const states={
   "number.esp_bsblan_temp_consigne_ecs":{state:"49.0",attributes:{friendly_name:"esp-bsblan Temp consigne ECS confort"}},
   "number.esp_bsblan_temp_consigne_ecs_reduit":{state:"46.0",attributes:{friendly_name:"esp-bsblan Temp consigne ECS reduit"}},
   "number.atlantic_alfea_bsb_lan_c1_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C1 - Chauffage T. Conf"}},
-  "number.atlantic_alfea_bsb_lan_c2_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Chauffage T. Conf"}}
+  "number.atlantic_alfea_bsb_lan_c2_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Chauffage T. Conf"}},
+  "binary_sensor.comp_etat":{state:"on",attributes:{friendly_name:"COMP - État"}},
+  "sensor.comp_modulation":{state:"50",attributes:{friendly_name:"COMP - Modulation"}}
 };
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},
   window:{customCards:[],matchMedia:()=>({matches:false})},Date,JSON,Object,Intl,Number,String,Array,Math,Set,console,setTimeout};
@@ -34,6 +36,8 @@ assert(html.includes('data-pac-action="temp"'),"commande consigne absente");
 assert(html.includes('data-value="Chauffage"'),"option Chauffage absente");
 assert(html.includes('data-value="Refroidissement"'),"option Refroidissement absente");
 assert(html.includes("ECS · Ballon"),"commande ECS absente");
+assert(html.includes("fan-shell running"),"ventilateur non animé à 50 %");
+assert(html.includes("--fan-duration:1.2s"),"vitesse ventilateur non proportionnelle");
 
 const click=dataset=>card._onClick({composedPath:()=>[{dataset}],stopPropagation(){}});
 (async()=>{
@@ -61,6 +65,11 @@ const click=dataset=>card._onClick({composedPath:()=>[{dataset}],stopPropagation
   card.setConfig({show_controls:false});
   assert(!card.shadowRoot.innerHTML.includes('data-pac-action="global"'),"show_controls=false ignoré");
   assert(card.shadowRoot.innerHTML.includes("Alarmes et surveillance"),"alarmes perdues");
+
+  states["sensor.comp_modulation"]={state:"0",attributes:{friendly_name:"COMP - Modulation"}};
+  card.hass={states,themes:{darkMode:false,theme:"Jour"},callService:async(...args)=>{calls.push(args);}};
+  assert(!card.shadowRoot.innerHTML.includes("fan-shell running"),"ventilateur doit s'arrêter à 0 %");
+  assert(card.shadowRoot.innerHTML.includes("--fan-duration:0s"),"durée ventilateur à 0 % incorrecte");
 
   console.log("PASS: noms de circuits + commandes Climate/Select + option show_controls");
 })().catch(err=>{console.error(err);process.exit(1);});

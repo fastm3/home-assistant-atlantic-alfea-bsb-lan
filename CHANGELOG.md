@@ -15,6 +15,8 @@
   `climate.set_temperature` écrit la consigne programmée au lieu d'échouer.
 - Délai de confirmation des consignes porté à 30 s (le round-trip BSB/MQTT
   peut dépasser 10 s sur cette installation).
+- Ventilateur du synoptique : arrêt à 0 % de modulation, puis vitesse
+  proportionnelle jusqu'à 100 % (0,6 s par tour à 100 %, plafond 12 s).
 - Éditeur visuel : noms des circuits, écart ECS et affichage des commandes.
 - 71 correspondances d'entités (ajout des consignes ECS et des consignes
   programmées C1/C2).
