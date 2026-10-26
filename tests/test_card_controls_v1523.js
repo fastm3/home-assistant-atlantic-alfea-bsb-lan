@@ -11,7 +11,11 @@ const calls=[];
 const states={
   "select.atlantic_alfea_bsb_lan_mode_global":{state:"Chauffage",attributes:{friendly_name:"Atlantic Alfea BSB-LAN Mode global"}},
   "climate.atlantic_alfea_bsb_lan_c1_circuit_1":{state:"heat",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C1 - Circuit 1",temperature:21.5,current_temperature:20.1,hvac_action:"heating"}},
-  "climate.atlantic_alfea_bsb_lan_c2_circuit_2":{state:"off",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Circuit 2",temperature:19.5,current_temperature:19.0,hvac_action:"off"}}
+  "climate.atlantic_alfea_bsb_lan_c2_circuit_2":{state:"off",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Circuit 2",temperature:19.5,current_temperature:19.0,hvac_action:"off"}},
+  "number.esp_bsblan_temp_consigne_ecs":{state:"49.0",attributes:{friendly_name:"esp-bsblan Temp consigne ECS confort"}},
+  "number.esp_bsblan_temp_consigne_ecs_reduit":{state:"46.0",attributes:{friendly_name:"esp-bsblan Temp consigne ECS reduit"}},
+  "number.atlantic_alfea_bsb_lan_c1_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C1 - Chauffage T. Conf"}},
+  "number.atlantic_alfea_bsb_lan_c2_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Chauffage T. Conf"}}
 };
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},
   window:{customCards:[],matchMedia:()=>({matches:false})},Date,JSON,Object,Intl,Number,String,Array,Math,Set,console,setTimeout};
@@ -29,6 +33,7 @@ assert(html.includes('data-pac-action="hvac"'),"commande Off/Auto absente");
 assert(html.includes('data-pac-action="temp"'),"commande consigne absente");
 assert(html.includes('data-value="Chauffage"'),"option Chauffage absente");
 assert(html.includes('data-value="Refroidissement"'),"option Refroidissement absente");
+assert(html.includes("ECS · Ballon"),"commande ECS absente");
 
 const click=dataset=>card._onClick({composedPath:()=>[{dataset}],stopPropagation(){}});
 (async()=>{
@@ -42,11 +47,16 @@ const click=dataset=>card._onClick({composedPath:()=>[{dataset}],stopPropagation
   assert.equal(calls[1][2].hvac_mode,"heat");
 
   await click({pacAction:"temp",circuit:"1",delta:"0.5"});
-  assert.equal(calls[2][1],"set_temperature");
-  assert.equal(calls[2][2].temperature,22);
+  assert.equal(calls[2][0],"number");
+  assert.equal(calls[2][2].value,20.5);
 
   await click({pacAction:"temp",circuit:"1",delta:"0.5"});
-  assert.equal(calls[3][2].temperature,22.5);
+  assert.equal(calls[3][2].value,21);
+
+  await click({pacAction:"ecs",delta:"1"});
+  assert.equal(calls[4][0],"number");
+  assert.equal(calls[4][2].value,50);
+  assert.equal(calls[5][2].value,47);
 
   card.setConfig({show_controls:false});
   assert(!card.shadowRoot.innerHTML.includes('data-pac-action="global"'),"show_controls=false ignoré");

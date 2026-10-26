@@ -5,14 +5,20 @@
 - `circuit_1_name` / `circuit_2_name` : libellés des circuits configurables
   (défaut RDC / Étage), sans changer les entités C1/C2.
 - Barre de commandes optionnelle (`show_controls`, vrai par défaut) :
-  mode PAC Off / Chauffage / Refroidissement, Off / Auto par circuit,
-  consigne ±0,5 °C.
-- Les commandes appellent uniquement les entités Climate/Select de l'intégration :
-  `climate.set_hvac_mode`, `climate.set_temperature` (dérogation native) et
-  `select.select_option` pour le mode global.
-- Éditeur visuel : noms des circuits et affichage des commandes.
+  mode PAC Off / Chauffage / Refroidissement, Off / Auto par circuit.
+- Consigne circuit éditable **au clic** sur la valeur affichée, ou par `−` / `+`
+  (pas de 0,5 °C). Écriture de la consigne programmée 710/902/1010/1202 via
+  les entités `number` de l'intégration, avec confirmation BSB.
+- Consigne ECS éditable au clic / `−` / `+` : écrit 1610 à la valeur demandée
+  puis 1612 à `confort − ecs_eco_delta` (écart paramétrable, défaut 3 °C).
+- Repli du Climate : si 701/1001/10991 ne sont pas disponibles en écriture,
+  `climate.set_temperature` écrit la consigne programmée au lieu d'échouer.
+- Délai de confirmation des consignes porté à 30 s (le round-trip BSB/MQTT
+  peut dépasser 10 s sur cette installation).
+- Éditeur visuel : noms des circuits, écart ECS et affichage des commandes.
+- 71 correspondances d'entités (ajout des consignes ECS et des consignes
+  programmées C1/C2).
 - Tests carte mis à jour ; nouveau test `test_card_controls_v1523.js`.
-- Aucun changement du backend, des entités ni de la logique de régulation.
 
 ## 1.5.22 — Style Aérien du synoptique
 

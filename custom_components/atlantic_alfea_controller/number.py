@@ -171,7 +171,7 @@ class AlfeaProgrammedSetpointNumber(NumberEntity):
         # The HA service call only confirms dispatch, not acceptance by the PAC.
         # Request a fresh BSB reading and check the actual returned value.
         await async_poll_parameters(self.hass, (self._parameter,))
-        for _ in range(20):
+        for _ in range(60):
             confirmed = state_float(self.hass, source)
             if confirmed is not None and abs(confirmed - value) < 0.01:
                 self.async_write_ha_state()
@@ -179,7 +179,7 @@ class AlfeaProgrammedSetpointNumber(NumberEntity):
             await asyncio.sleep(0.5)
         raise HomeAssistantError(
             f"Consigne BSB {self._parameter} envoyée mais non confirmée "
-            "après 10 secondes : vérifier le retour BSB-LAN."
+            "après 30 secondes : vérifier le retour BSB-LAN."
         )
 
     async def async_added_to_hass(self) -> None:

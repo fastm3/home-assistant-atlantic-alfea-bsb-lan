@@ -55,6 +55,12 @@ const FIELDS = {
   ecsTemp:         ['sensor','ECS - T. ballon'],
   ecsComfort:      ['sensor','ECS - T. Confort'],
   ecsEco:          ['sensor','ECS - T. Éco'],
+  ecsComfortSetpoint: ['number','Temp consigne ECS confort'],
+  ecsEcoSetpoint:     ['number','Temp consigne ECS reduit'],
+  heatSetpointC1:  ['number','C1 - Chauffage T. Conf'],
+  heatSetpointC2:  ['number','C2 - Chauffage T. Conf'],
+  coolSetpointC1:  ['number','C1 - Rafraîch. T. Conf'],
+  coolSetpointC2:  ['number','C2 - Rafraîch. T. Conf'],
   ecsPump:         ['binary_sensor','ECS - Pompe'],
   ecsElectric:     ['binary_sensor','ECS - Appoint électrique'],
   compressorHours: ['sensor','COMP - Heures de fonctionnement'],
@@ -203,10 +209,11 @@ class PacSynoptiqueCard extends HTMLElement {
       throw new Error('theme_mode doit être auto, light ou dark');
     }
     if(config.show_controls != null && typeof config.show_controls !== 'boolean') throw new Error('show_controls doit être un booléen');
+    if(config.ecs_eco_delta != null && (!Number.isFinite(Number(config.ecs_eco_delta)) || Number(config.ecs_eco_delta) < 0 || Number(config.ecs_eco_delta) > 15)) throw new Error('ecs_eco_delta doit être un nombre entre 0 et 15');
     for(const key of ['circuit_1_name','circuit_2_name']) {
       if(config[key] != null && typeof config[key] !== 'string') throw new Error(key+' doit être une chaîne');
     }
-    this._config={title:'Atlantic Alféa Extensa Duo',show_diagnostics:true,show_controls:true,circuit_1_name:'RDC',circuit_2_name:'Étage',theme_mode:'auto',layout_orientation:'auto',layout_style:'classic',...config};
+    this._config={title:'Atlantic Alféa Extensa Duo',show_diagnostics:true,show_controls:true,ecs_eco_delta:3,circuit_1_name:'RDC',circuit_2_name:'Étage',theme_mode:'auto',layout_orientation:'auto',layout_style:'classic',...config};
     this._ids=null;
     this._lastSignature='';
     if(this._hass) this.hass=this._hass;
@@ -306,10 +313,15 @@ class PacSynoptiqueCard extends HTMLElement {
     const off=mode==='off'||action==='off';
     const actionText=isHeating?'Chauffe actuellement':isCooling?'Rafraîchit actuellement':off?'Arrêt':
       (isMissing(mode)?'État indisponible':'En attente');
+    const season=this._resolveMode()==='cool'?'cool':'heat';
+    const setpointEntity=this._ids?.[`${season}SetpointC${i}`];
+    const pending=setpointEntity?this._pendingTemp[setpointEntity]:undefined;
+    const programmed=Number.isFinite(pending)?pending:this._v(`${season}SetpointC${i}`);
     return {
       number:i, key, mode, action, active, off, isHeating, isCooling, actionText,
       nativePreset:this._nativePreset(st,off),
       current:st?.attributes?.current_temperature,target:st?.attributes?.temperature,
+      programmed, season,
       regime:st?.attributes?.regime_consigne, native:this._v(`circuit${i}State`),
       program:this._v(`program${i}`), pump:this._b(`pump${i}`),
       override:this._b(`override${i}`),
@@ -324,9 +336,11 @@ class PacSynoptiqueCard extends HTMLElement {
     const viaPac=(p.includes('chauffe par pac')||p.includes('pac appoint electrique')) && pump!==false && this._b('compressor')!==false;
     const withElectric=electric===true||p==='appoint electrique'||p.includes('pac appoint electrique');
     const tempBallon=this._v('ecsTemp') ?? this._a('ecsHeater','current_temperature');
-    const target=this._a('ecsHeater','temperature');
+    const comfortSetpoint=this._v('ecsComfortSetpoint');
+    const ecoSetpoint=this._v('ecsEcoSetpoint');
+    const target=comfortSetpoint ?? this._a('ecsHeater','temperature');
     return {production:clean(production||this._v('ecsState')||'Indisponible',56),
-      viaPac,withElectric,pump,electric,tempBallon,target};
+      viaPac,withElectric,pump,electric,tempBallon,target,comfortSetpoint,ecoSetpoint};
   }
   _pipe(tone='idle',vertical=false){
     return `<div class="pipe ${vertical?'vertical':''} ${tone}"><span class="pipe-light"></span></div>`;
@@ -367,23 +381,80 @@ class PacSynoptiqueCard extends HTMLElement {
         return;
       }
       if(action==='temp'){
-        const entity=this._ids?.[`circuit${circuit}`];
+        const mode=this._resolveMode();
+        const season=mode==='cool'?'cool':'heat';
+        const key=`${season}SetpointC${circuit}`;
+        const entity=this._ids?.[key];
         if(!entity) return;
-        const current=Number(this._hass.states[entity]?.attributes?.temperature);
-        if(!Number.isFinite(current)) return;
+        const current=this._num(this._v(key));
+        if(current===null) return;
         const base=Number.isFinite(this._pendingTemp[entity])?this._pendingTemp[entity]:current;
         const delta=Number(target.dataset.delta);
-        const next=Math.max(5,Math.min(35,Math.round((base+delta)*2)/2));
-        if(next===current) return;
+        const next=season==='cool'?Math.max(7,Math.min(30,base+delta)):Math.max(7,Math.min(35,base+delta));
         this._pendingTemp[entity]=next;
-        if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];},3000);
-        await this._hass.callService('climate','set_temperature',{entity_id:entity,temperature:next});
+        if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];},15000);
+        this._render();
+        await this._setCircuitTarget(circuit,next);
+        return;
+      }
+      if(action==='ecs'){
+        const current=this._num(this._v('ecsComfortSetpoint'));
+        if(current===null) return;
+        const delta=Number(target.dataset.delta);
+        await this._setEcs(current+delta);
+        return;
+      }
+      if(action==='edit'){
+        await this._editTemperature(target.dataset.target,circuit);
       }
     }catch(err){
       if(typeof console!=='undefined') console.warn('PAC Synoptique: commande refusée',err);
     }
   }
-  _controlsHtml(mode,c1,c2){
+  _num(value){
+    const n=Number(String(value??'').replace(',','.'));
+    return Number.isFinite(n)?n:null;
+  }
+  async _setEcs(value){
+    const comfort=this._ids?.ecsComfortSetpoint;
+    const eco=this._ids?.ecsEcoSetpoint;
+    if(!comfort || !eco) return;
+    const delta=Math.max(0,Math.min(15,Number(this._config?.ecs_eco_delta ?? 3)));
+    const comfortValue=Math.round(Math.max(40,Math.min(65,value)));
+    const ecoValue=Math.round(Math.max(5,Math.min(65,comfortValue-delta)));
+    await this._hass.callService('number','set_value',{entity_id:comfort,value:comfortValue});
+    await this._hass.callService('number','set_value',{entity_id:eco,value:ecoValue});
+  }
+  async _setCircuitTarget(circuit,value){
+    const mode=this._resolveMode();
+    const season=mode==='cool'?'cool':'heat';
+    const entity=this._ids?.[`${season}SetpointC${circuit}`];
+    if(!entity) return;
+    const clamped=season==='cool'?Math.max(7,Math.min(30,value)):Math.max(7,Math.min(35,value));
+    const rounded=Math.round(clamped*2)/2;
+    await this._hass.callService('number','set_value',{entity_id:entity,value:rounded});
+  }
+  async _editTemperature(target,circuit){
+    const isEcs=target==='ecs';
+    const entityId=isEcs?this._ids?.ecsComfortSetpoint:this._ids?.[`circuit${circuit}`];
+    if(!entityId) return;
+    const current=isEcs?this._num(this._v('ecsComfortSetpoint')):this._num(this._v(`${this._resolveMode()==='cool'?'cool':'heat'}SetpointC${circuit}`));
+    const label=isEcs?'ECS':this._circuitName(circuit);
+    if(typeof window==='undefined' || typeof window.prompt!=='function') return;
+    const raw=window.prompt(`Consigne ${label} (°C)`,current===null?'':current.toFixed(1).replace('.',','));
+    if(raw===null) return;
+    const value=this._num(raw);
+    if(value===null) return;
+    if(isEcs){ await this._setEcs(value); return; }
+    const entity=this._ids?.[`${this._resolveMode()==='cool'?'cool':'heat'}SetpointC${circuit}`];
+    if(entity){
+      this._pendingTemp[entity]=value;
+      if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];},15000);
+      this._render();
+    }
+    await this._setCircuitTarget(circuit,value);
+  }
+  _controlsHtml(mode,c1,c2,ecs){
     const season=mode==='heat'?'Chauffage':mode==='cool'?'Refroidissement':'Off';
     const globalBtn=(label,tone='')=>{
       const active=season===label;
@@ -404,12 +475,16 @@ class PacSynoptiqueCard extends HTMLElement {
       return `<div class="ctl-group"><span class="ctl-label">${html(name)}</span><div class="ctl-buttons">
         <button type="button" class="ctl-btn${offActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="off">Off</button>
         <button type="button" class="ctl-btn${autoActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="auto"${auto?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Auto</button>
-        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong>${html(temp(c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
+        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong class="editable" data-pac-action="edit" data-target="circuit" data-circuit="${i}" title="Cliquer pour modifier">${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
       </div></div>`;
     };
+    const ecsGroup=ecs?.comfortSetpoint?`<div class="ctl-group"><span class="ctl-label">ECS · Ballon</span><div class="ctl-buttons">
+      <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
+      ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
+    </div></div>`:'';
     return `<section class="controls" aria-label="Commandes PAC">
       <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${globalBtn('Refroidissement','cool')}</div></div>
-      ${circuit(c1,1)}${circuit(c2,2)}
+      ${circuit(c1,1)}${circuit(c2,2)}${ecsGroup}
     </section>`;
   }
   _detailRow(label,key,unit='',decimals=1){
@@ -476,9 +551,10 @@ class PacSynoptiqueCard extends HTMLElement {
           <div class="out-status">${html(c.actionText)}</div></div>
         <span class="state-dot ${branchTone(c)}"></span></div>
       <div class="out-values"><div><span>Température ambiante</span><strong>${html(temp(c.current))}</strong></div>
-        <div><span>Consigne effective</span><strong>${html(temp(c.target))}</strong></div></div>
+        <div><span>Consigne ${c.season==='cool'?'rafraîch.':'chauffage'}</span><strong class="editable" data-pac-action="edit" data-target="circuit" data-circuit="${c.number}" title="Cliquer pour modifier">${html(temp(c.programmed ?? c.target))}</strong></div></div>
       <div class="out-foot">${chip(c.nativePreset?.label ?? (c.off?'OFF':'Régime indisponible'),c.nativePreset?.tone ?? 'dim')}
         ${chip(c.native??'État BSB-LAN indisponible','dim')}
+        ${c.target!=null?chip('Eff. '+temp(c.target),'dim'):''}
         ${this._config.show_pump_badges!==false && c.pump!==null?chip(c.pump?'Circulateur actif':'Circulateur arrêté',c.pump?'positive':'dim'):''}
         ${c.override===true?chip('Dérogation active','warning'):''}</div>
     </section>`;
@@ -1097,6 +1173,8 @@ class PacSynoptiqueCard extends HTMLElement {
         font-size:16px;font-weight:700;width:28px;height:28px;border-radius:7px;cursor:pointer}
       .ctl-temp button:hover{background:var(--soft)}
       .ctl-temp strong{min-width:58px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
+      .editable{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+      .editable:hover{color:var(--blue)}
       @media(prefers-reduced-motion:reduce){.ctl-btn{transition:none}}
     </style>
     <ha-card><div class="wrap">
@@ -1163,13 +1241,14 @@ class PacSynoptiqueCard extends HTMLElement {
               <div class="out-title">ECS <span>· Ballon</span></div><div class="out-status">${html(ecsText)}</div></div>
               <span class="state-dot ${ecsTone}"></span></div>
             <div class="out-values"><div><span>Température ballon</span><strong>${html(temp(ecs.tempBallon))}</strong></div>
-              <div><span>Consigne affichée</span><strong>${html(temp(ecs.target))}</strong></div></div>
+              <div><span>Consigne confort</span><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.target))}</strong></div></div>
             <div class="out-foot">${chip(ecs.pump===true?'Pompe active':ecs.pump===false?'Pompe arrêtée':'Pompe inconnue',ecs.pump===true?'positive':'dim')}
+              ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
               ${ecs.withElectric?chip('Appoint électrique actif','warning'):''}</div>
           </section>
         </div>
       </div>
-      ${this._config.show_controls!==false?this._controlsHtml(mode,c1,c2):''}
+      ${this._config.show_controls!==false?this._controlsHtml(mode,c1,c2,ecs):''}
       <details data-panel="alarms" class="alarm-details" ${prevAlarms?'open':''}>
         <summary><span>Alarmes et surveillance</span>
           ${chip(`${alertActive.length} alarme${alertActive.length!==1?'s':''} active${alertActive.length!==1?'s':''}`,alertActive.length?'warning':'dim')}</summary>
@@ -1216,6 +1295,9 @@ class PacSynoptiqueCardEditor extends HTMLElement {
         this._changed('circuit_1_name',element.value);
       } else if (element?.id==='pac-circuit-2-name') {
         this._changed('circuit_2_name',element.value);
+      } else if (element?.id==='pac-ecs-delta') {
+        const value=Number(element.value);
+        if(Number.isFinite(value) && value>=0 && value<=15) this._changed('ecs_eco_delta',value);
       }
     });
   }
@@ -1247,6 +1329,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
     const checkedControls=config.show_controls!==false?' checked':'';
     const circuit1Name=typeof config.circuit_1_name==='string'?config.circuit_1_name:'RDC';
     const circuit2Name=typeof config.circuit_2_name==='string'?config.circuit_2_name:'Étage';
+    const ecsDelta=Number.isFinite(Number(config.ecs_eco_delta))?Number(config.ecs_eco_delta):3;
     const selectedLayout=(config.layout_style||'classic');
     const selectedOrientation=['auto','landscape','portrait'].includes(config.layout_orientation)?config.layout_orientation:'auto';
     this.shadowRoot.innerHTML=`
@@ -1265,7 +1348,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
           padding:10px 12px;cursor:pointer}
         select:focus-visible,input:focus-visible{outline:2px solid
           var(--primary-color,#03a9f4);outline-offset:3px}
-        input[type=text]{display:block;min-height:48px;width:100%;font:inherit;
+        input[type=text],input[type=number]{display:block;min-height:48px;width:100%;font:inherit;
           color:var(--primary-text-color,#243443);
           background:var(--card-background-color,var(--ha-card-background,#fff));
           border:1px solid var(--divider-color,#8da0b0);border-radius:10px;padding:10px 12px}
@@ -1291,6 +1374,11 @@ class PacSynoptiqueCardEditor extends HTMLElement {
           <label for="pac-circuit-2-name">Nom du circuit 2</label>
           <input id="pac-circuit-2-name" type="text" value="${html(circuit2Name)}" placeholder="Étage">
           <div class="hint">Noms affichés sur le synoptique. Les entités restent C1/C2 ; les commandes utilisent leurs entités Climate.</div>
+        </div>
+        <div class="field">
+          <label for="pac-ecs-delta">Écart consigne ECS éco (°C)</label>
+          <input id="pac-ecs-delta" type="number" min="0" max="15" step="0.5" value="${ecsDelta}">
+          <div class="hint">Quand tu modifies la consigne ECS, la consigne éco (1612) est écrite à « confort − écart ».</div>
         </div>
         <div class="field">
           <label class="toggle" for="pac-show-controls">

@@ -18,7 +18,7 @@ froid/chaud redessinés avec un cadre et un trait assortis. Le fond suit le
 thème Home Assistant (clair/sombre) ; les cartes, les raccordements et les
 bordures sont plus discrets.
 
-- **Conservation des 65 correspondances d'entités** et de tous les champs :
+- **Conservation des 71 correspondances d'entités** et de tous les champs :
   RDC/Étage (mode natif, état BSB brut, circulateur, température et consigne),
   ECS, COMP, PAC, dérogations et alarmes/diagnostics.
 - Les animations sont indicatives : rotation COMP lorsque confirmé en marche,
@@ -64,8 +64,14 @@ La barre de commandes est optionnelle (`show_controls: true` par défaut) :
 - **Par circuit** : `Off` / `Auto` — via `climate.set_hvac_mode`. `Auto` reprend la saison
   sélectionnée dans le mode PAC (chauffage ou rafraîchissement) ; il est désactivé
   tant que le mode PAC est `Off`.
-- **Consigne** : boutons `−` / `+` par pas de 0,5 °C — via `climate.set_temperature`,
-  donc la **dérogation native** de l'intégration (écart limité, durée, confirmation BSB).
+- **Consigne circuit** : clic sur la valeur affichée (ou `−` / `+` par 0,5 °C). La valeur
+  écrite est la **consigne programmée** (710/902/1010/1202) via les entités `number` de
+  l'intégration, avec confirmation BSB. Si les paramètres 701/1001/10991 ne sont pas
+  disponibles en écriture, la dérogation native ne peut pas être modifiée directement :
+  c'est la consigne programmée qui change, et la consigne effective reste affichée
+  séparément (`Eff.`).
+- **Consigne ECS** : clic sur la valeur (ou `−` / `+`). Écrit la consigne confort 1610
+  à la valeur demandée, puis la consigne éco 1612 à `confort − ecs_eco_delta`.
 
 Les noms affichés se règlent avec `circuit_1_name` et `circuit_2_name`. Les entités
 restent `C1`/`C2` ; seuls les libellés changent.
@@ -75,6 +81,7 @@ type: custom:pac-synoptique-card
 circuit_1_name: Étage
 circuit_2_name: RDC
 show_controls: true
+ecs_eco_delta: 3          # consigne éco 1612 = consigne confort 1610 − 3 °C
 ```
 
 

@@ -584,6 +584,45 @@ class AlfeaCircuitClimate(ClimateEntity):
             self._pending_base_temperature = None
             self.async_write_ha_state()
 
+    async def _async_write_programmed_setpoint(self, temperature: float) -> None:
+        """Write the programmed Comfort setpoint when 701/1001 are unavailable.
+
+        The native override path needs writable entities for 701/1001 and
+        10991/10990. When they are not exposed by BSB-LAN, the card can still
+        adjust the programmed setpoint (710/902/1010/1202); the PAC remains the
+        source of truth and the new value is confirmed by reading it back.
+        """
+        mode = self._mode()
+        if mode not in (MODE_HEAT, MODE_COOL):
+            raise HomeAssistantError("Saison indéterminée : consigne non envoyée.")
+        profile = self._active_profile(mode) or _PROFILE_COMFORT
+        source, parameter = self._setpoint(mode, profile)
+        if not source or source.split(".", 1)[0] not in ("number", "text"):
+            raise HomeAssistantError(
+                f"La consigne BSB {parameter} n’est pas disponible en écriture."
+            )
+
+        value = round_temperature_step(float(temperature), TEMPERATURE_STEP)
+        if not 5.0 <= value <= 35.0:
+            raise HomeAssistantError("Consigne attendue entre 5 et 35 °C.")
+
+        self._pending_target_temperature = value
+        self.async_write_ha_state()
+        try:
+            await async_set_numeric_entity(self.hass, source, value)
+            await async_poll_parameters(self.hass, (parameter,))
+            for _ in range(60):
+                confirmed = state_float(self.hass, source)
+                if confirmed is not None and abs(confirmed - value) < 0.01:
+                    return
+                await asyncio.sleep(0.5)
+            raise HomeAssistantError(
+                f"Consigne BSB {parameter} envoyée mais non confirmée après 30 secondes."
+            )
+        finally:
+            self._pending_target_temperature = None
+            self.async_write_ha_state()
+
     async def async_set_temperature(self, **kwargs) -> None:
         """Aggregate Climate clicks for 2 s, then create one native override."""
         temperature = kwargs.get("temperature")
@@ -603,10 +642,11 @@ class AlfeaCircuitClimate(ClimateEntity):
                 "circuit avant de choisir une nouvelle consigne."
             )
         if override_active is None:
-            raise HomeAssistantError(
-                "Impossible de confirmer l’état 701/1001 de la dérogation. Aucune "
-                "commande n’a été envoyée."
-            )
+            # 701/1001 or 10991/10990 are not writable on this installation.
+            # Fall back to the programmed Comfort setpoint so the user can
+            # still adjust the target from the card.
+            await self._async_write_programmed_setpoint(temperature)
+            return
 
         if self._pending_base_temperature is None:
             base = state_float(

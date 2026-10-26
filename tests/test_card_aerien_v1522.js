@@ -34,7 +34,7 @@ for(const layout of ["classic","clean","aerien"]){
  card.hass={states:{},themes:{darkMode:false,theme:"Jour"}};
  assert.equal(card.dataset.layoutStyle,layout);
  const rendered=card.shadowRoot.innerHTML;
- for(const field of ["Unité extérieure / COMP","Température ambiante","Consigne effective",
+ for(const field of ["Unité extérieure / COMP","Température ambiante","Consigne chauffage",
    "Circulateur","Alarmes et surveillance","Diagnostics et capteurs complémentaires",
    "Départ PAC","Retour PAC","Modulation du compresseur","ECS","Régime"]){
    if(field==="Régime") continue;
@@ -52,7 +52,7 @@ ed.shadowRoot.listeners.change({target:{id:"pac-layout-choice",value:"classic"}}
 assert.equal(ed.calls.at(-1).detail.config.layout_style,"classic");
 assert.throws(()=>new Card().setConfig({layout_style:"other"}),/layout_style/);
 const f=source.match(/const FIELDS = \{([\s\S]*?)\n\};/);
-assert(f&&(f[1].match(/^\s+[A-Za-z_]\w*\s*:/gm)||[]).length===65,"keep all 65 entity mappings");
+assert(f&&(f[1].match(/^\s+[A-Za-z_]\w*\s*:/gm)||[]).length===71,"keep all 71 entity mappings");
 assert(source.includes("chip(c.nativePreset?.label"),"presets missing");
 assert(source.includes("chip(c.native??'État BSB-LAN indisponible'"),"raw BSB state missing");
 assert(source.includes("Circulateur arrêté"),"pump badge missing");
