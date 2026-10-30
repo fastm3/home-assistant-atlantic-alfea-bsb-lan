@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.27 — Fusion upstream (programmes natifs, Q3, historique défauts)
+
+- Intègre la branche principale upstream jusqu'à **1.5.27** : programmes horaires
+  natifs en lecture seule (chauffage, ECS, rafraîchissement), capteurs
+  hebdomadaires, carte **`pac-programmes-card`**, vanne Q3, historique des
+  défauts, ECS JSON, démarrage MQTT résilient et correctif de thread safety.
+- Conserve les apports du fork : carte **`pac-synoptique-card` v2.11.0** avec
+  commandes optionnelles, noms de circuits configurables et **historique 3 h
+  au clic**.
+- Manifest **1.5.27** avec `after_dependencies: ["mqtt"]`.
+
+
 ## 1.5.24 — Historique 3 h au clic
 
 - **Températures mesurées cliquables** : air extérieur, départ PAC, retour PAC,

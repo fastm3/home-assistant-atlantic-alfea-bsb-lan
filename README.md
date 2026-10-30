@@ -2,12 +2,24 @@
 
 Intégration personnalisée Home Assistant pour piloter et surveiller une pompe à chaleur **Atlantic Alféa Extensa Duo** via **BSB-LAN**.
 
-> Dernière version publiée : **1.5.24**
+> Dernière version publiée : **1.5.27**
 
 > **Fork `fastm3`** : noms de circuits configurables (`circuit_1_name` / `circuit_2_name`)
 > et commandes optionnelles dans la carte (mode PAC, Off/Auto par circuit, consignes),
 > via les entités Climate/Select de l'intégration.
 
+## Fusion upstream 1.5.27
+
+Cette version intègre la branche principale upstream jusqu'à **1.5.27** :
+programmes horaires natifs en lecture seule (chauffage, ECS, rafraîchissement),
+capteurs hebdomadaires, carte **`pac-programmes-card`**, diagnostics de la vanne
+Q3, historique des défauts, ECS JSON et correctif de thread safety côté backend.
+
+La carte **`pac-synoptique-card`** du fork (v2.11.0) conserve les commandes
+optionnelles, les noms de circuits configurables et l'**historique 3 h au clic**.
+
+Ressource Lovelace de la nouvelle carte programmes :
+`/alfea-synoptique/pac-programmes-card.js?v=1.5.27`.
 
 ## Synoptique Aérien (V1.5.22)
 
@@ -46,7 +58,7 @@ grid_options:
   rows: auto
 ```
 Après mise à jour HACS et redémarrage Home Assistant, versionner la ressource :
-`/alfea-synoptique/pac-synoptique-card.js?v=1.5.24`.
+`/alfea-synoptique/pac-synoptique-card.js?v=1.5.27`.
 
 ## Aperçu de la carte Lovelace
 
@@ -56,7 +68,7 @@ Après mise à jour HACS et redémarrage Home Assistant, versionner la ressource
 
 Le synoptique présente les états du compresseur, de la PAC, des circuits de chauffage/rafraîchissement et de l'ECS, avec alarmes et diagnostics repliables. Son éditeur Lovelace permet de choisir une apparence **Automatique / Claire / Sombre**, les noms des circuits et l'affichage des commandes.
 
-## Commandes depuis la carte (fork 1.5.24)
+## Commandes depuis la carte (fork 1.5.27)
 
 La barre de commandes est optionnelle (`show_controls: true` par défaut) :
 
@@ -238,7 +250,7 @@ Après la mise à jour via HACS, **redémarrez Home Assistant**, puis dans
 ressource de type **Module JavaScript** :
 
 ```text
-/alfea-synoptique/pac-synoptique-card.js?v=1.5.24
+/alfea-synoptique/pac-synoptique-card.js?v=1.5.27
 ```
 
 ### Éditeur visuel (nouveau en V1.5.7)
@@ -346,12 +358,12 @@ Ce fork s'installe comme **Custom Repository** HACS.
 
 4. Sélectionnez le type **Integration**.
 5. Cliquez sur **Add**.
-6. Recherchez **Atlantic Alfea BSB-LAN** dans HACS et installez la version **1.5.24**.
+6. Recherchez **Atlantic Alfea BSB-LAN** dans HACS et installez la version **1.5.27**.
 7. **Redémarrez Home Assistant** (les changements `climate.py` / `number.py` ne sont chargés qu'au redémarrage).
 8. Ouvrez **Paramètres → Appareils et services → Ajouter une intégration** puis recherchez **Atlantic Alfea BSB-LAN**.
 9. Ajoutez la ressource Lovelace de type **Module JavaScript** :
 
-   `/alfea-synoptique/pac-synoptique-card.js?v=1.5.24`
+   `/alfea-synoptique/pac-synoptique-card.js?v=1.5.27`
 
 10. Faites un **hard refresh** (`Ctrl+Shift+R`) puis ajoutez la carte **PAC Synoptique**.
 

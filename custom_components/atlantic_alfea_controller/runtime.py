@@ -29,6 +29,7 @@ from .const import (
     SHORT_CYCLES_PER_HOUR,
     SHORT_CYCLES_PER_SIX_HOURS,
 )
+from .ecs_heater_json import heater_state
 from .helpers import (
     dhw_charge_requested,
     generator_is_cooling,
@@ -389,9 +390,10 @@ class AlfeaRuntimeMonitor:
 
         Parameter 8003 is a logical ECS demand/state and can remain at
         ``Charge...`` while the compressor is actually serving space cooling.
-        The 11-Aug-2026 bus captures showed that a genuine PAC DHW charge is
-        characterised by the physical ECS pump 8820 being ON together with the
-        compressor. 8821 independently proves electric backup operation.
+        The Q3 output 8820 being ON together with the compressor supports
+        PAC DHW charging. On diverter-equipped units (BSB 5731 = 2), 8820
+        commands the ECS position of the three-way valve, not a pump.
+        8821 independently indicates electric backup operation.
 
         Using the physical outputs first also removes the brief false
         ``Chauffe par PAC`` state caused by sequential MQTT updates at a
@@ -401,10 +403,7 @@ class AlfeaRuntimeMonitor:
             self.hass,
             source_entity(self.hass, self.entry, "dhw_pump", 8820),
         )
-        electric = state_is_on(
-            self.hass,
-            source_entity(self.hass, self.entry, "dhw_electric_heater", 8821),
-        )
+        electric = heater_state(self.hass, self.entry)
         pac_state = state_value(
             self.hass,
             source_entity(self.hass, self.entry, "pac_state", 8006),
