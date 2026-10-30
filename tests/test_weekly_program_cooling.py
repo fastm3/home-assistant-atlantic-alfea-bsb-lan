@@ -56,7 +56,7 @@ class TestCoolingWeeklyPrograms(unittest.TestCase):
                 [str(first + day) for day in range(7)],
             )
 
-    def test_heating_and_dhw_keep_dotted_parameters(self):
+    def test_heating_and_dhw_use_consecutive_parameters(self):
         for key, first in (
             ("chauffage_c1", "501"),
             ("chauffage_c2", "521"),
@@ -64,7 +64,7 @@ class TestCoolingWeeklyPrograms(unittest.TestCase):
         ):
             self.assertEqual(
                 [parameter_for_day(key, first, day) for day in range(7)],
-                [first] + [f"{first}.{day}" for day in range(1, 7)],
+                [str(int(first) + day) for day in range(7)],
             )
 
     def test_reject_invalid_day(self):
