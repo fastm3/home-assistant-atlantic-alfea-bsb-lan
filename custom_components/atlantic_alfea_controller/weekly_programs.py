@@ -66,9 +66,7 @@ def parameter_for_day(key: str, base: str, index: int) -> str:
     """Return the exact BSB-LAN JSON parameter for a weekday (Monday = 0)."""
     if not 0 <= index < len(WEEKDAYS):
         raise ValueError(f"Jour invalide : {index}")
-    if key in ("rafraichissement_c1", "rafraichissement_c2"):
-        return str(int(base) + index)
-    return base if index == 0 else f"{base}.{index}"
+    return str(int(base) + index)
 
 
 @dataclass

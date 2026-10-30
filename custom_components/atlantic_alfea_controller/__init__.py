@@ -214,7 +214,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     programs[entry.entry_id] = WeeklyProgramImporter(
         hass, entry.entry_id, entry.options.get("bsb_base_url", "")
     )
-    entry.async_on_unload(lambda: programs.pop(entry.entry_id, None))
+    def _clear_weekly_programs() -> None:
+        programs.pop(entry.entry_id, None)
+
+    entry.async_on_unload(_clear_weekly_programs)
 
     monitor = AlfeaRuntimeMonitor(hass, entry)
     entry.runtime_data = monitor
