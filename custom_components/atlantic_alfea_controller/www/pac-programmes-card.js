@@ -1,5 +1,6 @@
 /**
- * Programmes PAC v0.2.0 — lecture seule des programmes horaires natifs BSB-LAN.
+ * Programmes PAC v0.2.1 — lecture seule des programmes horaires natifs BSB-LAN.
+ * Les onglets rafraîchissement sont masqués si leur capteur est en erreur.
  * Les barres représentent les créneaux natifs ; aucun horaire n'est simulé.
  */
 (() => {
@@ -80,9 +81,19 @@
         this._render();
       }
     }
+    _visiblePrograms() {
+      return PROGRAMS.filter(program => {
+        if (!program.key.startsWith('rafraichissement_')) return true;
+        const sensor = this._sensor(program);
+        return !!sensor && sensor.state !== 'Erreur' && sensor.state !== 'unavailable' && sensor.state !== 'unknown';
+      });
+    }
     _render() {
       if (!this.shadowRoot) return;
-      const selected = PROGRAMS.find(p => p.key === this._selected) || PROGRAMS[0];
+      const visible = this._visiblePrograms();
+      const selected = visible.find(p => p.key === this._selected) || visible[0] || PROGRAMS[0];
+      this._selected = selected.key;
+      const hidden = PROGRAMS.filter(p => !visible.includes(p));
       const sensor = this._sensor(selected);
       const button = this._button();
       const days = sensor?.attributes?.jours || {};
@@ -110,7 +121,7 @@
           </div>
         </div>`;
       }).join('');
-      const tabs = PROGRAMS.map(p => {
+      const tabs = visible.map(p => {
         const s = this._sensor(p);
         return `<button class="tab ${p.key === selected.key ? 'selected' : ''}" data-tab="${p.key}"
           type="button" aria-pressed="${p.key === selected.key}">${esc(p.label)}${s?.state === 'Erreur' ? ' ⚠' : ''}</button>`;
@@ -169,6 +180,7 @@
           <div class="days">${rows}</div>
           ${error ? `<div class="warning">Dernière lecture : ${esc(error)}</div>` : ''}
           ${this._lastError ? `<div class="warning">Actualisation : ${esc(this._lastError)}</div>` : ''}
+          ${hidden.length ? `<div class="foot">Onglets masqués : ${hidden.map(p=>esc(p.label)).join(', ')} — capteur en erreur.</div>` : ''}
           <div class="foot">Horaires natifs de la PAC · consultation uniquement · aucune programmation Home Assistant</div>
         </ha-card>`;
       this.shadowRoot.querySelectorAll('[data-tab]').forEach(el =>
