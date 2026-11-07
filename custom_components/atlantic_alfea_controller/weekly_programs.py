@@ -110,6 +110,19 @@ class WeeklyProgramImporter:
             raise ValueError(f"Plages horaires absentes pour {parameter}")
         return parse_timeprog(value)
 
+    def _record_error(self, key, snapshot, err, errors) -> None:
+        """Record a failure; cooling schedules are optional on some PACs."""
+        if key.startswith("rafraichissement_"):
+            snapshot.status = "Non disponible"
+            snapshot.error = None
+            snapshot.days = {}
+            _LOGGER.info("Programme %s non disponible sur cette PAC : %s", key, err)
+            return
+        snapshot.status = "Erreur"
+        snapshot.error = str(err)
+        errors[key] = str(err)
+        _LOGGER.warning("Import programme %s impossible : %s", key, err)
+
     async def async_refresh_all(self) -> dict[str, str]:
         """Read 35 days sequentially; commit each weekly program atomically."""
         if not self.configured:
@@ -127,16 +140,10 @@ class WeeklyProgramImporter:
                         # Avoid a burst of 35 consecutive requests on the BSB bus.
                         await asyncio.sleep(0.2)
                 except (ValueError, asyncio.TimeoutError, OSError) as err:
-                    snapshot.status = "Erreur"
-                    snapshot.error = str(err)
-                    errors[key] = str(err)
-                    _LOGGER.warning("Import programme %s impossible : %s", key, err)
+                    self._record_error(key, snapshot, err, errors)
                 except Exception as err:
                     # aiohttp client errors are surfaced to HA, not silently ignored.
-                    snapshot.status = "Erreur"
-                    snapshot.error = str(err)
-                    errors[key] = str(err)
-                    _LOGGER.warning("Import programme %s impossible : %s", key, err)
+                    self._record_error(key, snapshot, err, errors)
                 else:
                     snapshot.days = days
                     snapshot.updated = dt_util.now().isoformat(timespec="seconds")

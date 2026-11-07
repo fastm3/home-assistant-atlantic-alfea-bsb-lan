@@ -85,7 +85,7 @@
       return PROGRAMS.filter(program => {
         if (!program.key.startsWith('rafraichissement_')) return true;
         const sensor = this._sensor(program);
-        return !!sensor && sensor.state !== 'Erreur' && sensor.state !== 'unavailable' && sensor.state !== 'unknown';
+        return !!sensor && !['Erreur', 'Non disponible', 'unavailable', 'unknown'].includes(sensor.state);
       });
     }
     _render() {
@@ -180,7 +180,7 @@
           <div class="days">${rows}</div>
           ${error ? `<div class="warning">Dernière lecture : ${esc(error)}</div>` : ''}
           ${this._lastError ? `<div class="warning">Actualisation : ${esc(this._lastError)}</div>` : ''}
-          ${hidden.length ? `<div class="foot">Onglets masqués : ${hidden.map(p=>esc(p.label)).join(', ')} — capteur en erreur.</div>` : ''}
+          ${hidden.length ? `<div class="foot">Onglets masqués : ${hidden.map(p=>esc(p.label)).join(', ')} — capteur en erreur ou indisponible.</div>` : ''}
           <div class="foot">Horaires natifs de la PAC · consultation uniquement · aucune programmation Home Assistant</div>
         </ha-card>`;
       this.shadowRoot.querySelectorAll('[data-tab]').forEach(el =>

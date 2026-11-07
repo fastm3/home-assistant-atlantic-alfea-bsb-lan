@@ -11,7 +11,7 @@ const states={
   "sensor.p_chauffage_c1":{state:"Chargé",attributes:{friendly_name:"Chauffage RDC",jours:{lundi:[{debut:"06:00",fin:"22:00"}]}}},
   "sensor.p_chauffage_c2":{state:"Chargé",attributes:{friendly_name:"Chauffage étage",jours:{lundi:[{debut:"06:00",fin:"22:00"}]}}},
   "sensor.p_ecs":{state:"Chargé",attributes:{friendly_name:"ECS",jours:{lundi:[{debut:"10:00",fin:"17:30"}]}}},
-  "sensor.p_cool_c1":{state:"Erreur",attributes:{friendly_name:"Rafraîchissement RDC"}},
+  "sensor.p_cool_c1":{state:"Non disponible",attributes:{friendly_name:"Rafraîchissement RDC"}},
   "sensor.p_cool_c2":{state:"Erreur",attributes:{friendly_name:"Rafraîchissement étage"}}
 };
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},

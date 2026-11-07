@@ -67,6 +67,10 @@ class TestCoolingWeeklyPrograms(unittest.TestCase):
                 [str(int(first) + day) for day in range(7)],
             )
 
+    def test_cooling_failure_is_optional(self):
+        self.assertIn('snapshot.status = "Non disponible"', TEXT)
+        self.assertIn('key.startswith("rafraichissement_")', TEXT)
+
     def test_reject_invalid_day(self):
         for day in (-1, 7):
             with self.assertRaises(ValueError):

@@ -9,8 +9,7 @@ for (const mode of ["portrait","auto"]){
   const prefix=`:host([data-orientation="${mode}"])`;
   const pair=[
     [".machine",".pac"],
-    [".inlink",".outlink"],
-    [".output-card.heat:after",".output-card.cool:after"]
+    [".inlink",".outlink"]
   ];
   for(const [left,right] of pair){
     const bad=`${prefix} ${left}, ${right}{`;
@@ -18,6 +17,8 @@ for (const mode of ["portrait","auto"]){
     const good=`${prefix} ${left}, ${prefix} ${right}{`;
     assert(src.includes(good),`Missing scoped CSS rule in ${mode}: ${good}`);
   }
+  assert(src.includes(`${prefix} .output-card.heat:after, ${prefix} .output-card.cool:after, ${prefix} .output-card.electric:after{`),
+    `Missing scoped output-card CSS rule in ${mode}`);
 }
 assert(src.includes('.outlink{grid-column:4;grid-row:1/4;align-self:stretch}'),
   "Landscape connector must span all 3 rows");

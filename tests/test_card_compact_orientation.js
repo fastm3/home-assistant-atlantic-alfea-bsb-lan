@@ -34,7 +34,7 @@ assert(!/<image\b/i.test(src),"external SVG image prohibited");
 assert(!/https?:\/\/[^\s]/.test(src),"asset URL prohibited");
 assert(src.includes(".fan-shell.running .blades{animation:spin"),"fan animation retained");
 assert(src.includes(".exchanger.running .exch-col svg{animation:exchangerPulse"),"exchanger animation retained");
-assert(src.includes(".linksvg path.live{stroke-width"),"flow animation retained");
+assert(src.includes(".linksvg path.live{stroke:"),"flow animation retained");
 assert(src.includes("prefers-reduced-motion"),"reduce-motion respected");
 for(const orientation of ["auto","landscape","portrait"]){
  const card=new Card();

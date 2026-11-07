@@ -62,9 +62,9 @@ Après mise à jour HACS et redémarrage Home Assistant, versionner la ressource
 
 ## Aperçu de la carte Lovelace
 
-![Aperçu du synoptique Atlantic Alféa dans Home Assistant : unité extérieure, module PAC, circuits RDC et Étage, ECS, alarmes et diagnostics](docs/images/pac-synoptique-apercu.svg)
+![GIF animé de la carte PAC Synoptique Atlantic Alféa dans Home Assistant : unité extérieure, module hydraulique, échangeurs, circuits RDC et Étage, ECS, puissance consommée, alarmes et diagnostics](docs/images/pac-synoptique-carte.gif)
 
-*Illustration de l'interface avec des valeurs fictives, pour présenter l'organisation des informations. La carte réelle utilise les capteurs de votre installation.*
+*GIF animé de l'interface de la carte PAC Synoptique. Les valeurs affichées dépendent de votre installation et de l'état momentané de la PAC.*
 
 Le synoptique présente les états du compresseur, de la PAC, des circuits de chauffage/rafraîchissement et de l'ECS, avec alarmes et diagnostics repliables. Son éditeur Lovelace permet de choisir une apparence **Automatique / Claire / Sombre**, les noms des circuits et l'affichage des commandes.
 

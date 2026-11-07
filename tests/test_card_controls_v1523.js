@@ -17,18 +17,21 @@ const states={
   "number.atlantic_alfea_bsb_lan_c1_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C1 - Chauffage T. Conf"}},
   "number.atlantic_alfea_bsb_lan_c2_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Chauffage T. Conf"}},
   "binary_sensor.comp_etat":{state:"on",attributes:{friendly_name:"COMP - État"}},
-  "sensor.comp_modulation":{state:"50",attributes:{friendly_name:"COMP - Modulation"}}
+  "sensor.comp_modulation":{state:"50",attributes:{friendly_name:"COMP - Modulation"}},
+  "sensor.pac_power":{state:"1234.0",attributes:{friendly_name:"PAC puissance",unit_of_measurement:"W"}}
 };
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},
-  window:{customCards:[],matchMedia:()=>({matches:false})},Date,JSON,Object,Intl,Number,String,Array,Math,Set,console,setTimeout};
+  window:{customCards:[],matchMedia:()=>({matches:false})},Date,JSON,Object,Intl,Number,String,Array,Math,Set,console,setTimeout,clearTimeout};
 vm.runInNewContext(source,context);
 const Card=custom["pac-synoptique-card"];
 assert(Card,"carte non enregistrée");
 
 const card=new Card();
-card.setConfig({circuit_1_name:"Étage",circuit_2_name:"RDC"});
+card.setConfig({circuit_1_name:"Étage",circuit_2_name:"RDC",power_entity:"sensor.pac_power"});
 card.hass={states,themes:{darkMode:false,theme:"Jour"},callService:async(...args)=>{calls.push(args);}};
 let html=card.shadowRoot.innerHTML;
+assert(html.includes("Puissance PAC"),"puissance PAC absente des commandes");
+assert(/1[\s\u00a0\u202f]234/.test(html),"valeur de puissance non formatée");
 assert(html.includes("Étage") && html.includes("RDC"),"noms de circuits absents");
 assert(html.includes('data-pac-action="global"'),"commande mode PAC absente");
 assert(html.includes('data-pac-action="hvac"'),"commande Off/Auto absente");
@@ -58,16 +61,16 @@ const click=dataset=>card._onClick({composedPath:()=>[{dataset}],stopPropagation
   assert.equal(calls[1][2].hvac_mode,"heat");
 
   await click({pacAction:"temp",circuit:"1",delta:"0.5"});
-  assert.equal(calls[2][0],"number");
-  assert.equal(calls[2][2].value,20.5);
-
   await click({pacAction:"temp",circuit:"1",delta:"0.5"});
-  assert.equal(calls[3][2].value,21);
+  await new Promise(resolve=>setTimeout(resolve,700));
+  assert.equal(calls.length,3,"les clics rapprochés doivent être coalescés en un seul appel");
+  assert.equal(calls[2][2].value,21);
 
   await click({pacAction:"ecs",delta:"1"});
-  assert.equal(calls[4][0],"number");
-  assert.equal(calls[4][2].value,50);
-  assert.equal(calls[5][2].value,47);
+  await new Promise(resolve=>setTimeout(resolve,700));
+  assert.equal(calls[3][0],"number");
+  assert.equal(calls[3][2].value,50);
+  assert.equal(calls[4][2].value,47);
 
   card._hass.callApi=async()=>[[
     {state:"19.8",last_changed:new Date(Date.now()-2*3600e3).toISOString()},

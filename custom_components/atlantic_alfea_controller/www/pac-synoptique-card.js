@@ -189,6 +189,9 @@ class PacSynoptiqueCard extends HTMLElement {
     this._resolvedThemeMode=null;
     this._lastThemeName=null;
     this._pendingTemp={};
+    this._tempTimers={};
+    this._tempBusy={};
+    this._tempDesired={};
     this._sliderEditing=false;
     this._editor=null;
     this._history=null;
@@ -208,6 +211,9 @@ class PacSynoptiqueCard extends HTMLElement {
     }
   }
   disconnectedCallback(){
+    for(const key of Object.keys(this._tempTimers||{})){
+      if(this._tempTimers[key] && typeof clearTimeout==='function') clearTimeout(this._tempTimers[key]);
+    }
     if(this._keyboardBound && typeof document!=='undefined' && typeof document.removeEventListener==='function'){
       document.removeEventListener('keydown',this._onKeyDown);
       this._keyboardBound=false;
@@ -231,11 +237,12 @@ class PacSynoptiqueCard extends HTMLElement {
       throw new Error('theme_mode doit être auto, light ou dark');
     }
     if(config.show_controls != null && typeof config.show_controls !== 'boolean') throw new Error('show_controls doit être un booléen');
+    if(config.power_entity != null && typeof config.power_entity !== 'string') throw new Error('power_entity doit être un entity_id');
     if(config.ecs_eco_delta != null && (!Number.isFinite(Number(config.ecs_eco_delta)) || Number(config.ecs_eco_delta) < 0 || Number(config.ecs_eco_delta) > 15)) throw new Error('ecs_eco_delta doit être un nombre entre 0 et 15');
     for(const key of ['circuit_1_name','circuit_2_name']) {
       if(config[key] != null && typeof config[key] !== 'string') throw new Error(key+' doit être une chaîne');
     }
-    this._config={title:'Atlantic Alféa Extensa Duo',show_diagnostics:true,show_controls:true,ecs_eco_delta:3,circuit_1_name:'RDC',circuit_2_name:'Étage',theme_mode:'auto',layout_orientation:'auto',layout_style:'classic',...config};
+    this._config={title:'Atlantic Alféa Extensa Duo',show_diagnostics:true,show_controls:true,ecs_eco_delta:3,circuit_1_name:'RDC',circuit_2_name:'Étage',power_entity:'',theme_mode:'auto',layout_orientation:'auto',layout_style:'classic',...config};
     this._ids=null;
     this._lastSignature='';
     if(this._hass) this.hass=this._hass;
@@ -416,16 +423,21 @@ class PacSynoptiqueCard extends HTMLElement {
         const delta=Number(target.dataset.delta);
         const next=season==='cool'?Math.max(7,Math.min(30,base+delta)):Math.max(7,Math.min(35,base+delta));
         this._pendingTemp[entity]=next;
-        if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];},15000);
         this._render();
-        await this._setCircuitTarget(circuit,next);
+        this._queueTempWrite(`circuit${circuit}`,()=>this._setCircuitTarget(circuit,next));
         return;
       }
       if(action==='ecs'){
         const current=this._num(this._v('ecsComfortSetpoint'));
-        if(current===null) return;
+        const base=Number.isFinite(this._pendingEcs?.comfort)?this._pendingEcs.comfort:current;
+        if(base===null) return;
         const delta=Number(target.dataset.delta);
-        await this._setEcs(current+delta);
+        const ecoDelta=Math.max(0,Math.min(15,Number(this._config?.ecs_eco_delta ?? 3)));
+        const comfortValue=Math.round(Math.max(40,Math.min(65,base+delta)));
+        const ecoValue=Math.round(Math.max(5,Math.min(65,comfortValue-ecoDelta)));
+        this._pendingEcs={comfort:comfortValue,eco:ecoValue};
+        this._render();
+        this._queueTempWrite('ecs',()=>this._setEcs(comfortValue));
         return;
       }
       if(action==='edit'){
@@ -452,6 +464,24 @@ class PacSynoptiqueCard extends HTMLElement {
   _num(value){
     const n=Number(String(value??'').replace(',','.'));
     return Number.isFinite(n)?n:null;
+  }
+  _queueTempWrite(key,job){
+    this._tempDesired[key]=job;
+    if(this._tempTimers[key] && typeof clearTimeout==='function') clearTimeout(this._tempTimers[key]);
+    if(typeof setTimeout!=='function'){ this._flushTempWrite(key); return; }
+    this._tempTimers[key]=setTimeout(()=>{ this._tempTimers[key]=null; this._flushTempWrite(key); },600);
+  }
+  async _flushTempWrite(key){
+    if(this._tempBusy[key]) return;
+    const job=this._tempDesired[key];
+    if(!job) return;
+    this._tempBusy[key]=true;
+    this._tempDesired[key]=null;
+    try{ await job(); }
+    finally{
+      this._tempBusy[key]=false;
+      if(this._tempDesired[key]) await this._flushTempWrite(key);
+    }
   }
   async _setEcs(value){
     const comfort=this._ids?.ecsComfortSetpoint;
@@ -677,9 +707,17 @@ class PacSynoptiqueCard extends HTMLElement {
       <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong>${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
       ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
     </div></div>`:'';
+    const powerEntity=typeof this._config.power_entity==='string'?this._config.power_entity.trim():'';
+    const powerState=powerEntity?this._hass?.states[powerEntity]:null;
+    const powerRaw=powerState&&!isMissing(powerState.state)?Number(String(powerState.state).replace(',','.')):NaN;
+    const powerUnit=powerState?.attributes?.unit_of_measurement||'W';
+    const powerText=Number.isFinite(powerRaw)
+      ? new Intl.NumberFormat('fr-FR',{maximumFractionDigits:powerUnit==='kW'?2:0}).format(powerRaw)+' '+powerUnit
+      : '—';
+    const powerChip=powerEntity?`<div class="ctl-power" title="${html(powerState?.attributes?.friendly_name||powerEntity)}"><span>⚡ Puissance PAC</span><strong>${html(powerText)}</strong></div>`:'';
     return `<section class="controls" aria-label="Commandes PAC">
       <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${globalBtn('Refroidissement','cool')}</div></div>
-      ${circuit(c1,1)}${circuit(c2,2)}${ecsGroup}
+      ${circuit(c1,1)}${circuit(c2,2)}${ecsGroup}${powerChip}
     </section>`;
   }
   _detailRow(label,key,unit='',decimals=1){
@@ -697,14 +735,20 @@ class PacSynoptiqueCard extends HTMLElement {
     const prevAlarms=this.shadowRoot.querySelector('details[data-panel="alarms"]')?.open ?? false;
     const prevDetails=this.shadowRoot.querySelector('details[data-panel="diagnostics"]')?.open ?? false;
     const mode=this._resolveMode();
+    this.dataset.flow=mode==='cool'?'cool':mode==='heat'?'heat':'off';
     const compressor=this._b('compressor');
     const c1=this._circuit(1),c2=this._circuit(2),ecs=this._ecs();
     const defrost=this._b('defrost');
-    // Les animations illustrent une activité confirmée, pas la vitesse réelle du ventilateur.
-    const exchangerRunning=compressor===true && (mode==='heat'||mode==='cool');
+    const overrun=norm(this._v('pacState')).includes('overrun');
+    // Les animations illustrent une activité confirmée : compresseur, circuit, ECS ou overrun.
+    const exchangerRunning=(compressor===true || c1.active || c2.active || ecs.viaPac || overrun) && (mode==='heat'||mode==='cool');
     // Vitesse proportionnelle à la modulation : 0 % = arrêt, 100 % = rotation rapide.
     const fanPct=Math.max(0,Math.min(100,nvalue(this._v('modulation'))??0));
     const fanDuration=fanPct>0?Math.max(0.6,Math.min(12,60/fanPct)):0;
+    const flowDuration=(1.55-Math.min(100,Math.max(0,fanPct))/100*0.75).toFixed(2);
+    // Côté gauche = échangeur froid, côté droit = échangeur chaud (inversés en froid).
+    const inlinkTone=mode==='cool'?'heat':'cool';
+    const outlinkTone=mode==='cool'?'cool':'heat';
     const fanAnimated=compressor===true && defrost!==true && fanPct>0;
     const modeText=mode==='heat'?'Mode chauffage':mode==='cool'?'Mode rafraîchissement':mode==='off'?'Mode arrêt':'Mode inconnu';
     const compressorText=compressor===true?'En marche':compressor===false?'À l’arrêt':'État inconnu';
@@ -880,13 +924,21 @@ class PacSynoptiqueCard extends HTMLElement {
       .exch-col{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--blue)}
       .exch-col.hot{color:var(--red)}
       .exch-col svg{width:76px;max-width:100%;height:94px;fill:none;stroke:currentColor;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;
-        filter:drop-shadow(0 0 3px currentColor);opacity:.9;transition:opacity .25s ease,filter .25s ease}
-      /* Pas d'activité du compresseur : échangeurs visibles, sans animation. */
-      .exchanger.standby .exch-col svg{opacity:.33;filter:none}
-      /* La pulsation est purement indicative : aucune température frigorifique n'est inventée. */
-      .exchanger.running .exch-col svg{animation:exchangerPulse 2.8s ease-in-out infinite}
-      /* Animation limitée à l'opacité : évite d'animer les filtres SVG. */
-      @keyframes exchangerPulse {0%,100%{opacity:.70}50%{opacity:1}}
+        filter:drop-shadow(0 0 3px currentColor);opacity:.9;transform-origin:center;
+        transition:opacity .25s ease,filter .25s ease,transform .25s ease}
+      /* Pas d'activité confirmée : échangeurs visibles, sans animation. */
+      .exchanger.standby .exch-col svg{opacity:.78;filter:drop-shadow(0 0 5px currentColor);transform:none}
+      /* Pulsation nettement visible : opacité + halo + léger grossissement. */
+      .exchanger.running .exch-col svg{animation:exchangerPulse var(--flow-duration,1.15s) ease-in-out infinite;will-change:transform,opacity,filter}
+      @keyframes exchangerPulse {
+        0%,100%{opacity:.58;transform:scale(.96);filter:drop-shadow(0 0 2px currentColor)}
+        50%{opacity:1;transform:scale(1.07);filter:drop-shadow(0 0 10px currentColor) drop-shadow(0 0 20px currentColor)}
+      }
+      .exch-flow{fill:none;stroke:color-mix(in srgb,currentColor 35%,#fff);stroke-width:2.2;stroke-linecap:round;
+        stroke-dasharray:13 15;opacity:0;pointer-events:none}
+      .exchanger.running .exch-flow{opacity:.95;animation:flow var(--flow-duration,1.15s) linear infinite}
+      :host([data-flow="cool"]) .linksvg path.live,
+      :host([data-flow="cool"]) .exch-flow{animation-direction:reverse}
       .exch-caption{font-size:10px;color:var(--sub);white-space:nowrap}
       .pac-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;border-top:1px solid var(--line);padding-top:13px}
       .pac-metrics>div span{display:block;color:var(--sub);font-size:11px}.pac-metrics>div strong{display:block;font-size:17px;margin-top:5px;font-variant-numeric:tabular-nums}
@@ -894,13 +946,27 @@ class PacSynoptiqueCard extends HTMLElement {
       .linksvg{width:100%;height:100%;display:block;overflow:visible}
       .vertical-link{display:none}
       .linksvg path.track{stroke:var(--pipe);stroke-width:9;fill:none;stroke-linejoin:round;stroke-linecap:round}
-      .linksvg path.live{stroke-width:4;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:13 15;animation:flow 1.15s linear infinite}
-      .linksvg path.live.heat{stroke:var(--red)}.linksvg path.live.cool{stroke:var(--blue)}.linksvg path.live.electric{stroke:var(--amber)}
-      .linksvg path.live.active{stroke:var(--green)}
+      .linksvg.has-flow path.track{stroke:var(--flow-color,var(--pipe))!important;opacity:.5;animation:linkTrackPulse var(--flow-duration,1.15s) ease-in-out infinite}
+      .linksvg path.live{stroke:color-mix(in srgb,var(--flow-color,var(--red)) 22%,#fff);stroke-width:4.5;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:13 15;opacity:1;filter:drop-shadow(0 0 4px var(--flow-color,transparent));
+        animation:flow var(--flow-duration,1.15s) linear infinite,linkPulse var(--flow-duration,1.15s) ease-in-out infinite}
+      .linksvg path.live.heat{--flow-color:var(--red)}
+      .linksvg path.live.cool{--flow-color:var(--blue)}
+      .linksvg path.live.electric{--flow-color:var(--amber)}
+      .linksvg path.live.active{--flow-color:var(--blue)}
+      @keyframes linkPulse{0%,100%{opacity:.55;stroke-width:3.6}50%{opacity:1;stroke-width:5.4}}
+      @keyframes linkTrackPulse{0%,100%{opacity:.30}50%{opacity:.62}}
       @keyframes flow {to{stroke-dashoffset:-28}}
       .output-card{padding:15px 15px 12px;display:flex;flex-direction:column;justify-content:center;gap:10px;min-height:130px;position:relative;border-left:3px solid var(--panel-line)}
-      .output-card.heat{border-left-color:var(--red)} .output-card.cool{border-left-color:var(--blue)}
-      .output-card.electric{border-left-color:var(--amber)}
+      .output-card.heat{--flow-color:var(--red);border-left-color:var(--red)}
+      .output-card.cool{--flow-color:var(--blue);border-left-color:var(--blue)}
+      .output-card.electric{--flow-color:var(--amber);border-left-color:var(--amber)}
+      .output-card.heat:after,.output-card.cool:after,.output-card.electric:after{content:'';position:absolute;left:-23px;top:50%;width:23px;height:4px;margin-top:-2px;
+        background:var(--flow-color);
+        background-image:repeating-linear-gradient(90deg,color-mix(in srgb,var(--flow-color) 18%,#fff) 0 7px,transparent 7px 11px);
+        background-size:22px 4px;box-shadow:0 0 7px var(--flow-color);filter:drop-shadow(0 0 4px var(--flow-color));
+        animation:branchFlow var(--flow-duration,1.15s) linear infinite,branchPulse var(--flow-duration,1.15s) ease-in-out infinite}
+      @keyframes branchFlow{to{background-position:22px 0}}
+      @keyframes branchPulse{0%,100%{opacity:.45}50%{opacity:1}}
       .out-top{display:flex;align-items:center;gap:11px}
       .out-ico{flex:0 0 36px;width:36px;height:36px;color:var(--icon);display:grid;place-items:center}
       .symbol{width:29px;height:29px;display:block}
@@ -914,8 +980,15 @@ class PacSynoptiqueCard extends HTMLElement {
       .out-values>div span{color:var(--sub);display:block;font-size:10px}
       .out-values>div strong{display:block;margin-top:3px;font-size:20px;font-weight:750;font-variant-numeric:tabular-nums}
       .out-foot{display:flex;gap:6px;flex-wrap:wrap}.out-foot .chip{font-size:10px;padding:3px 8px}
-      .tank-mini{width:28px;height:39px;border-radius:9px;border:2px solid #88aec5;
-        background:linear-gradient(0deg,#377bc7,#935cbd 48%,#ff8f6a);box-shadow:inset 0 0 6px var(--tank-shadow)}
+      .tank-mini{position:relative;overflow:hidden;width:28px;height:39px;border-radius:9px;border:2px solid #88aec5;
+        background:linear-gradient(0deg,#377bc7,#935cbd 48%,#ff8f6a);background-size:100% 180%;box-shadow:inset 0 0 6px var(--tank-shadow)}
+      .tank-mini:after{content:'';position:absolute;inset:0;pointer-events:none;opacity:0;
+        background-image:radial-gradient(circle at 25% 60%,rgba(255,255,255,.8) 0 1.5px,transparent 2.5px),radial-gradient(circle at 70% 80%,rgba(255,255,255,.6) 0 1px,transparent 2px),radial-gradient(circle at 45% 30%,rgba(255,255,255,.45) 0 1px,transparent 2px);
+        background-size:16px 16px,20px 20px,14px 14px}
+      .output-card.heat .tank-mini,.output-card.electric .tank-mini{animation:tankHeat 2.4s linear infinite}
+      .output-card.heat .tank-mini:after,.output-card.electric .tank-mini:after{opacity:.8;animation:tankBubbles 2.2s linear infinite}
+      @keyframes tankHeat{to{background-position:0 -70%}}
+      @keyframes tankBubbles{from{transform:translateY(10px)}to{transform:translateY(-34px)}}
       .section{border-top:1px solid var(--line);padding:18px 2px 10px}
       .section-title{display:flex;justify-content:space-between;gap:15px;align-items:center;margin:0 0 12px}
       .section-title h3{font-size:15px;margin:0;font-weight:700}
@@ -973,9 +1046,7 @@ class PacSynoptiqueCard extends HTMLElement {
         .outs:before{content:'';position:absolute;left:9px;top:0;bottom:55px;width:7px;border-radius:4px;background:var(--pipe)}
         .output-card{min-height:115px;position:relative;overflow:visible}
         .output-card:before{content:'';position:absolute;left:-23px;top:50%;width:23px;height:7px;margin-top:-3px;background:var(--pipe)}
-        .output-card.heat:after,.output-card.cool:after{content:'';position:absolute;left:-23px;top:50%;width:23px;height:4px;margin-top:-2px;background:var(--red);background-image:repeating-linear-gradient(90deg,transparent 0 7px,var(--surface2) 7px 11px);background-size:22px 4px;animation:branchFlow 1.1s linear infinite}
-        .output-card.cool:after{background-color:var(--blue)}
-        @keyframes branchFlow{to{background-position:22px 0}}
+
         .diag-grid{grid-template-columns:1fr}
         .out-values{grid-template-columns:repeat(2,minmax(0,1fr))}
       }
@@ -1001,10 +1072,12 @@ class PacSynoptiqueCard extends HTMLElement {
       :host([data-layout-style="clean"]) .outs {grid-column:5;grid-row:1/4;gap:12px;padding:0;margin:0}
       /* Liaison graphique horizontale : équilibre entre finesse et lisibilité. */
       :host([data-layout-style="clean"]) .linksvg path.track {stroke-width:5;opacity:.65}
-      :host([data-layout-style="clean"]) .linksvg path.live {stroke-width:3;stroke-dasharray:10 15}
+      :host([data-layout-style="clean"]) .linksvg path.live {stroke-width:3}
       :host([data-layout-style="clean"][data-show-links="false"]) .inlink,
       :host([data-layout-style="clean"][data-show-links="false"]) .outlink {visibility:hidden}
+      :host([data-animate-flows="false"]) .linksvg.has-flow path.track,
       :host([data-animate-flows="false"]) .linksvg path.live {animation:none!important;stroke-dasharray:none}
+      :host([data-animate-flows="false"]) .exchanger.running .exch-flow,
       :host([data-animate-flows="false"]) .exchanger.running .exch-col svg,
       :host([data-animate-flows="false"]) .fan-shell.running .blades {animation:none!important}
       :host([data-layout-style="clean"]) .outs:before,
@@ -1073,7 +1146,6 @@ class PacSynoptiqueCard extends HTMLElement {
       details.alarm-details{padding-top:10px}
       .diag-group{padding:11px}
       .diag-grid{gap:9px}
-      .linksvg path.live{stroke-dasharray:12 14}
       /* Orientations : aucun fichier image, uniquement HTML/CSS et SVG incorporé. */
       :host([data-orientation="landscape"]) .wrap{overflow-x:auto;overscroll-behavior-x:contain}
       :host([data-orientation="landscape"]) .schematic,
@@ -1114,8 +1186,7 @@ class PacSynoptiqueCard extends HTMLElement {
 :host([data-orientation="portrait"]) .outs:before{content:'';display:block;position:absolute;left:8px;top:0;bottom:50px;width:5px;border-radius:4px;background:var(--pipe)}
 :host([data-orientation="portrait"]) .output-card{position:relative;min-height:105px;padding:10px 12px;overflow:visible}
 :host([data-orientation="portrait"]) .output-card:before{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:5px;margin-top:-2px;background:var(--pipe)}
-:host([data-orientation="portrait"]) .output-card.heat:after, :host([data-orientation="portrait"]) .output-card.cool:after{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:3px;margin-top:-1px;background-color:var(--red);background-image:repeating-linear-gradient(90deg,transparent 0 7px,var(--surface2) 7px 11px);animation:branchFlow 1.1s linear infinite}
-:host([data-orientation="portrait"]) .output-card.cool:after{background-color:var(--blue)}
+      :host([data-orientation="portrait"]) .output-card.heat:after, :host([data-orientation="portrait"]) .output-card.cool:after, :host([data-orientation="portrait"]) .output-card.electric:after{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:3px;margin-top:-1px}
 :host([data-orientation="portrait"]) .diag-grid{grid-template-columns:1fr}
 :host([data-orientation="portrait"]) .out-values{grid-template-columns:repeat(2,minmax(0,1fr))}
 :host([data-orientation="portrait"]) .output-card .out-values strong{font-size:17px}
@@ -1143,8 +1214,7 @@ class PacSynoptiqueCard extends HTMLElement {
 :host([data-orientation="auto"]) .outs:before{content:'';display:block;position:absolute;left:8px;top:0;bottom:50px;width:5px;border-radius:4px;background:var(--pipe)}
 :host([data-orientation="auto"]) .output-card{position:relative;min-height:105px;padding:10px 12px;overflow:visible}
 :host([data-orientation="auto"]) .output-card:before{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:5px;margin-top:-2px;background:var(--pipe)}
-:host([data-orientation="auto"]) .output-card.heat:after, :host([data-orientation="auto"]) .output-card.cool:after{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:3px;margin-top:-1px;background-color:var(--red);background-image:repeating-linear-gradient(90deg,transparent 0 7px,var(--surface2) 7px 11px);animation:branchFlow 1.1s linear infinite}
-:host([data-orientation="auto"]) .output-card.cool:after{background-color:var(--blue)}
+      :host([data-orientation="auto"]) .output-card.heat:after, :host([data-orientation="auto"]) .output-card.cool:after, :host([data-orientation="auto"]) .output-card.electric:after{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:3px;margin-top:-1px}
 :host([data-orientation="auto"]) .diag-grid{grid-template-columns:1fr}
 :host([data-orientation="auto"]) .out-values{grid-template-columns:repeat(2,minmax(0,1fr))}
 :host([data-orientation="auto"]) .output-card .out-values strong{font-size:17px}
@@ -1167,9 +1237,11 @@ class PacSynoptiqueCard extends HTMLElement {
         :host([data-orientation="auto"][data-show-links="false"]) .inlink,
         :host([data-orientation="auto"][data-show-links="false"]) .outlink{visibility:hidden}
       }
-      :host([data-animate-flows="false"]) .output-card:after{animation:none!important}
-      @media(prefers-reduced-motion:reduce){.output-card:after{animation:none!important}}
-      @media(prefers-reduced-motion:reduce){.linksvg path.live,.fan-shell.running .blades,.exchanger.running .exch-col svg{animation:none!important}}
+      :host([data-animate-flows="false"]) .output-card:after,
+      :host([data-animate-flows="false"]) .tank-mini,
+      :host([data-animate-flows="false"]) .tank-mini:after{animation:none!important}
+      @media(prefers-reduced-motion:reduce){.output-card:after,.tank-mini,.tank-mini:after{animation:none!important}}
+      @media(prefers-reduced-motion:reduce){.linksvg.has-flow path.track,.linksvg path.live,.fan-shell.running .blades,.exchanger.running .exch-col svg,.exchanger.running .exch-flow{animation:none!important}}
 
       /* V2.8.2 : portrait mobile sans faux collecteur latéral. Des traits courts
          relient COMP → PAC → groupe de sorties, sans branches traversantes.
@@ -1296,8 +1368,7 @@ class PacSynoptiqueCard extends HTMLElement {
       :host([data-layout-style="aerien"]) .linksvg path.track{
         stroke:var(--aerien-tube);stroke-width:5;opacity:.8}
       :host([data-layout-style="aerien"]) .linksvg path.live{
-        stroke-width:2.5;stroke-dasharray:5 15;
-        animation:flow 2.25s linear infinite}
+        stroke-width:2.5}
       :host([data-layout-style="aerien"]) details{
         border:1px solid var(--aerien-border);border-radius:15px;
         padding:12px 15px;margin-top:9px;background:var(--aerien-panel)}
@@ -1356,6 +1427,11 @@ class PacSynoptiqueCard extends HTMLElement {
       .ctl-group{display:flex;flex-direction:column;gap:7px}
       .ctl-label{font-size:10px;letter-spacing:.7px;text-transform:uppercase;
         color:var(--sub);font-weight:800}
+      .ctl-power{display:flex;flex-direction:column;gap:4px;margin-left:auto;padding:7px 11px;
+        border:1px solid var(--panel-line);border-radius:10px;background:var(--surface)}
+      .ctl-power span{font-size:10px;letter-spacing:.7px;text-transform:uppercase;
+        color:var(--sub);font-weight:800}
+      .ctl-power strong{font-size:18px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
       .ctl-buttons{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
       .ctl-btn{font:inherit;font-size:12px;font-weight:650;padding:7px 11px;
         border-radius:9px;border:1px solid var(--panel-line);background:var(--surface);
@@ -1398,7 +1474,7 @@ class PacSynoptiqueCard extends HTMLElement {
       .ctl-modal-actions{display:flex;justify-content:flex-end}
       @media(prefers-reduced-motion:reduce){.ctl-btn{transition:none}}
     </style>
-    <ha-card><div class="wrap">
+    <ha-card><div class="wrap" style="--flow-duration:${flowDuration}s">
       <!-- Bandeau supprimé ; mode saisonnier présenté dans le module PAC. -->
       <div class="schematic" aria-label="Unité extérieure compresseur, module PAC et trois usages ${html(this._circuitName(1))}, ${html(this._circuitName(2))}, ECS">
         <section class="machine"><div class="mini-head">Unité extérieure / COMP</div>
@@ -1429,19 +1505,19 @@ class PacSynoptiqueCard extends HTMLElement {
             <div class="mod-bar"><i style="width:${gauge!==null?Math.max(0,Math.min(100,gauge)):0}%"></i></div></div>
           ${defrost===true?`<div>${chip('Dégivrage actif','cool')}</div>`:''}
         </section>
-        <div class="inlink" aria-hidden="true"><svg class="linksvg horizontal-link" viewBox="0 0 100 440" preserveAspectRatio="none"><path class="track" d="M0 220 H100"/>
-          ${compressor===true?'<path class="live active" d="M0 220 H100"/>':''}</svg><svg class="linksvg vertical-link" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="track" d="M50 0 V100"/>${compressor===true?'<path class="live active" d="M50 0 V100"/>':''}</svg></div>
+        <div class="inlink" aria-hidden="true"><svg class="linksvg horizontal-link${exchangerRunning?' has-flow '+inlinkTone:''}" style="--flow-color:${inlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 440" preserveAspectRatio="none"><path class="track" d="M0 220 H100"/>
+          ${exchangerRunning?`<path class="live ${inlinkTone}" d="M0 220 H100"/>`:''}</svg><svg class="linksvg vertical-link${exchangerRunning?' has-flow '+inlinkTone:''}" style="--flow-color:${inlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="track" d="M50 0 V100"/>${exchangerRunning?`<path class="live ${inlinkTone}" d="M50 0 V100"/>`:''}</svg></div>
         <section class="pac"><div class="mini-head">PAC · Module hydraulique</div>
           <div class="pac-head-status">${chip(modeText,mode==='heat'?'heat':mode==='cool'?'cool':'dim')}
           ${chip(clean(this._v('pacState')||'État PAC indisponible',36),compressor===true?'positive':'dim')}</div>
           <div class="pac-art"><div class="exchanger ${exchangerRunning?'running':'standby'}" aria-label="Représentation symbolique des échanges thermiques, animation lorsque le compresseur fonctionne">
-            <div class="exch-col ${mode==='cool'?'hot':''}"><svg viewBox="0 0 78 100" aria-hidden="true"><path d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/></svg><svg class="exch-aerien" viewBox="0 0 78 100" aria-hidden="true">
+            <div class="exch-col ${mode==='cool'?'hot':''}"><svg viewBox="0 0 78 100" aria-hidden="true"><path d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/><path class="exch-flow" d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/></svg><svg class="exch-aerien" viewBox="0 0 78 100" aria-hidden="true">
               <rect class="exch-frame" x="7" y="4" width="64" height="92" rx="10"/>
-              <path class="exch-tube" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/>
+              <path class="exch-tube" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/><path class="exch-flow" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/>
             </svg><span class="exch-caption">${mode==='cool'?'Échange chaud':mode==='heat'?'Échange froid':'Côté extérieur'}</span></div>
-            <div class="exch-col ${mode==='cool'?'':'hot'}"><svg viewBox="0 0 78 100" aria-hidden="true"><path d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/></svg><svg class="exch-aerien" viewBox="0 0 78 100" aria-hidden="true">
+            <div class="exch-col ${mode==='cool'?'':'hot'}"><svg viewBox="0 0 78 100" aria-hidden="true"><path d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/><path class="exch-flow" d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/></svg><svg class="exch-aerien" viewBox="0 0 78 100" aria-hidden="true">
               <rect class="exch-frame" x="7" y="4" width="64" height="92" rx="10"/>
-              <path class="exch-tube" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/>
+              <path class="exch-tube" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/><path class="exch-flow" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/>
             </svg><span class="exch-caption">${mode==='cool'?'Échange froid':mode==='heat'?'Échange chaud':'Côté intérieur'}</span></div>
           </div></div>
           <div class="pac-metrics">
@@ -1451,11 +1527,11 @@ class PacSynoptiqueCard extends HTMLElement {
             <div><span>ΔT départ − retour</span><strong>${html(pacDelta)}</strong></div>
           </div><div class="pac-bottom">Températures communes aux circuits · pas de mesure séparée ${html(this._circuitName(1))} / ${html(this._circuitName(2))}</div>
         </section>
-        <div class="outlink" aria-hidden="true"><svg class="linksvg horizontal-link" viewBox="0 0 100 440" preserveAspectRatio="none">
+        <div class="outlink" aria-hidden="true"><svg class="linksvg horizontal-link${(c1.active||c2.active||ecs.viaPac)?' has-flow '+outlinkTone:''}" style="--flow-color:${outlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 440" preserveAspectRatio="none">
           <path class="track" d="M0 220H33V72H100 M33 220H100 M33 220V368H100"/>
           ${c1.active?`<path class="live ${branchTone(c1)}" d="M0 220H33V72H100"/>`:''}
           ${c2.active?`<path class="live ${branchTone(c2)}" d="M0 220H33H100"/>`:''}
-          ${ecs.viaPac?'<path class="live heat" d="M0 220H33V368H100"/>':''}</svg><svg class="linksvg vertical-link" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="track" d="M50 0 V100"/>${(c1.active||c2.active||ecs.viaPac)?'<path class="live active" d="M50 0 V100"/>':''}</svg></div>
+          ${ecs.viaPac?'<path class="live heat" d="M0 220H33V368H100"/>':''}</svg><svg class="linksvg vertical-link${(c1.active||c2.active||ecs.viaPac)?' has-flow '+outlinkTone:''}" style="--flow-color:${outlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="track" d="M50 0 V100"/>${(c1.active||c2.active||ecs.viaPac)?`<path class="live ${outlinkTone}" d="M50 0 V100"/>`:''}</svg></div>
         <div class="outs">${circHtml(c1)}${circHtml(c2)}
           <section class="output-card ${ecsTone}" aria-label="Eau chaude sanitaire">
             <div class="out-top"><div class="tank-mini" aria-hidden="true"></div><div class="out-head">
@@ -1523,6 +1599,13 @@ class PacSynoptiqueCardEditor extends HTMLElement {
         if(Number.isFinite(value) && value>=0 && value<=15) this._changed('ecs_eco_delta',value);
       }
     });
+    this.shadowRoot.addEventListener('value-changed', event => {
+      if (!this._config) return;
+      const element=event.target;
+      if (element?.id==='pac-power-entity-picker') {
+        this._changed('power_entity',String(event.detail?.value??'').trim());
+      }
+    });
   }
   setConfig(config) {
     if (!config || typeof config !== 'object' || Array.isArray(config)) {
@@ -1531,7 +1614,11 @@ class PacSynoptiqueCardEditor extends HTMLElement {
     this._config={...config};
     this._render();
   }
-  set hass(hass) {this._hass=hass;}
+  set hass(hass) {
+    this._hass=hass;
+    const picker=this.shadowRoot?.querySelector?.('#pac-power-entity-picker');
+    if(picker) picker.hass=hass;
+  }
   _changed(key,value) {
     // Conserve les paramètres additionnels/associations d'entités et la
     // largeur, même s'ils ne sont pas modifiés dans l'éditeur visuel.
@@ -1553,6 +1640,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
     const circuit1Name=typeof config.circuit_1_name==='string'?config.circuit_1_name:'RDC';
     const circuit2Name=typeof config.circuit_2_name==='string'?config.circuit_2_name:'Étage';
     const ecsDelta=Number.isFinite(Number(config.ecs_eco_delta))?Number(config.ecs_eco_delta):3;
+    const powerEntity=typeof config.power_entity==='string'?config.power_entity:'';
     const selectedLayout=(config.layout_style||'classic');
     const selectedOrientation=['auto','landscape','portrait'].includes(config.layout_orientation)?config.layout_orientation:'auto';
     this.shadowRoot.innerHTML=`
@@ -1575,6 +1663,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
           color:var(--primary-text-color,#243443);
           background:var(--card-background-color,var(--ha-card-background,#fff));
           border:1px solid var(--divider-color,#8da0b0);border-radius:10px;padding:10px 12px}
+        ha-entity-picker{display:block;width:100%}
         .toggle{display:flex;align-items:center;gap:12px;cursor:pointer}
         input[type=checkbox]{width:19px;height:19px;accent-color:var(--primary-color,#03a9f4);
           flex:none;cursor:pointer}
@@ -1602,6 +1691,11 @@ class PacSynoptiqueCardEditor extends HTMLElement {
           <label for="pac-ecs-delta">Écart consigne ECS éco (°C)</label>
           <input id="pac-ecs-delta" type="number" min="0" max="15" step="0.5" value="${ecsDelta}">
           <div class="hint">Quand tu modifies la consigne ECS, la consigne éco (1612) est écrite à « confort − écart ».</div>
+        </div>
+        <div class="field">
+          <label for="pac-power-entity-picker">Entité de puissance consommée</label>
+          <ha-entity-picker id="pac-power-entity-picker" allow-custom-entity></ha-entity-picker>
+          <div class="hint">Entité instantanée (W ou kW), affichée avec les commandes. Tape pour rechercher parmi les capteurs.</div>
         </div>
         <div class="field">
           <label class="toggle" for="pac-show-controls">
@@ -1652,6 +1746,13 @@ class PacSynoptiqueCardEditor extends HTMLElement {
         <div class="hint notice">Les commandes sont optionnelles et utilisent les entités Climate de l'intégration.
           La largeur se règle dans l'onglet Disposition du tableau de bord.</div>
       </div>`;
+    const powerPicker=this.shadowRoot.querySelector('#pac-power-entity-picker');
+    if(powerPicker){
+      powerPicker.hass=this._hass;
+      powerPicker.value=powerEntity;
+      powerPicker.includeDomains=['sensor'];
+      powerPicker.entityFilter=state=>state?.attributes?.device_class==='power'||['W','kW'].includes(state?.attributes?.unit_of_measurement);
+    }
   }
 }
 if(!customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG,PacSynoptiqueCardEditor);
