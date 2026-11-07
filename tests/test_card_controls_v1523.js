@@ -18,7 +18,9 @@ const states={
   "number.atlantic_alfea_bsb_lan_c2_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Chauffage T. Conf"}},
   "binary_sensor.comp_etat":{state:"on",attributes:{friendly_name:"COMP - État"}},
   "sensor.comp_modulation":{state:"50",attributes:{friendly_name:"COMP - Modulation"}},
-  "sensor.pac_power":{state:"1234.0",attributes:{friendly_name:"PAC puissance",unit_of_measurement:"W"}}
+  "sensor.pac_power":{state:"1234.0",attributes:{friendly_name:"PAC puissance",unit_of_measurement:"W"}},
+  "sensor.atlantic_alfea_bsb_lan_ecs_cop_session":{state:"1.7",attributes:{friendly_name:"Atlantic Alfea BSB-LAN ECS - COP session",duree_session_min:17,t_depart_reel:49.0,t_fin:53.2,conso_session_kwh:0.546,debut_session:"2026-11-07T13:50:39+00:00",session_valide:true}},
+  "water_heater.bsb_lan":{state:"performance",attributes:{friendly_name:"Water heater",operation_list:["off","performance","eco"],current_temperature:53.8,temperature:60.0}}
 };
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},
   window:{customCards:[],matchMedia:()=>({matches:false})},Date,JSON,Object,Intl,Number,String,Array,Math,Set,console,setTimeout,clearTimeout};
@@ -39,6 +41,9 @@ assert(html.includes('data-pac-action="temp"'),"commande consigne absente");
 assert(html.includes('data-value="Chauffage"'),"option Chauffage absente");
 assert(html.includes('data-value="Refroidissement"'),"option Refroidissement absente");
 assert(html.includes("ECS · Ballon"),"commande ECS absente");
+assert(html.includes("📊 COP"),"bilan COP ECS absent");
+assert(html.includes("17 min"),"durée session ECS absente");
+assert(html.includes('data-pac-action="ecs-mode"'),"mode ECS On/Off absent");
 assert(html.includes('data-pac-action="edit"'),"consigne cliquable absente");
 assert(html.includes("fan-shell running"),"ventilateur non animé à 50 %");
 assert(html.includes("--fan-duration:1.2s"),"vitesse ventilateur non proportionnelle");
@@ -71,6 +76,11 @@ const click=dataset=>card._onClick({composedPath:()=>[{dataset}],stopPropagation
   assert.equal(calls[3][0],"number");
   assert.equal(calls[3][2].value,50);
   assert.equal(calls[4][2].value,47);
+
+  await click({pacAction:"ecs-mode",value:"off"});
+  assert.equal(calls[5][0],"water_heater");
+  assert.equal(calls[5][1],"set_operation_mode");
+  assert.equal(calls[5][2].operation_mode,"off");
 
   card._hass.callApi=async()=>[[
     {state:"19.8",last_changed:new Date(Date.now()-2*3600e3).toISOString()},

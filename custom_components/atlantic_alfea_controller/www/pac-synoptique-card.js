@@ -55,6 +55,7 @@ const FIELDS = {
   ecsTemp:         ['sensor','ECS - T. ballon'],
   ecsComfort:      ['sensor','ECS - T. Confort'],
   ecsEco:          ['sensor','ECS - T. Éco'],
+  ecsCopSession:   ['sensor','ECS - COP session'],
   ecsComfortSetpoint: ['number','Temp consigne ECS confort'],
   ecsEcoSetpoint:     ['number','Temp consigne ECS reduit'],
   heatSetpointC1:  ['number','C1 - Chauffage T. Conf'],
@@ -440,6 +441,14 @@ class PacSynoptiqueCard extends HTMLElement {
         this._queueTempWrite('ecs',()=>this._setEcs(comfortValue));
         return;
       }
+      if(action==='ecs-mode'){
+        const entity=this._config.ecs_mode_entity||'water_heater.bsb_lan';
+        const value=target.dataset.value;
+        if(!this._hass?.states[entity] || !['off','performance'].includes(value)) return;
+        await this._hass.callService('water_heater','set_operation_mode',{entity_id:entity,operation_mode:value});
+        this._render();
+        return;
+      }
       if(action==='edit'){
         this._openEditor(target.dataset.target,Number(target.dataset.circuit||0));
         return;
@@ -703,7 +712,12 @@ class PacSynoptiqueCard extends HTMLElement {
         <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong>${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
       </div></div>`;
     };
+    const ecsModeEntity=this._config.ecs_mode_entity||'water_heater.bsb_lan';
+    const ecsModeState=this._hass?.states[ecsModeEntity];
+    const ecsMode=ecsModeState?.state;
+    const ecsModeButtons=ecsModeState?`<button type="button" class="ctl-btn${ecsMode==='off'?' active':''}" data-pac-action="ecs-mode" data-value="off">Off</button><button type="button" class="ctl-btn${ecsMode!=='off'?' active':''}" data-pac-action="ecs-mode" data-value="performance">On</button>`:'';
     const ecsGroup=ecs?.comfortSetpoint?`<div class="ctl-group"><span class="ctl-label">ECS · Ballon</span><div class="ctl-buttons">
+      ${ecsModeButtons}
       <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong>${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
       ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
     </div></div>`:'';
@@ -749,6 +763,11 @@ class PacSynoptiqueCard extends HTMLElement {
     // Côté gauche = échangeur froid, côté droit = échangeur chaud (inversés en froid).
     const inlinkTone=mode==='cool'?'heat':'cool';
     const outlinkTone=mode==='cool'?'cool':'heat';
+    // Pendant l'overrun, le circulateur peut encore tourner alors que hvac_action est idle.
+    const c1Flow=c1.active||(overrun&&c1.pump===true&&!c1.off);
+    const c2Flow=c2.active||(overrun&&c2.pump===true&&!c2.off);
+    const ecsFlow=ecs.viaPac;
+    const outlinkActive=c1Flow||c2Flow||ecsFlow;
     const fanAnimated=compressor===true && defrost!==true && fanPct>0;
     const modeText=mode==='heat'?'Mode chauffage':mode==='cool'?'Mode rafraîchissement':mode==='off'?'Mode arrêt':'Mode inconnu';
     const compressorText=compressor===true?'En marche':compressor===false?'À l’arrêt':'État inconnu';
@@ -784,6 +803,25 @@ class PacSynoptiqueCard extends HTMLElement {
       norm(ecs.production).includes('demande')?'Demande en attente':
       norm(ecs.production)==='inactive'?'En attente':'État non confirmé';
     const ecsTone=ecs.viaPac?'heat':ecs.withElectric?'electric':'idle';
+    const ecsCopState=this._s('ecsCopSession');
+    const ecsCopAttr=ecsCopState?.attributes||{};
+    const ecsCopValue=nvalue(ecsCopState?.state);
+    const ecsCopText=ecsCopValue!==null?ecsCopValue.toFixed(2).replace('.',','):'—';
+    const ecsCopDuration=ecsCopAttr.duree_session_min!=null?String(Math.round(Number(ecsCopAttr.duree_session_min))):'—';
+    const ecsCopStartTemp=ecsCopAttr.t_depart_reel!=null?temp(ecsCopAttr.t_depart_reel):'—';
+    const ecsCopEndTemp=ecsCopAttr.t_fin!=null?temp(ecsCopAttr.t_fin):'—';
+    const ecsCopEnergy=Number(ecsCopAttr.conso_session_kwh ?? ecsCopAttr.e_elec_kwh);
+    const ecsCopEnergyText=Number.isFinite(ecsCopEnergy)?ecsCopEnergy.toLocaleString('fr-FR',{minimumFractionDigits:3,maximumFractionDigits:3})+' kWh':'— kWh';
+    const ecsCopStartDate=ecsCopAttr.debut_session?new Date(ecsCopAttr.debut_session):null;
+    const ecsCopStartTime=ecsCopStartDate&&!Number.isNaN(ecsCopStartDate.getTime())
+      ?ecsCopStartDate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'—';
+    const ecsSessionHtml=ecsCopState&&(ecsCopValue!==null||ecsCopAttr.duree_session_min!=null)?`<div class="ecs-session" title="Dernière session ECS">
+      <span>📊 COP <strong>${html(ecsCopText)}</strong></span>
+      <span>⏱️ <strong>${html(ecsCopDuration)} min</strong></span>
+      <span>🌡️ <strong>${html(ecsCopStartTemp)} → ${html(ecsCopEndTemp)}</strong></span>
+      <span>⚡ <strong>${html(ecsCopEnergyText)}</strong></span>
+      <span>🕒 <strong>${html(ecsCopStartTime)}</strong></span>
+    </div>`:'';
     const gauge=nvalue(this._v('modulation'));
     const pacDelta= nvalue(this._v('flow'))!==null && nvalue(this._v('returnTemp'))!==null ?
       `${decimal.format(nvalue(this._v('flow'))-nvalue(this._v('returnTemp')))} °C` : '—';
@@ -799,7 +837,7 @@ class PacSynoptiqueCard extends HTMLElement {
       <div class="out-foot">${chip(c.nativePreset?.label ?? (c.off?'OFF':'Régime indisponible'),c.nativePreset?.tone ?? 'dim')}
         ${chip(c.native??'État BSB-LAN indisponible','dim')}
         ${c.target!=null?chip('Eff. '+temp(c.target),'dim'):''}
-        ${this._config.show_pump_badges!==false && c.pump!==null?chip(c.pump?'Circulateur actif':'Circulateur arrêté',c.pump?'positive':'dim'):''}
+        ${this._config.show_pump_badges!==false && c.pump!==null?chip(c.pump?(c.off?'Post-circulation':'Circulateur actif'):'Circulateur arrêté',c.pump&&!c.off?'positive':'dim'):''}
         ${c.override===true?chip('Dérogation active','warning'):''}</div>
     </section>`;
     const alarmsClass=alertActive.length?'alerted':'quiet';
@@ -939,7 +977,8 @@ class PacSynoptiqueCard extends HTMLElement {
       .exchanger.running .exch-flow{opacity:.95;animation:flow var(--flow-duration,1.15s) linear infinite}
       :host([data-flow="cool"]) .linksvg path.live,
       :host([data-flow="cool"]) .exch-flow{animation-direction:reverse}
-      .exch-caption{font-size:10px;color:var(--sub);white-space:nowrap}
+      .exch-caption{font-size:10px;color:var(--sub);white-space:nowrap;text-align:center;line-height:1.25}
+      .exch-caption small{display:block;font-size:9px;color:var(--muted);font-weight:500}
       .pac-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;border-top:1px solid var(--line);padding-top:13px}
       .pac-metrics>div span{display:block;color:var(--sub);font-size:11px}.pac-metrics>div strong{display:block;font-size:17px;margin-top:5px;font-variant-numeric:tabular-nums}
       .pac-bottom{margin-top:8px;font-size:11px;color:var(--sub);line-height:1.5}
@@ -980,6 +1019,9 @@ class PacSynoptiqueCard extends HTMLElement {
       .out-values>div span{color:var(--sub);display:block;font-size:10px}
       .out-values>div strong{display:block;margin-top:3px;font-size:20px;font-weight:750;font-variant-numeric:tabular-nums}
       .out-foot{display:flex;gap:6px;flex-wrap:wrap}.out-foot .chip{font-size:10px;padding:3px 8px}
+      .ecs-session{display:flex;flex-wrap:wrap;gap:5px 12px;border-top:1px solid var(--line);padding-top:8px;margin-top:2px;font-size:10px;color:var(--sub)}
+      .ecs-session span{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
+      .ecs-session strong{font-size:12px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
       .tank-mini{position:relative;overflow:hidden;width:28px;height:39px;border-radius:9px;border:2px solid #88aec5;
         background:linear-gradient(0deg,#377bc7,#935cbd 48%,#ff8f6a);background-size:100% 180%;box-shadow:inset 0 0 6px var(--tank-shadow)}
       .tank-mini:after{content:'';position:absolute;inset:0;pointer-events:none;opacity:0;
@@ -1507,18 +1549,18 @@ class PacSynoptiqueCard extends HTMLElement {
         </section>
         <div class="inlink" aria-hidden="true"><svg class="linksvg horizontal-link${exchangerRunning?' has-flow '+inlinkTone:''}" style="--flow-color:${inlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 440" preserveAspectRatio="none"><path class="track" d="M0 220 H100"/>
           ${exchangerRunning?`<path class="live ${inlinkTone}" d="M0 220 H100"/>`:''}</svg><svg class="linksvg vertical-link${exchangerRunning?' has-flow '+inlinkTone:''}" style="--flow-color:${inlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="track" d="M50 0 V100"/>${exchangerRunning?`<path class="live ${inlinkTone}" d="M50 0 V100"/>`:''}</svg></div>
-        <section class="pac"><div class="mini-head">PAC · Module hydraulique</div>
+        <section class="pac"><div class="mini-head">PAC · Échangeurs</div>
           <div class="pac-head-status">${chip(modeText,mode==='heat'?'heat':mode==='cool'?'cool':'dim')}
           ${chip(clean(this._v('pacState')||'État PAC indisponible',36),compressor===true?'positive':'dim')}</div>
           <div class="pac-art"><div class="exchanger ${exchangerRunning?'running':'standby'}" aria-label="Représentation symbolique des échanges thermiques, animation lorsque le compresseur fonctionne">
             <div class="exch-col ${mode==='cool'?'hot':''}"><svg viewBox="0 0 78 100" aria-hidden="true"><path d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/><path class="exch-flow" d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/></svg><svg class="exch-aerien" viewBox="0 0 78 100" aria-hidden="true">
               <rect class="exch-frame" x="7" y="4" width="64" height="92" rx="10"/>
               <path class="exch-tube" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/><path class="exch-flow" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/>
-            </svg><span class="exch-caption">${mode==='cool'?'Échange chaud':mode==='heat'?'Échange froid':'Côté extérieur'}</span></div>
+            </svg><span class="exch-caption">Échangeur air<small>(extérieur)</small></span></div>
             <div class="exch-col ${mode==='cool'?'':'hot'}"><svg viewBox="0 0 78 100" aria-hidden="true"><path d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/><path class="exch-flow" d="M5 6H64Q74 6 74 16V22Q74 31 64 31H15Q5 31 5 41V46Q5 54 15 54H64Q74 54 74 64V69Q74 77 64 77H15Q5 77 5 88V95"/></svg><svg class="exch-aerien" viewBox="0 0 78 100" aria-hidden="true">
               <rect class="exch-frame" x="7" y="4" width="64" height="92" rx="10"/>
               <path class="exch-tube" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/><path class="exch-flow" d="M17 20H56Q63 20 63 27Q63 34 56 34H24Q16 34 16 42Q16 49 24 49H55Q63 49 63 57Q63 64 55 64H24Q16 64 16 72Q16 79 24 79H61"/>
-            </svg><span class="exch-caption">${mode==='cool'?'Échange froid':mode==='heat'?'Échange chaud':'Côté intérieur'}</span></div>
+            </svg><span class="exch-caption">Échangeur eau<small>(intérieur)</small></span></div>
           </div></div>
           <div class="pac-metrics">
             <div><span>Départ PAC</span>${this._tempLink(this._v('flow'),this._ids?.flow,'Départ PAC')}</div>
@@ -1527,11 +1569,11 @@ class PacSynoptiqueCard extends HTMLElement {
             <div><span>ΔT départ − retour</span><strong>${html(pacDelta)}</strong></div>
           </div><div class="pac-bottom">Températures communes aux circuits · pas de mesure séparée ${html(this._circuitName(1))} / ${html(this._circuitName(2))}</div>
         </section>
-        <div class="outlink" aria-hidden="true"><svg class="linksvg horizontal-link${(c1.active||c2.active||ecs.viaPac)?' has-flow '+outlinkTone:''}" style="--flow-color:${outlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 440" preserveAspectRatio="none">
+        <div class="outlink" aria-hidden="true"><svg class="linksvg horizontal-link${outlinkActive?' has-flow '+outlinkTone:''}" style="--flow-color:${outlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 440" preserveAspectRatio="none">
           <path class="track" d="M0 220H33V72H100 M33 220H100 M33 220V368H100"/>
-          ${c1.active?`<path class="live ${branchTone(c1)}" d="M0 220H33V72H100"/>`:''}
-          ${c2.active?`<path class="live ${branchTone(c2)}" d="M0 220H33H100"/>`:''}
-          ${ecs.viaPac?'<path class="live heat" d="M0 220H33V368H100"/>':''}</svg><svg class="linksvg vertical-link${(c1.active||c2.active||ecs.viaPac)?' has-flow '+outlinkTone:''}" style="--flow-color:${outlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="track" d="M50 0 V100"/>${(c1.active||c2.active||ecs.viaPac)?`<path class="live ${outlinkTone}" d="M50 0 V100"/>`:''}</svg></div>
+          ${c1Flow?`<path class="live ${c1.active?branchTone(c1):outlinkTone}" d="M0 220H33V72H100"/>`:''}
+          ${c2Flow?`<path class="live ${c2.active?branchTone(c2):outlinkTone}" d="M0 220H33H100"/>`:''}
+          ${ecsFlow?`<path class="live ${ecs.viaPac?'heat':outlinkTone}" d="M0 220H33V368H100"/>`:''}</svg><svg class="linksvg vertical-link${outlinkActive?' has-flow '+outlinkTone:''}" style="--flow-color:${outlinkTone==='cool'?'var(--blue)':'var(--red)'}" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="track" d="M50 0 V100"/>${outlinkActive?`<path class="live ${outlinkTone}" d="M50 0 V100"/>`:''}</svg></div>
         <div class="outs">${circHtml(c1)}${circHtml(c2)}
           <section class="output-card ${ecsTone}" aria-label="Eau chaude sanitaire">
             <div class="out-top"><div class="tank-mini" aria-hidden="true"></div><div class="out-head">
@@ -1539,6 +1581,7 @@ class PacSynoptiqueCard extends HTMLElement {
               <span class="state-dot ${ecsTone}"></span></div>
             <div class="out-values"><div><span>Température ballon</span>${this._tempLink(ecs.tempBallon,this._ids?.ecsTemp,'Température ballon ECS')}</div>
               <div><span>Consigne confort</span><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.target))}</strong></div></div>
+            ${ecsSessionHtml}
             <div class="out-foot">${chip(ecs.pump===true?'Pompe active':ecs.pump===false?'Pompe arrêtée':'Pompe inconnue',ecs.pump===true?'positive':'dim')}
               ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
               ${ecs.withElectric?chip('Appoint électrique actif','warning'):''}</div>

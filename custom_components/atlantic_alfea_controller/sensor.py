@@ -13,9 +13,13 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.util import dt as dt_util
 
 from .clock import clock_offset_seconds, clock_source_age_seconds, clock_source_ids, pac_clock_datetime
 from .const import CONF_Q3_DIVERTER_CONFIRMED, DOMAIN, MODE_COOL, MODE_HEAT
+from .ecs_cop import compute_ecs_cop
 from .helpers import clean_bsb_status, effective_season, is_protection, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
 from .runtime import AlfeaRuntimeMonitor
 from .regime_api import valid_base_url
@@ -268,6 +272,256 @@ CALCULATED_DESCRIPTIONS = (
 )
 
 
+def _ecs_state_code(raw) -> int | None:
+    """Return the numeric part of a BSB ECS status, or None."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text or text.lower() in ("unknown", "unavailable", "none"):
+        return None
+    try:
+        return int(text.split()[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def _as_bool(value) -> bool:
+    return value is True or str(value).strip().lower() in ("true", "1", "on")
+
+
+class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
+    """Average COP of the last ECS session, computed internally.
+
+    It deliberately does not read the historical template helpers
+    (``input_number.ecs_temp_min_reelle_session`` and
+    ``sensor.ecs_energie_elec_debut_session``); the session state is kept in
+    this entity and restored after a Home Assistant restart.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "ECS - COP session"
+    _attr_icon = "mdi:heat-pump"
+    _attr_native_unit_of_measurement = "COP"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._state_entity = str(entry.data.get("dhw_state") or "")
+        self._temp_entity = str(entry.data.get("dhw_temperature") or "")
+        self._energy_entity = str(
+            entry.options.get("ecs_cop_energy_entity")
+            or entry.data.get("ecs_cop_energy_entity")
+            or "sensor.phase_a_diff_pac_energy"
+        )
+        try:
+            self._volume = float(entry.options.get("ecs_cop_volume_l", 190))
+        except (TypeError, ValueError):
+            self._volume = 190.0
+        self._session: dict | None = None
+        self._last: dict | None = None
+        self._attr_native_value = None
+        self._attr_unique_id = f"{entry.entry_id}_ecs_cop_session"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+        self._attr_extra_state_attributes = {
+            "session_active": False,
+            "volume_l": self._volume,
+            "energy_entity": self._energy_entity,
+        }
+
+    @property
+    def available(self) -> bool:
+        return bool(self._state_entity and self._temp_entity and self._energy_entity)
+
+    def _energy(self) -> float | None:
+        return state_float(self.hass, self._energy_entity)
+
+    def _temp(self) -> float | None:
+        return state_float(self.hass, self._temp_entity)
+
+    def _active(self) -> bool:
+        code = _ecs_state_code(state_value(self.hass, self._state_entity))
+        return code is not None and code not in (51, 99, 100)
+
+    def _duration_min(self, start) -> int:
+        if start is None:
+            return 0
+        return max(0, round((dt_util.utcnow() - start).total_seconds() / 60))
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None:
+            try:
+                self._attr_native_value = float(last.state)
+            except (TypeError, ValueError):
+                pass
+            attrs = dict(last.attributes or {})
+            if _as_bool(attrs.get("session_active")):
+                started = dt_util.parse_datetime(str(attrs.get("debut_session") or ""))
+                try:
+                    start_energy = float(attrs.get("dbg_e_debut"))
+                    min_temp = float(attrs.get("t_depart_reel"))
+                except (TypeError, ValueError):
+                    start_energy = min_temp = None
+                if started is not None and start_energy is not None and min_temp is not None:
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=dt_util.UTC)
+                    self._session = {
+                        "start_energy": start_energy,
+                        "start_temp": min_temp,
+                        "min_temp": min_temp,
+                        "started_at": started,
+                    }
+            elif attrs.get("conso_session_kwh") is not None:
+                self._last = attrs
+            if attrs.get("volume_l") is not None:
+                try:
+                    self._volume = float(attrs["volume_l"])
+                except (TypeError, ValueError):
+                    pass
+
+        tracked = [e for e in (self._state_entity, self._temp_entity, self._energy_entity) if e]
+        if tracked:
+            self.async_on_remove(
+                async_track_state_change_event(self.hass, tracked, self._handle_change)
+            )
+        if self._session is None and self._active():
+            self._start_session()
+        self._publish()
+
+    def _handle_change(self, event) -> None:
+        entity_id = event.data.get("entity_id")
+        if entity_id == self._state_entity:
+            new_state = event.data.get("new_state")
+            if new_state is None:
+                return
+            code = _ecs_state_code(new_state.state)
+            if code is not None and code not in (51, 99, 100):
+                if self._session is None:
+                    self._start_session()
+                else:
+                    self._publish()
+            elif code in (99, 100) and self._session is not None:
+                self._finish_session()
+        elif entity_id == self._temp_entity:
+            if self._session is None:
+                if self._active():
+                    self._start_session()
+            else:
+                temp = self._temp()
+                if temp is not None:
+                    self._session["min_temp"] = min(self._session["min_temp"], temp)
+                self._publish()
+        elif entity_id == self._energy_entity:
+            if self._session is None and self._active():
+                self._start_session()
+            else:
+                self._publish()
+
+    def _start_session(self) -> None:
+        energy = self._energy()
+        temp = self._temp()
+        if energy is None or temp is None:
+            return
+        self._session = {
+            "start_energy": energy,
+            "start_temp": temp,
+            "min_temp": temp,
+            "started_at": dt_util.utcnow(),
+        }
+        self._publish()
+
+    def _finish_session(self) -> None:
+        session = self._session
+        if session is None:
+            return
+        final_temp = self._temp()
+        energy = self._energy()
+        started = session["started_at"]
+        now = dt_util.utcnow()
+        result = compute_ecs_cop(
+            session["start_energy"],
+            energy,
+            session["min_temp"],
+            final_temp,
+            self._volume,
+        )
+        attrs: dict = {
+            "session_active": False,
+            "session_valide": result is not None,
+            "volume_l": self._volume,
+            "energy_entity": self._energy_entity,
+            "debut_session": started.isoformat(),
+            "fin_session": now.isoformat(),
+            "duree_session_min": self._duration_min(started),
+            "t_depart_reel": round(session["min_temp"], 1),
+            "t_fin": round(final_temp, 1) if final_temp is not None else None,
+            "dbg_e_debut": session["start_energy"],
+            "dbg_e_actuel": energy,
+            "dbg_t_debut_min": round(session["min_temp"], 1),
+            "dbg_t_fin": round(final_temp, 1) if final_temp is not None else None,
+        }
+        if result is not None:
+            attrs.update(
+                {
+                    "cop": result["cop"],
+                    "conso_session_kwh": result["e_elec_kwh"],
+                    "e_elec_kwh": result["e_elec_kwh"],
+                    "e_therm_kwh": result["e_therm_kwh"],
+                    "delta_t": result["delta_t"],
+                    "dbg_e_elec": result["e_elec_kwh"],
+                    "dbg_delta_t": result["delta_t"],
+                    "dbg_e_therm": result["e_therm_kwh"],
+                    "dbg_condition_ok": True,
+                }
+            )
+            self._attr_native_value = result["cop"]
+        else:
+            attrs["cop"] = None
+            attrs["dbg_condition_ok"] = False
+        self._last = attrs
+        self._session = None
+        self._publish()
+
+    def _publish(self) -> None:
+        if self._session is not None:
+            session = self._session
+            temp = self._temp()
+            energy = self._energy()
+            attrs: dict = {
+                "session_active": True,
+                "volume_l": self._volume,
+                "energy_entity": self._energy_entity,
+                "debut_session": session["started_at"].isoformat(),
+                "duree_session_min": self._duration_min(session["started_at"]),
+                "t_depart_reel": round(session["min_temp"], 1),
+                "t_fin": round(temp, 1) if temp is not None else None,
+                "dbg_e_debut": session["start_energy"],
+                "dbg_e_actuel": energy,
+                "dbg_t_debut_min": round(session["min_temp"], 1),
+                "dbg_t_fin": round(temp, 1) if temp is not None else None,
+            }
+            if energy is not None:
+                attrs["conso_session_kwh"] = round(max(0.0, energy - session["start_energy"]), 3)
+            if temp is not None:
+                attrs["delta_t"] = round(temp - session["min_temp"], 2)
+            if self._last is not None:
+                attrs["derniere_session_cop"] = self._last.get("cop")
+            self._attr_extra_state_attributes = attrs
+        else:
+            self._attr_extra_state_attributes = dict(
+                self._last
+                or {
+                    "session_active": False,
+                    "volume_l": self._volume,
+                    "energy_entity": self._energy_entity,
+                }
+            )
+        self.async_write_ha_state()
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -297,6 +551,7 @@ async def async_setup_entry(
                 AlfeaClockOffsetSensor(hass, entry),
             ]
         )
+    entities.append(AlfeaEcsCopSessionSensor(hass, entry))
     async_add_entities(entities)
 
 
