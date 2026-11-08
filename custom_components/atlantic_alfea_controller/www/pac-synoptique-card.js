@@ -822,6 +822,23 @@ class PacSynoptiqueCard extends HTMLElement {
       <span>⚡ <strong>${html(ecsCopEnergyText)}</strong></span>
       <span>🕒 <strong>${html(ecsCopStartTime)}</strong></span>
     </div>`:'';
+    const ecsSessions=Array.isArray(ecsCopAttr.sessions)?ecsCopAttr.sessions.slice().reverse():[];
+    const ecsHistoryRow=s=>{
+      const start=s?.debut?new Date(s.debut):null;
+      const date=start&&!Number.isNaN(start.getTime())
+        ?start.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+start.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})
+        :'—';
+      const cop=Number.isFinite(Number(s?.cop))?Number(s.cop).toFixed(2).replace('.',','):'—';
+      const duration=s?.duree_min!=null?String(Math.round(Number(s.duree_min))):'—';
+      const t1=s?.t_depart!=null?temp(s.t_depart):'—';
+      const t2=s?.t_fin!=null?temp(s.t_fin):'—';
+      const energy=Number.isFinite(Number(s?.e_elec_kwh))?Number(s.e_elec_kwh).toLocaleString('fr-FR',{minimumFractionDigits:3,maximumFractionDigits:3}):'—';
+      return `<div class="ecs-history-row"><span class="eh-date">${html(date)}</span><strong>📊 ${html(cop)}</strong><span>⏱️ ${html(duration)} min</span><span>🌡️ ${html(t1)} → ${html(t2)}</span><span>⚡ ${html(energy)} kWh</span></div>`;
+    };
+    const ecsHistoryHtml=ecsSessions.length?`<details class="ecs-history">
+      <summary>Historique · ${ecsSessions.length} session${ecsSessions.length!==1?'s':''}</summary>
+      <div class="ecs-history-list">${ecsSessions.map(ecsHistoryRow).join('')}</div>
+    </details>`:'';
     const gauge=nvalue(this._v('modulation'));
     const pacDelta= nvalue(this._v('flow'))!==null && nvalue(this._v('returnTemp'))!==null ?
       `${decimal.format(nvalue(this._v('flow'))-nvalue(this._v('returnTemp')))} °C` : '—';
@@ -1022,6 +1039,16 @@ class PacSynoptiqueCard extends HTMLElement {
       .ecs-session{display:flex;flex-wrap:wrap;gap:5px 12px;border-top:1px solid var(--line);padding-top:8px;margin-top:2px;font-size:10px;color:var(--sub)}
       .ecs-session span{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
       .ecs-session strong{font-size:12px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+      .ecs-history{margin-top:5px;border-top:1px dashed var(--line);padding-top:5px}
+      .ecs-history>summary{cursor:pointer;list-style:none;font-size:10px;color:var(--sub);font-weight:700;display:flex;align-items:center;gap:5px}
+      .ecs-history>summary::-webkit-details-marker{display:none}
+      .ecs-history>summary:before{content:'▸';transition:transform .15s;color:var(--muted)}
+      .ecs-history[open]>summary:before{transform:rotate(90deg)}
+      .ecs-history-list{display:grid;gap:2px;margin-top:5px}
+      .ecs-history-row{display:flex;flex-wrap:wrap;gap:2px 8px;font-size:10px;color:var(--sub);padding:3px 0;border-bottom:1px solid var(--line)}
+      .ecs-history-row:last-child{border-bottom:0}
+      .ecs-history-row strong{color:var(--text);font-weight:700}
+      .ecs-history-row .eh-date{color:var(--muted)}
       .tank-mini{position:relative;overflow:hidden;width:28px;height:39px;border-radius:9px;border:2px solid #88aec5;
         background:linear-gradient(0deg,#377bc7,#935cbd 48%,#ff8f6a);background-size:100% 180%;box-shadow:inset 0 0 6px var(--tank-shadow)}
       .tank-mini:after{content:'';position:absolute;inset:0;pointer-events:none;opacity:0;
@@ -1582,6 +1609,7 @@ class PacSynoptiqueCard extends HTMLElement {
             <div class="out-values"><div><span>Température ballon</span>${this._tempLink(ecs.tempBallon,this._ids?.ecsTemp,'Température ballon ECS')}</div>
               <div><span>Consigne confort</span><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.target))}</strong></div></div>
             ${ecsSessionHtml}
+            ${ecsHistoryHtml}
             <div class="out-foot">${chip(ecs.pump===true?'Pompe active':ecs.pump===false?'Pompe arrêtée':'Pompe inconnue',ecs.pump===true?'positive':'dim')}
               ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
               ${ecs.withElectric?chip('Appoint électrique actif','warning'):''}</div>

@@ -19,7 +19,7 @@ const states={
   "binary_sensor.comp_etat":{state:"on",attributes:{friendly_name:"COMP - État"}},
   "sensor.comp_modulation":{state:"50",attributes:{friendly_name:"COMP - Modulation"}},
   "sensor.pac_power":{state:"1234.0",attributes:{friendly_name:"PAC puissance",unit_of_measurement:"W"}},
-  "sensor.atlantic_alfea_bsb_lan_ecs_cop_session":{state:"1.7",attributes:{friendly_name:"Atlantic Alfea BSB-LAN ECS - COP session",duree_session_min:17,t_depart_reel:49.0,t_fin:53.2,conso_session_kwh:0.546,debut_session:"2026-11-07T13:50:39+00:00",session_valide:true}},
+  "sensor.atlantic_alfea_bsb_lan_ecs_cop_session":{state:"1.7",attributes:{friendly_name:"Atlantic Alfea BSB-LAN ECS - COP session",duree_session_min:17,t_depart_reel:49.0,t_fin:53.2,conso_session_kwh:0.546,debut_session:"2026-11-07T13:50:39+00:00",session_valide:true,sessions:[{debut:"2026-11-06T13:00:00+00:00",duree_min:15,t_depart:48.0,t_fin:52.0,e_elec_kwh:0.500,cop:1.6},{debut:"2026-11-07T13:50:39+00:00",duree_min:17,t_depart:49.0,t_fin:53.2,e_elec_kwh:0.546,cop:1.7}]}},
   "water_heater.bsb_lan":{state:"performance",attributes:{friendly_name:"Water heater",operation_list:["off","performance","eco"],current_temperature:53.8,temperature:60.0}}
 };
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},
@@ -43,6 +43,7 @@ assert(html.includes('data-value="Refroidissement"'),"option Refroidissement abs
 assert(html.includes("ECS · Ballon"),"commande ECS absente");
 assert(html.includes("📊 COP"),"bilan COP ECS absent");
 assert(html.includes("17 min"),"durée session ECS absente");
+assert(html.includes("Historique · 2 sessions"),"historique sessions ECS absent");
 assert(html.includes('data-pac-action="ecs-mode"'),"mode ECS On/Off absent");
 assert(html.includes('data-pac-action="edit"'),"consigne cliquable absente");
 assert(html.includes("fan-shell running"),"ventilateur non animé à 50 %");

@@ -321,6 +321,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             self._volume = 190.0
         self._session: dict | None = None
         self._last: dict | None = None
+        self._history: list[dict] = []
         self._attr_native_value = None
         self._attr_unique_id = f"{entry.entry_id}_ecs_cop_session"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
@@ -376,6 +377,28 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                     }
             elif attrs.get("conso_session_kwh") is not None:
                 self._last = attrs
+            raw_history = attrs.get("sessions")
+            if isinstance(raw_history, list):
+                self._history = [
+                    dict(item) for item in raw_history if isinstance(item, dict)
+                ][-4:]
+            if not self._history and self._last is not None:
+                try:
+                    self._history = [
+                        {
+                            "debut": self._last.get("debut_session"),
+                            "fin": self._last.get("fin_session"),
+                            "duree_min": self._last.get("duree_session_min"),
+                            "t_depart": self._last.get("t_depart_reel"),
+                            "t_fin": self._last.get("t_fin"),
+                            "delta_t": self._last.get("delta_t"),
+                            "e_elec_kwh": self._last.get("conso_session_kwh"),
+                            "e_therm_kwh": self._last.get("e_therm_kwh"),
+                            "cop": self._last.get("cop"),
+                        }
+                    ]
+                except (TypeError, ValueError):
+                    self._history = []
             if attrs.get("volume_l") is not None:
                 try:
                     self._volume = float(attrs["volume_l"])
@@ -478,9 +501,24 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 }
             )
             self._attr_native_value = result["cop"]
+            self._history.append(
+                {
+                    "debut": started.isoformat(),
+                    "fin": now.isoformat(),
+                    "duree_min": attrs["duree_session_min"],
+                    "t_depart": attrs["t_depart_reel"],
+                    "t_fin": attrs["t_fin"],
+                    "delta_t": result["delta_t"],
+                    "e_elec_kwh": result["e_elec_kwh"],
+                    "e_therm_kwh": result["e_therm_kwh"],
+                    "cop": result["cop"],
+                }
+            )
+            self._history = self._history[-4:]
         else:
             attrs["cop"] = None
             attrs["dbg_condition_ok"] = False
+        attrs["sessions"] = list(self._history)
         self._last = attrs
         self._session = None
         self._publish()
@@ -509,9 +547,10 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 attrs["delta_t"] = round(temp - session["min_temp"], 2)
             if self._last is not None:
                 attrs["derniere_session_cop"] = self._last.get("cop")
+            attrs["sessions"] = list(self._history)
             self._attr_extra_state_attributes = attrs
         else:
-            self._attr_extra_state_attributes = dict(
+            attrs = dict(
                 self._last
                 or {
                     "session_active": False,
@@ -519,6 +558,8 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                     "energy_entity": self._energy_entity,
                 }
             )
+            attrs["sessions"] = list(self._history)
+            self._attr_extra_state_attributes = attrs
         self.async_write_ha_state()
 
 

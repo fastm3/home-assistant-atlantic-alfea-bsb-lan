@@ -1,14 +1,23 @@
 # Changelog
 
-## 1.5.28 — COP ECS interne, historique des sessions et carte enrichie
+## 1.5.29 — Historique des sessions ECS
+
+- Ajoute la conservation des **4 dernières sessions ECS** dans l'attribut
+  `sessions` du capteur `ECS - COP session`.
+- L'historique est restauré après un redémarrage Home Assistant, et la dernière
+  session connue est reprise pour ne pas perdre l'historique existant.
+- La carte affiche un bloc repliable **« Historique · n sessions »** avec, pour
+  chaque session : date, COP, durée, températures départ/fin et énergie.
+- Complète la version 1.5.28, qui ne contenait que le bilan de la dernière
+  session.
+- Manifest **1.5.29**.
+
+## 1.5.28 — COP ECS interne et carte enrichie
 
 - Nouveau capteur interne **`ECS - COP session`** : calcul du COP moyen de la
   dernière session ECS, durée, températures départ/fin, énergie électrique et
   heure de début. Aucun helper externe n'est utilisé pour ce calcul.
-- Conservation des **4 dernières sessions** dans l'attribut `sessions`, avec
-  restauration après un redémarrage Home Assistant.
-- Carte synoptique : affichage compact du bilan de session et historique
-  repliable des sessions (date, COP, durée, températures, énergie).
+- Carte synoptique : affichage compact du bilan de la dernière session.
 - Commandes ECS **Off / On** dans la barre de commandes.
 - Libellés **Échangeur air (extérieur)** / **Échangeur eau (intérieur)** et
   panneau **PAC · Échangeurs**.
