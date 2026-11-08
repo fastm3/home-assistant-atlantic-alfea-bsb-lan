@@ -441,6 +441,34 @@ Autres paramètres importants :
 - `8830` : température ballon ECS
 - `3113` : énergie électrique totale
 
+### Paramètres à journaliser (recommandation)
+
+Pour éviter des allers-retours lors du diagnostic et profiter de toutes les
+informations de la carte, il est recommandé d'activer la journalisation
+BSB-LAN sur les paramètres suivants. Ce sont des **lectures** : ils ne
+déclenchent aucune commande sur la PAC.
+
+```text
+700, 710, 712, 901, 902, 1000, 1010, 1012, 1201, 1202, 1212,
+1600, 1610, 1612, 3113, 4761, 5061, 5070, 5072,
+8000, 8001, 8003, 8006, 8400, 8410, 8411, 8412, 8413, 8499,
+8700, 8703, 8704, 8730, 8735, 8740, 8741, 8743, 8744,
+8820, 8821
+```
+
+Ils couvrent :
+
+- **circuits C1/C2** : modes, consignes confort/réduit, limites de
+  rafraîchissement ;
+- **ECS** : mode, consignes, appoint électrique, push ECS, pompe ;
+- **PAC/compresseur** : état, départ/retour, consigne et modulation ;
+- **états et températures** : circuits, extérieur, pompes, ambiances ;
+- **énergie** : index électrique total.
+
+Selon le modèle et les options installées, certains paramètres peuvent être
+absents (`---`) ; l'intégration les ignore. Les activer tous évite de devoir
+modifier la journalisation après coup.
+
 ## Diagnostics de programmation (V1.5.0)
 
 Quatre nouveaux capteurs **en lecture seule** complètent la surveillance des circuits :
