@@ -14,6 +14,8 @@ from homeassistant.helpers.event import async_call_later, async_track_time_inter
 from .const import (
     BSB_REFRESH_FAST_INTERVAL_SECONDS,
     BSB_REFRESH_FAST_PARAMETERS,
+    BSB_REFRESH_ECS_INTERVAL_SECONDS,
+    BSB_REFRESH_ECS_PARAMETERS,
     BSB_REFRESH_INITIAL_DELAY_SECONDS,
     BSB_REFRESH_SLOW_INTERVAL_SECONDS,
     BSB_REFRESH_SLOW_PARAMETERS,
@@ -51,9 +53,14 @@ def async_start_data_polling(hass: HomeAssistant) -> Callable[[], None]:
     def _slow(_now) -> None:
         hass.async_create_task(async_poll_parameters(hass, BSB_REFRESH_SLOW_PARAMETERS))
 
+    @callback
+    def _ecs(_now) -> None:
+        hass.async_create_task(async_poll_parameters(hass, BSB_REFRESH_ECS_PARAMETERS))
+
     unsubs: list[Callable[[], None]] = [
         async_call_later(hass, BSB_REFRESH_INITIAL_DELAY_SECONDS, _fast),
         async_call_later(hass, BSB_REFRESH_INITIAL_DELAY_SECONDS + 10, _slow),
+        async_call_later(hass, BSB_REFRESH_INITIAL_DELAY_SECONDS + 15, _ecs),
         async_track_time_interval(
             hass,
             _fast,
@@ -63,6 +70,11 @@ def async_start_data_polling(hass: HomeAssistant) -> Callable[[], None]:
             hass,
             _slow,
             timedelta(seconds=BSB_REFRESH_SLOW_INTERVAL_SECONDS),
+        ),
+        async_track_time_interval(
+            hass,
+            _ecs,
+            timedelta(seconds=BSB_REFRESH_ECS_INTERVAL_SECONDS),
         ),
     ]
 

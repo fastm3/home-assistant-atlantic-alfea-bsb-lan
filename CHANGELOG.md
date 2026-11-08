@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.5.30 — Intégration autonome, découverte MQTT et diagnostics enrichis
+
+- **Découverte Zeroconf** du BSB-LAN : l'adresse JSON est mise à jour
+  automatiquement lorsque l'IP du boîtier change.
+- **MQTT discovery intégré** pour les entités ECS (1600/1610/1612) et les
+  consignes circuits (710/712/1010/1012/1202/1203 + select 1201). Ces entités
+  n'ont plus besoin d'être déclarées dans `bsb-lan.yaml`.
+- Nouveau capteur **`Installation - État`** : mappings manquants, sources
+  indisponibles, water_heater Atlantic, dépendances externes et intervalles de
+  polling.
+- Polling ECS dédié : **8830 toutes les 60 s** pour éviter une température
+  ballon figée.
+- Bouton **`Forçage cycle ECS`** créé par l'intégration (commande 5072 pendant
+  10 s), avec retour visuel actif dans la carte.
+- Carte synoptique :
+  - activité récente dans les diagnostics, avec fusion multi-entités, filtrage
+    des états inutiles et déduplication ;
+  - historique ECS déplacé à côté de l'activité ;
+  - nouvelle section **Graphes** avec consommation quotidienne sur 10 jours ;
+  - entités de puissance **et d'énergie** configurables dans l'éditeur ;
+  - suppression du petit trait animé redondant sur la carte ECS ;
+  - affichage « session en cours » au lieu d'un COP nul pendant une charge.
+- Compatibilité HA 2027.11 : passage aux API natives
+  `native_current_temperature`, `native_target_temperature` et
+  `native_temperature_unit`.
+- Correction d'un appel `async_write_ha_state` hors boucle événementielle.
+- Migration automatique des anciens mappings YAML vers les entités MQTT
+  Atlantic.
+- Manifest **1.5.30**.
+
 ## 1.5.29 — Historique des sessions ECS
 
 - Ajoute la conservation des **4 dernières sessions ECS** dans l'attribut

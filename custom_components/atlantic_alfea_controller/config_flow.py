@@ -11,6 +11,7 @@ from homeassistant.config_entries import OptionsFlowWithReload
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import (
     CONF_FLOW_GAP_DEGREES,
@@ -89,7 +90,7 @@ def _clean_mapping(user_input: dict[str, Any]) -> dict[str, str]:
 class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
-    VERSION = 13
+    VERSION = 14
 
     def __init__(self) -> None:
         self._discovery: DiscoveryResult | None = None
@@ -101,6 +102,31 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
         """Create the options flow."""
         return AtlanticAlfeaOptionsFlow()
+
+    async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo):
+        """Update the BSB-LAN JSON URL when the adapter is discovered."""
+        host = str(discovery_info.ip_address or discovery_info.host)
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        port = discovery_info.port or 80
+        base_url = f"http://{host}" if port == 80 else f"http://{host}:{port}"
+
+        entries = self.hass.config_entries.async_entries(DOMAIN)
+        if not entries:
+            return self.async_abort(reason="no_entry")
+        if len(entries) > 1:
+            return self.async_abort(reason="multiple_entries")
+
+        entry = entries[0]
+        current = str(entry.options.get("bsb_base_url", "")).rstrip("/")
+        if current == base_url:
+            return self.async_abort(reason="already_configured")
+
+        return self.async_update_reload_and_abort(
+            entry,
+            options_updates={"bsb_base_url": base_url},
+            reason="discovery_updated",
+        )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         """Set up a new entry using automatic discovery first."""

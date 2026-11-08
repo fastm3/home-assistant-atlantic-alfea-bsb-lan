@@ -13,6 +13,10 @@ const states={
   "climate.atlantic_alfea_bsb_lan_c1_circuit_1":{state:"heat",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C1 - Circuit 1",temperature:21.5,current_temperature:20.1,hvac_action:"heating"}},
   "climate.atlantic_alfea_bsb_lan_c2_circuit_2":{state:"off",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Circuit 2",temperature:19.5,current_temperature:19.0,hvac_action:"off"}},
   "number.esp_bsblan_temp_consigne_ecs":{state:"49.0",attributes:{friendly_name:"esp-bsblan Temp consigne ECS confort"}},
+  "number.atlantic_alfea_bsb_lan_ecs_consigne_confort_1610":{state:"49.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN ECS - Consigne confort (1610)"}},
+  "number.atlantic_alfea_bsb_lan_ecs_consigne_reduite_1612":{state:"46.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN ECS - Consigne réduite (1612)"}},
+  "sensor.esp_bsblan_consigne_actuelle_ecs":{state:"51.0",attributes:{friendly_name:"esp-bsblan Consigne actuelle ECS"}},
+  "button.chaufferie_atlantic_alfea_bsb_lan_forcage_cycle_ecs":{state:"unknown",attributes:{friendly_name:"Atlantic Alféa BSB-LAN Forçage cycle ECS"}},
   "number.esp_bsblan_temp_consigne_ecs_reduit":{state:"46.0",attributes:{friendly_name:"esp-bsblan Temp consigne ECS reduit"}},
   "number.atlantic_alfea_bsb_lan_c1_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C1 - Chauffage T. Conf"}},
   "number.atlantic_alfea_bsb_lan_c2_chauffage_t_conf":{state:"20.0",attributes:{friendly_name:"Atlantic Alfea BSB-LAN C2 - Chauffage T. Conf"}},
@@ -43,6 +47,8 @@ assert(html.includes('data-value="Refroidissement"'),"option Refroidissement abs
 assert(html.includes("ECS · Ballon"),"commande ECS absente");
 assert(html.includes("📊 COP"),"bilan COP ECS absent");
 assert(html.includes("17 min"),"durée session ECS absente");
+assert(html.includes("Consigne actuelle"),"consigne actuelle ECS absente");
+assert(html.includes("Forçage"),"bouton forçage cycle ECS absent");
 assert(html.includes("Historique · 2 sessions"),"historique sessions ECS absent");
 assert(html.includes('data-pac-action="ecs-mode"'),"mode ECS On/Off absent");
 assert(html.includes('data-pac-action="edit"'),"consigne cliquable absente");

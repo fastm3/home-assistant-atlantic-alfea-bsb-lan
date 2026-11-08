@@ -9,7 +9,13 @@
   "after_dependencies": [
     "mqtt"
   ],
-  "version": "1.5.29",
+  "zeroconf": [
+    {
+      "name": "bsb-lan*",
+      "type": "_http._tcp.local."
+    }
+  ],
+  "version": "1.5.30",
   "documentation": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan#readme",
   "issue_tracker": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/issues"
 }

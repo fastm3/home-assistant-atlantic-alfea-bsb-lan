@@ -96,7 +96,7 @@ class AlfeaCircuitClimate(ClimateEntity):
 
     _attr_has_entity_name = True
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
-    _attr_temperature_unit = "°C"
+    _attr_native_temperature_unit = "°C"
     _attr_target_temperature_step = TEMPERATURE_STEP
     _attr_min_temp = 5.0
     _attr_max_temp = 35.0
@@ -344,12 +344,12 @@ class AlfeaCircuitClimate(ClimateEntity):
         return HVACAction.IDLE
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         source = self._source(f"room_temp_c{self._circuit}", _PARAM[self._circuit]["room"])
         return state_float(self.hass, source)
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Expose the effective target displayed by the PAC (8741/8771).
 
         The programmed Comfort/Eco values remain the writable setpoints. The

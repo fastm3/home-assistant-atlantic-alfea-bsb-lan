@@ -30,8 +30,8 @@ from .helpers import (
 )
 
 _MODE_OPTIONS = {
-    DHW_OFF: "0 - Arrêt",
-    DHW_ON: "1 - Marche",
+    DHW_OFF: "0 - Off",
+    DHW_ON: "1 - On",
     DHW_ECO: "2 - Eco",
 }
 
@@ -54,7 +54,7 @@ class AlfeaWaterHeater(WaterHeaterEntity):
 
     _attr_has_entity_name = True
     _attr_name = "Eau chaude sanitaire"
-    _attr_temperature_unit = "°C"
+    _attr_native_temperature_unit = "°C"
     _attr_min_temp = 30.0
     _attr_max_temp = 65.0
     _attr_target_temperature_step = TEMPERATURE_STEP
@@ -74,7 +74,7 @@ class AlfeaWaterHeater(WaterHeaterEntity):
         return source_entity(self.hass, self._entry, key, parameter)
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         return state_float(self.hass, self._source("dhw_temperature", 8830))
 
     @property
@@ -108,7 +108,7 @@ class AlfeaWaterHeater(WaterHeaterEntity):
         return None
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         active = self._active_setpoint()
         if active is None:
             # Keep a useful read-only target when the exact active regime is not

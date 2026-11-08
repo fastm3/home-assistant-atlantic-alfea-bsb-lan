@@ -23,6 +23,7 @@ from .const import DOMAIN, PLATFORMS
 from .discovery import discover_mapping
 from .runtime import AlfeaRuntimeMonitor
 from .polling import async_start_data_polling
+from .mqtt_ecs import async_setup_ecs_discovery
 from .weekly_programs import WeeklyProgramImporter
 
 _LOGGER = logging.getLogger(__name__)
@@ -69,6 +70,16 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data.pop(legacy_key, None)
     discovered = discover_mapping(hass, data)
     data.update(discovered.mapping)
+    replacements = {
+        "number.temp_consigne_confort_etage": "number.atlantic_alfea_bsb_lan_c1_consigne_confort_710",
+        "number.temp_consigne_confort_rdc": "number.atlantic_alfea_bsb_lan_c2_consigne_confort_1010",
+        "number.esp_bsblan_consigne_confort_refroidissement_etage": "number.atlantic_alfea_bsb_lan_c2_consigne_rafraichissement_confort_1202",
+        "select.esp_bsblan_c2_mode_rafraichissement_1201": "select.atlantic_alfea_bsb_lan_c2_mode_rafraichissement_1201",
+    }
+    for key, value in list(data.items()):
+        replacement = replacements.get(value)
+        if replacement and hass.states.get(replacement) is not None:
+            data[key] = replacement
 
     _remove_obsolete_energy_entities(hass, entry)
     if entry.version < 14 or data != dict(entry.data) or entry.title != "Atlantic Alfea BSB-LAN":
@@ -224,6 +235,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await monitor.async_start()
     entry.async_on_unload(async_start_clock_polling(hass))
     entry.async_on_unload(async_start_data_polling(hass))
+    entry.async_on_unload(await async_setup_ecs_discovery(hass, entry))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(await async_start_heater_polling(hass, entry))

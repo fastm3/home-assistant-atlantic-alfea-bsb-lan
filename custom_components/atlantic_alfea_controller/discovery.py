@@ -73,7 +73,7 @@ def _candidate_score(
         return None
 
     domain = entity_id.split(".", 1)[0]
-    if domain == DOMAIN or "atlantic_alfea" in entity_id:
+    if domain == DOMAIN:
         return None
 
     domain_priority = _domain_priority(spec, domain)
@@ -83,6 +83,8 @@ def _candidate_score(
     registry = er.async_get(hass)
     registry_entry = registry.async_get(entity_id)
     platform = registry_entry.platform if registry_entry is not None else ""
+    if platform == DOMAIN:
+        return None
 
     object_id = entity_id.split(".", 1)[-1].lower()
     friendly_lower = friendly_name.lower()

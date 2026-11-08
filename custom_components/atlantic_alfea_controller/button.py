@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.components.mqtt import async_publish
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
@@ -32,7 +34,10 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up clock and native-override control buttons."""
-    entities: list[ButtonEntity] = [AlfeaRefreshWeeklyProgramsButton(hass, entry)]
+    entities: list[ButtonEntity] = [
+        AlfeaRefreshWeeklyProgramsButton(hass, entry),
+        AlfeaForceEcsCycleButton(hass, entry),
+    ]
 
     if all(clock_source_ids(hass, entry)):
         entities.append(AlfeaSyncClockButton(hass, entry))
@@ -79,6 +84,53 @@ class AlfeaRefreshWeeklyProgramsButton(ButtonEntity):
         if errors:
             details = "; ".join(f"{PROGRAMS[key][0]} : {error}" for key, error in errors.items())
             raise HomeAssistantError(f"Importation partielle des programmes : {details}")
+
+
+class AlfeaForceEcsCycleButton(ButtonEntity):
+    """Force a DHW cycle for 10 seconds, without a YAML helper entity."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Forçage cycle ECS"
+    _attr_icon = "mdi:flash"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_force_ecs_cycle"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+        self._reset_task: asyncio.Task | None = None
+
+    async def async_press(self) -> None:
+        if self._reset_task is not None and not self._reset_task.done():
+            self._reset_task.cancel()
+            try:
+                await self._reset_task
+            except asyncio.CancelledError:
+                pass
+        await self._publish("S5072=1")
+        self._reset_task = self.hass.async_create_task(self._reset_after_delay())
+
+    async def _reset_after_delay(self) -> None:
+        try:
+            await asyncio.sleep(10)
+        finally:
+            await self._publish("S5072=0")
+
+    async def _publish(self, payload: str) -> None:
+        try:
+            await async_publish(
+                self.hass,
+                "BSB-LAN",
+                payload,
+                qos=1,
+                retain=False,
+            )
+        except Exception as err:
+            raise HomeAssistantError(f"Commande BSB-LAN impossible : {err}") from err
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._reset_task is not None and not self._reset_task.done():
+            self._reset_task.cancel()
 
 
 class AlfeaSyncClockButton(ButtonEntity):

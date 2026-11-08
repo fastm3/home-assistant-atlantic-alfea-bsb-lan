@@ -18,7 +18,16 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .clock import clock_offset_seconds, clock_source_age_seconds, clock_source_ids, pac_clock_datetime
-from .const import CONF_Q3_DIVERTER_CONFIRMED, DOMAIN, MODE_COOL, MODE_HEAT
+from .const import (
+    BSB_REFRESH_ECS_INTERVAL_SECONDS,
+    BSB_REFRESH_FAST_INTERVAL_SECONDS,
+    BSB_REFRESH_SLOW_INTERVAL_SECONDS,
+    CLOCK_POLL_INTERVAL_SECONDS,
+    CONF_Q3_DIVERTER_CONFIRMED,
+    DOMAIN,
+    MODE_COOL,
+    MODE_HEAT,
+)
 from .ecs_cop import compute_ecs_cop
 from .helpers import clean_bsb_status, effective_season, is_protection, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
 from .runtime import AlfeaRuntimeMonitor
@@ -560,7 +569,146 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             )
             attrs["sessions"] = list(self._history)
             self._attr_extra_state_attributes = attrs
-        self.async_write_ha_state()
+        self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
+
+
+_INSTALLATION_REQUIRED = {
+    "heat_mode_c1": (700, "Mode chauffage C1"),
+    "heat_setpoint_c1": (710, "Consigne chauffage C1"),
+    "heat_mode_c2": (1000, "Mode chauffage C2"),
+    "heat_setpoint_c2": (1010, "Consigne chauffage C2"),
+    "cool_mode_c1": (901, "Mode rafraîchissement C1"),
+    "cool_setpoint_c1": (902, "Consigne rafraîchissement C1"),
+    "cool_mode_c2": (1201, "Mode rafraîchissement C2"),
+    "cool_setpoint_c2": (1202, "Consigne rafraîchissement C2"),
+    "dhw_mode": (1600, "Mode ECS"),
+    "dhw_nominal_setpoint": (1610, "Consigne ECS confort"),
+    "dhw_reduced_setpoint": (1612, "Consigne ECS réduite"),
+    "dhw_state": (8003, "État ECS"),
+    "dhw_temperature": (8830, "Température ballon ECS"),
+    "dhw_pump": (8820, "Pompe ECS"),
+    "dhw_electric_heater": (8821, "Appoint électrique ECS"),
+    "pac_state": (8006, "État PAC"),
+    "compressor_state": (8400, "État compresseur"),
+    "compressor_modulation": (8413, "Modulation compresseur"),
+    "flow_temp": (8412, "Température départ PAC"),
+    "return_temp": (8410, "Température retour PAC"),
+    "outdoor_temp": (8700, "Température extérieure"),
+    "energy_total": (3113, "Énergie électrique totale"),
+}
+
+
+class AlfeaInstallationStatusSensor(SensorEntity):
+    """Diagnostic view of the mappings needed by the integration."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Installation - État"
+    _attr_icon = "mdi:clipboard-check-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_installation_status"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+
+    def _water_heater_entity(self) -> str | None:
+        return er.async_get(self.hass).async_get_entity_id(
+            "water_heater", DOMAIN, f"{self._entry.entry_id}_dhw"
+        )
+
+    def _snapshot(self) -> dict:
+        missing: list[str] = []
+        unavailable: list[str] = []
+        advices: list[str] = []
+        for key, (parameter, label) in _INSTALLATION_REQUIRED.items():
+            entity = self._entry.data.get(key)
+            if not entity:
+                missing.append(f"{key} ({parameter} — {label})")
+                continue
+            state = self.hass.states.get(str(entity))
+            if state is None or str(state.state).lower() in ("unknown", "unavailable", "none"):
+                unavailable.append(f"{key} → {entity}")
+        water_heater = self._water_heater_entity()
+        water_heater_state = self.hass.states.get(water_heater) if water_heater else None
+        water_heater_ok = bool(
+            water_heater_state
+            and str(water_heater_state.state).lower()
+            not in ("unknown", "unavailable", "none")
+        )
+        bsb_json = bool(str(self._entry.options.get("bsb_base_url", "")).strip())
+        if missing:
+            advices.append(
+                "Compléter les mappings manquants dans la configuration de l'intégration."
+            )
+        if not water_heater_ok:
+            advices.append(
+                "Créer le water_heater Atlantic : associer 1600, 1610 et 1612, puis recharger l'intégration."
+            )
+        if not bsb_json:
+            advices.append(
+                "Renseigner l'adresse BSB-LAN JSON dans les options pour les programmes natifs."
+            )
+        if self.hass.states.get("water_heater.bsb_lan"):
+            advices.append(
+                "water_heater.bsb_lan appartient encore à l'intégration bsblan ; vérifier son utilisation avant suppression."
+            )
+        external = [
+            entity_id
+            for entity_id in (
+                "water_heater.bsb_lan",
+                "climate.bsb_lan",
+                "climate.heating_circuit_2",
+                "sensor.bsb_lan_outside_temperature",
+                "sensor.bsb_lan_total_energy",
+                "button.bsb_lan_sync_time",
+            )
+            if self.hass.states.get(entity_id)
+        ]
+        ok = not missing and not unavailable and water_heater_ok and bsb_json
+        return {
+            "state": "OK" if ok else "Incomplet",
+            "manquants": missing,
+            "sources_indisponibles": unavailable,
+            "water_heater_atlantic": water_heater,
+            "water_heater_atlantic_ok": water_heater_ok,
+            "bsb_json_configure": bsb_json,
+            "integrations_externes": external,
+            "conseils": advices,
+            "intervalles_polling": {
+                "ecs_s": BSB_REFRESH_ECS_INTERVAL_SECONDS,
+                "rapide_s": BSB_REFRESH_FAST_INTERVAL_SECONDS,
+                "lent_s": BSB_REFRESH_SLOW_INTERVAL_SECONDS,
+                "horloge_s": CLOCK_POLL_INTERVAL_SECONDS,
+            },
+        }
+
+    @property
+    def native_value(self) -> str:
+        return self._snapshot()["state"]
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        snapshot = self._snapshot()
+        snapshot.pop("state", None)
+        return snapshot
+
+    async def async_added_to_hass(self) -> None:
+        tracked = [
+            str(entity)
+            for entity in self._entry.data.values()
+            if isinstance(entity, str)
+        ]
+        tracked.extend(
+            [
+                "water_heater.bsb_lan",
+                "climate.bsb_lan",
+                "climate.heating_circuit_2",
+            ]
+        )
+        self.async_on_remove(
+            track_entities(self.hass, tracked, self.async_write_ha_state)
+        )
 
 
 async def async_setup_entry(
@@ -593,6 +741,7 @@ async def async_setup_entry(
             ]
         )
     entities.append(AlfeaEcsCopSessionSensor(hass, entry))
+    entities.append(AlfeaInstallationStatusSensor(hass, entry))
     async_add_entities(entities)
 
 

@@ -35,10 +35,10 @@ const FIELDS = {
   regime2:         ['sensor','C2 - Régime temporaire'],
   override1:       ['binary_sensor','C1 - Dérogation'],
   override2:       ['binary_sensor','C2 - Dérogation'],
-  heatState1:      ['sensor','C1 - Chauffage État'],
-  heatState2:      ['sensor','C2 - Chauffage État'],
-  coolState1:      ['sensor','C1 - Rafraîch. État'],
-  coolState2:      ['sensor','C2 - Rafraîch. État'],
+  heatState1:      ['sensor','8000 - Status heating circuit 1'],
+  heatState2:      ['sensor','8001 - Status heating circuit 2'],
+  coolState1:      ['sensor','8004 - Status cooling circuit 1'],
+  coolState2:      ['sensor','8025 - Status cooling circuit 2'],
   heatFlowTarget1: ['sensor','C1 - Chauffage T. départ cible'],
   heatFlowTarget2: ['sensor','C2 - Chauffage T. départ cible'],
   heatComfort1:    ['sensor','C1 - Chauffage Cons. Conf'],
@@ -56,8 +56,9 @@ const FIELDS = {
   ecsComfort:      ['sensor','ECS - T. Confort'],
   ecsEco:          ['sensor','ECS - T. Éco'],
   ecsCopSession:   ['sensor','ECS - COP session'],
-  ecsComfortSetpoint: ['number','Temp consigne ECS confort'],
-  ecsEcoSetpoint:     ['number','Temp consigne ECS reduit'],
+  ecsForceCycle:   ['button','Forçage cycle ECS'],
+  ecsComfortSetpoint: ['number','ECS - Consigne confort (1610)'],
+  ecsEcoSetpoint:     ['number','ECS - Consigne réduite (1612)'],
   heatSetpointC1:  ['number','C1 - Chauffage T. Conf'],
   heatSetpointC2:  ['number','C2 - Chauffage T. Conf'],
   coolSetpointC1:  ['number','C1 - Rafraîch. T. Conf'],
@@ -197,6 +198,14 @@ class PacSynoptiqueCard extends HTMLElement {
     this._editor=null;
     this._history=null;
     this._historyOpen=false;
+    this._activity=null;
+    this._activityLoading=false;
+    this._activityLast=0;
+    this._graphs=null;
+    this._graphsLoading=false;
+    this._graphsLast=0;
+    this._ecsForceUntil=0;
+    this._ecsForceTimer=null;
     this._onKeyDown=event=>this._handleKeyDown(event);
     this._keyboardBound=false;
     if(typeof this.shadowRoot?.addEventListener==='function'){
@@ -239,6 +248,7 @@ class PacSynoptiqueCard extends HTMLElement {
     }
     if(config.show_controls != null && typeof config.show_controls !== 'boolean') throw new Error('show_controls doit être un booléen');
     if(config.power_entity != null && typeof config.power_entity !== 'string') throw new Error('power_entity doit être un entity_id');
+    if(config.energy_entity != null && typeof config.energy_entity !== 'string') throw new Error('energy_entity doit être un entity_id');
     if(config.ecs_eco_delta != null && (!Number.isFinite(Number(config.ecs_eco_delta)) || Number(config.ecs_eco_delta) < 0 || Number(config.ecs_eco_delta) > 15)) throw new Error('ecs_eco_delta doit être un nombre entre 0 et 15');
     for(const key of ['circuit_1_name','circuit_2_name']) {
       if(config[key] != null && typeof config[key] !== 'string') throw new Error(key+' doit être une chaîne');
@@ -360,6 +370,16 @@ class PacSynoptiqueCard extends HTMLElement {
       targetFlow:this._v(`heatFlowTarget${i}`)
     };
   }
+  _ecsWaterHeater(){
+    const configured=this._config?.ecs_mode_entity;
+    if(configured && this._hass?.states?.[configured]) return configured;
+    const atlantic=Object.values(this._hass?.states||{}).find(state=>
+      state.entity_id?.startsWith('water_heater.') &&
+      (state.entity_id.includes('atlantic_alfea') ||
+       String(state.attributes?.friendly_name||'').includes('Atlantic Alfea'))
+    );
+    return atlantic?.entity_id || 'water_heater.bsb_lan';
+  }
   _ecs(){
     const production=this._v('ecsProduction')||this._a('ecsHeater','production');
     const p=norm(production);
@@ -369,10 +389,15 @@ class PacSynoptiqueCard extends HTMLElement {
     const withElectric=electric===true||p==='appoint electrique'||p.includes('pac appoint electrique');
     const tempBallon=this._v('ecsTemp') ?? this._a('ecsHeater','current_temperature');
     const comfortSetpoint=this._pendingEcs?String(this._pendingEcs.comfort):this._v('ecsComfortSetpoint');
+    const ecsModeEntity=this._ecsWaterHeater();
+    const waterHeater=this._hass?.states[ecsModeEntity];
+    // 8831 peut valoir 5 °C lorsque l'ECS est hors service : le water_heater
+    // expose la consigne réellement affichée par la PAC.
+    const currentSetpoint=waterHeater?.attributes?.temperature ?? comfortSetpoint;
     const ecoSetpoint=this._pendingEcs?String(this._pendingEcs.eco):this._v('ecsEcoSetpoint');
     const target=comfortSetpoint ?? this._a('ecsHeater','temperature');
     return {production:clean(production||this._v('ecsState')||'Indisponible',56),
-      viaPac,withElectric,pump,electric,tempBallon,target,comfortSetpoint,ecoSetpoint};
+      viaPac,withElectric,pump,electric,tempBallon,target,comfortSetpoint,currentSetpoint,ecoSetpoint};
   }
   _pipe(tone='idle',vertical=false){
     return `<div class="pipe ${vertical?'vertical':''} ${tone}"><span class="pipe-light"></span></div>`;
@@ -441,11 +466,31 @@ class PacSynoptiqueCard extends HTMLElement {
         this._queueTempWrite('ecs',()=>this._setEcs(comfortValue));
         return;
       }
+      if(action==='ecs-force-cycle'){
+        const entity=this._ids?.ecsForceCycle;
+        if(!entity || !this._hass?.states[entity]) return;
+        this._ecsForceUntil=Date.now()+10000;
+        if(this._ecsForceTimer) clearTimeout(this._ecsForceTimer);
+        this._ecsForceTimer=setTimeout(()=>{
+          this._ecsForceUntil=0;
+          this._ecsForceTimer=null;
+          this._render();
+        },10000);
+        this._render();
+        await this._hass.callService('button','press',{entity_id:entity});
+        return;
+      }
       if(action==='ecs-mode'){
-        const entity=this._config.ecs_mode_entity||'water_heater.bsb_lan';
+        const entity=this._ecsWaterHeater();
         const value=target.dataset.value;
-        if(!this._hass?.states[entity] || !['off','performance'].includes(value)) return;
-        await this._hass.callService('water_heater','set_operation_mode',{entity_id:entity,operation_mode:value});
+        if(!this._hass?.states[entity] || !['off','on'].includes(value)) return;
+        const modes=this._hass.states[entity].attributes?.operation_list || [];
+        const offMode=modes.find(mode=>/arr[êe]t|off/i.test(String(mode)));
+        const onMode=modes.find(mode=>!/arr[êe]t|off|eco/i.test(String(mode))) ||
+          modes.find(mode=>!/arr[êe]t|off/i.test(String(mode)));
+        const operationMode=value==='off'?offMode:onMode;
+        if(!operationMode) return;
+        await this._hass.callService('water_heater','set_operation_mode',{entity_id:entity,operation_mode:operationMode});
         this._render();
         return;
       }
@@ -645,6 +690,129 @@ class PacSynoptiqueCard extends HTMLElement {
     if(this._historyOpen){ this._closeHistory(); event.stopPropagation(); return; }
     if(this._editor){ this._editor=null; this._sliderEditing=false; this._render(); event.stopPropagation(); }
   }
+  _ensureActivity(){
+    if(this._activityLoading || Date.now()-this._activityLast<60000) return;
+    const states=Object.keys(this._hass?.states||{});
+    const raw=nativeId=>states.find(id=>id.startsWith('sensor.bsb_lan_') && id.includes(`_${nativeId}_`));
+    const native=[raw('8006'),raw('8003'),raw('8000'),raw('8001')].filter(Boolean);
+    const entities=native.length?native:['pacState','circuit1State','circuit2State','ecsState']
+      .map(key=>this._ids?.[key]).filter(Boolean);
+    if(!entities.length) return;
+    this._activityLoading=true;
+    this._activityLast=Date.now();
+    this._loadActivity(entities);
+  }
+  async _loadActivity(entities){
+    try{
+      const start=encodeURIComponent(new Date(Date.now()-6*3600e3).toISOString());
+      const batches=await Promise.all(entities.map(async entity=>{
+        try{
+          const rows=await this._hass.callApi('GET',`logbook/${start}?entity=${encodeURIComponent(entity)}`);
+          return Array.isArray(rows)?rows:[];
+        }catch(_err){
+          return [];
+        }
+      }));
+      const interesting=batches.flat()
+        .filter(row=>{
+          const text=String(row.message||row.state||'').toLowerCase();
+          return !/no request|unknown|unavailable|indisponible|^none$/.test(text);
+        })
+        .sort((a,b)=>new Date(b.when||0)-new Date(a.when||0));
+      const unique=[];
+      for(const row of interesting){
+        const key=`${row.entity_id||''}|${row.message||row.state||''}`;
+        if(unique.length && unique[unique.length-1].key===key) continue;
+        unique.push({...row,key});
+      }
+      this._activity=unique.slice(0,8);
+    }catch(_err){
+      this._activity=[];
+    }
+    this._activityLoading=false;
+    this._render();
+  }
+  _ensureGraphs(){
+    if(this._graphsLoading || Date.now()-this._graphsLast<300000) return;
+    const energy=this._config?.energy_entity ||
+      (this._hass?.states?.['sensor.phase_a_diff_pac_energy']?'sensor.phase_a_diff_pac_energy':this._ids?.energy);
+    if(!energy){
+      this._graphs={error:'Entité de consommation indisponible',rows:[]};
+      return;
+    }
+    this._graphsLoading=true;
+    this._graphsLast=Date.now();
+    this._loadGraphs(energy);
+  }
+  async _loadGraphs(entity){
+    try{
+      if(typeof this._hass.callWS!=='function') throw new Error('statistiques indisponibles');
+      const end=new Date();
+      const start=new Date();
+      start.setDate(start.getDate()-9);
+      start.setHours(0,0,0,0);
+      const result=await this._hass.callWS({
+        type:'recorder/statistics_during_period',
+        start_time:start.toISOString(),
+        end_time:end.toISOString(),
+        statistic_ids:[entity],
+        period:'day',
+        types:['change']
+      });
+      const rows=(result?.[entity]||[]).map(row=>({
+        start:new Date(row.start),
+        value:Number(row.change)
+      })).filter(row=>!Number.isNaN(row.start.getTime()) && Number.isFinite(row.value)).slice(-10);
+      this._graphs={entity,rows,error:rows.length?null:'Aucune statistique quotidienne disponible'};
+    }catch(err){
+      this._graphs={error:'Statistiques indisponibles : '+String(err?.message||err),rows:[]};
+    }
+    this._graphsLoading=false;
+    this._render();
+  }
+  _graphsHtml(){
+    const graph=this._graphs;
+    if(graph===null) return '<div class="graph-note">Chargement des consommations…</div>';
+    if(graph.error) return `<div class="graph-note">${html(graph.error)}</div>`;
+    if(!graph.rows.length) return '<div class="graph-note">Aucune donnée sur 10 jours.</div>';
+    const maximum=Math.max(0.001,...graph.rows.map(row=>row.value));
+    const unit=this._hass?.states?.[graph.entity]?.attributes?.unit_of_measurement||'kWh';
+    const bars=graph.rows.map(row=>{
+      const value=Math.max(0,row.value);
+      const height=Math.max(3,Math.round(value/maximum*100));
+      const day=row.start.toLocaleDateString('fr-FR',{weekday:'short'});
+      const date=row.start.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+      return `<div class="graph-col" title="${html(date)} : ${html(value.toFixed(2))} ${html(unit)}"><strong>${html(value.toFixed(2))}</strong><div class="graph-track"><div class="graph-bar" style="height:${height}%"></div></div><span>${html(day)}<small>${html(date)}</small></span></div>`;
+    }).join('');
+    return `<div class="graph-head"><span>Consommation quotidienne</span><small>10 jours · ${html(unit)}</small></div><div class="graph-grid">${bars}</div>`;
+  }
+  _activityHtml(){    const rows=this._activity;
+    const dayLabel=when=>{
+      const date=when?new Date(when):new Date();
+      const today=new Date();
+      const same=date.toDateString()===today.toDateString();
+      const text=new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long',year:'numeric'}).format(date);
+      return same?`Aujourd’hui · ${text}`:text;
+    };
+    if(rows===null){
+      return `<div class="activity"><div class="activity-date">${html(dayLabel())}</div><div class="activity-empty">Chargement…</div></div>`;
+    }
+    if(!rows.length){
+      return `<div class="activity"><div class="activity-date">${html(dayLabel())}</div><div class="activity-empty">Aucune activité sur 6 h</div></div>`;
+    }
+    const items=rows.map((row,index)=>{
+      const when=row.when?new Date(row.when):null;
+      const time=when&&!Number.isNaN(when.getTime())
+        ? when.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})
+        : '—';
+      const entityId=String(row.entity_id||'');
+      const rawLabel=entityId.includes('_8006_')?'État PAC':entityId.includes('_8003_')?'État ECS':entityId.includes('_8000_')?'C1 - État':entityId.includes('_8001_')?'C2 - État':'';
+      const label=rawLabel||clean(row.name||row.entity_id||'PAC',42);
+      const text=clean(row.message||row.state||'—',150);
+      return `<div class="activity-row"><span class="activity-dot${index===0?' first':''}"></span><div class="activity-body"><div class="activity-line"><strong class="activity-name">${html(label)}</strong><span class="activity-message">${html(text)}</span></div><div class="activity-meta"><span>${html(time)}</span><span class="activity-chevron">›</span></div></div></div>`;
+    }).join('');
+    return `<div class="activity"><div class="activity-date">${html(dayLabel(rows[0]?.when))}</div><div class="activity-list">${items}</div></div>`;
+  }
   _historyHtml(){
     const h=this._history;
     if(!h) return '';
@@ -712,12 +880,15 @@ class PacSynoptiqueCard extends HTMLElement {
         <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong>${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
       </div></div>`;
     };
-    const ecsModeEntity=this._config.ecs_mode_entity||'water_heater.bsb_lan';
+    const ecsModeEntity=this._ecsWaterHeater();
     const ecsModeState=this._hass?.states[ecsModeEntity];
     const ecsMode=ecsModeState?.state;
-    const ecsModeButtons=ecsModeState?`<button type="button" class="ctl-btn${ecsMode==='off'?' active':''}" data-pac-action="ecs-mode" data-value="off">Off</button><button type="button" class="ctl-btn${ecsMode!=='off'?' active':''}" data-pac-action="ecs-mode" data-value="performance">On</button>`:'';
+    const ecsModeOff=!ecsMode || /arr[êe]t|off/i.test(String(ecsMode));
+    const ecsModeButtons=ecsModeState?`<button type="button" class="ctl-btn${ecsModeOff?' active':''}" data-pac-action="ecs-mode" data-value="off">Off</button><button type="button" class="ctl-btn${!ecsModeOff?' active':''}" data-pac-action="ecs-mode" data-value="on">On</button>`:'';
+    const ecsForceActive=Date.now()<this._ecsForceUntil;
+    const ecsForceButton=this._ids?.ecsForceCycle?`<button type="button" class="ctl-btn${ecsForceActive?' active':''}" data-pac-action="ecs-force-cycle" title="Forcer un cycle ECS pendant 10 secondes">${ecsForceActive?'⚡ Forçage actif':'⚡ Forçage'}</button>`:'';
     const ecsGroup=ecs?.comfortSetpoint?`<div class="ctl-group"><span class="ctl-label">ECS · Ballon</span><div class="ctl-buttons">
-      ${ecsModeButtons}
+      ${ecsModeButtons}${ecsForceButton}
       <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong>${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
       ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
     </div></div>`:'';
@@ -748,10 +919,13 @@ class PacSynoptiqueCard extends HTMLElement {
     // États de déploiement persistants malgré le rafraîchissement des entités HA.
     const prevAlarms=this.shadowRoot.querySelector('details[data-panel="alarms"]')?.open ?? false;
     const prevDetails=this.shadowRoot.querySelector('details[data-panel="diagnostics"]')?.open ?? false;
+    const prevGraphs=this.shadowRoot.querySelector('details[data-panel="graphs"]')?.open ?? false;
     const mode=this._resolveMode();
     this.dataset.flow=mode==='cool'?'cool':mode==='heat'?'heat':'off';
     const compressor=this._b('compressor');
     const c1=this._circuit(1),c2=this._circuit(2),ecs=this._ecs();
+    this._ensureActivity();
+    this._ensureGraphs();
     const defrost=this._b('defrost');
     const overrun=norm(this._v('pacState')).includes('overrun');
     // Les animations illustrent une activité confirmée : compresseur, circuit, ECS ou overrun.
@@ -815,13 +989,23 @@ class PacSynoptiqueCard extends HTMLElement {
     const ecsCopStartDate=ecsCopAttr.debut_session?new Date(ecsCopAttr.debut_session):null;
     const ecsCopStartTime=ecsCopStartDate&&!Number.isNaN(ecsCopStartDate.getTime())
       ?ecsCopStartDate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'—';
-    const ecsSessionHtml=ecsCopState&&(ecsCopValue!==null||ecsCopAttr.duree_session_min!=null)?`<div class="ecs-session" title="Dernière session ECS">
-      <span>📊 COP <strong>${html(ecsCopText)}</strong></span>
-      <span>⏱️ <strong>${html(ecsCopDuration)} min</strong></span>
-      <span>🌡️ <strong>${html(ecsCopStartTemp)} → ${html(ecsCopEndTemp)}</strong></span>
-      <span>⚡ <strong>${html(ecsCopEnergyText)}</strong></span>
-      <span>🕒 <strong>${html(ecsCopStartTime)}</strong></span>
-    </div>`:'';
+    const ecsSessionActive=ecsCopAttr.session_active===true;
+    const ecsSessionHtml=ecsCopState&&(ecsCopValue!==null||ecsCopAttr.duree_session_min!=null)
+      ?(ecsSessionActive
+        ?`<div class="ecs-session active" title="Session ECS en cours">
+          <span>⏱️ Session en cours <strong>${html(ecsCopDuration)} min</strong></span>
+          <span>🌡️ <strong>${html(ecsCopStartTemp)} → ${html(ecsCopEndTemp)}</strong></span>
+          <span>⚡ <strong>${html(ecsCopEnergyText)}</strong></span>
+          <span>🕒 <strong>${html(ecsCopStartTime)}</strong></span>
+        </div>`
+        :`<div class="ecs-session" title="Dernière session ECS">
+          <span>📊 COP <strong>${html(ecsCopText)}</strong></span>
+          <span>⏱️ <strong>${html(ecsCopDuration)} min</strong></span>
+          <span>🌡️ <strong>${html(ecsCopStartTemp)} → ${html(ecsCopEndTemp)}</strong></span>
+          <span>⚡ <strong>${html(ecsCopEnergyText)}</strong></span>
+          <span>🕒 <strong>${html(ecsCopStartTime)}</strong></span>
+        </div>`)
+      :'';
     const ecsSessions=Array.isArray(ecsCopAttr.sessions)?ecsCopAttr.sessions.slice().reverse():[];
     const ecsHistoryRow=s=>{
       const start=s?.debut?new Date(s.debut):null;
@@ -835,9 +1019,9 @@ class PacSynoptiqueCard extends HTMLElement {
       const energy=Number.isFinite(Number(s?.e_elec_kwh))?Number(s.e_elec_kwh).toLocaleString('fr-FR',{minimumFractionDigits:3,maximumFractionDigits:3}):'—';
       return `<div class="ecs-history-row"><span class="eh-date">${html(date)}</span><strong>📊 ${html(cop)}</strong><span>⏱️ ${html(duration)} min</span><span>🌡️ ${html(t1)} → ${html(t2)}</span><span>⚡ ${html(energy)} kWh</span></div>`;
     };
-    const ecsHistoryHtml=ecsSessions.length?`<details class="ecs-history">
-      <summary>Historique · ${ecsSessions.length} session${ecsSessions.length!==1?'s':''}</summary>
-      <div class="ecs-history-list">${ecsSessions.map(ecsHistoryRow).join('')}</div>
+    const ecsHistoryHtml=ecsSessions.length?`<details class="activity session-history" open>
+      <summary class="activity-date">Historique · ${ecsSessions.length} session${ecsSessions.length!==1?'s':''}</summary>
+      <div class="activity-list session-list">${ecsSessions.map(ecsHistoryRow).join('')}</div>
     </details>`:'';
     const gauge=nvalue(this._v('modulation'));
     const pacDelta= nvalue(this._v('flow'))!==null && nvalue(this._v('returnTemp'))!==null ?
@@ -882,6 +1066,7 @@ class PacSynoptiqueCard extends HTMLElement {
         [`C${i} — Rafraîchissement Confort`,`coolComfort${i}`,'°C'],[`C${i} — Rafraîchissement Éco`,`coolEco${i}`,'°C']
       ])
     ].map(([name,key,unit])=>this._detailRow(name,key,unit)).join(''));
+    const diagActivity=`<section class="diag-group diag-activity-panel"><h4>Activité</h4>${this._activityHtml()}${ecsHistoryHtml}</section>`;
     this.shadowRoot.innerHTML=`<style>
       /* En auto, les palettes proviennent des variables du thème Home Assistant. */
       :host {display:block;
@@ -1021,6 +1206,7 @@ class PacSynoptiqueCard extends HTMLElement {
         background-image:repeating-linear-gradient(90deg,color-mix(in srgb,var(--flow-color) 18%,#fff) 0 7px,transparent 7px 11px);
         background-size:22px 4px;box-shadow:0 0 7px var(--flow-color);filter:drop-shadow(0 0 4px var(--flow-color));
         animation:branchFlow var(--flow-duration,1.15s) linear infinite,branchPulse var(--flow-duration,1.15s) ease-in-out infinite}
+      .output-card[aria-label="Eau chaude sanitaire"]:after{display:none!important;content:none!important;animation:none!important}
       @keyframes branchFlow{to{background-position:22px 0}}
       @keyframes branchPulse{0%,100%{opacity:.45}50%{opacity:1}}
       .out-top{display:flex;align-items:center;gap:11px}
@@ -1033,12 +1219,14 @@ class PacSynoptiqueCard extends HTMLElement {
       .state-dot.heat{background:var(--red);box-shadow:0 0 12px var(--red)}
       .state-dot.cool{background:var(--blue);box-shadow:0 0 12px var(--blue)}
       .out-values{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+      .out-values.ecs-values{grid-template-columns:repeat(3,minmax(0,1fr))}
       .out-values>div span{color:var(--sub);display:block;font-size:10px}
       .out-values>div strong{display:block;margin-top:3px;font-size:20px;font-weight:750;font-variant-numeric:tabular-nums}
       .out-foot{display:flex;gap:6px;flex-wrap:wrap}.out-foot .chip{font-size:10px;padding:3px 8px}
       .ecs-session{display:flex;flex-wrap:wrap;gap:5px 12px;border-top:1px solid var(--line);padding-top:8px;margin-top:2px;font-size:10px;color:var(--sub)}
       .ecs-session span{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
       .ecs-session strong{font-size:12px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+      .ecs-session.active strong{color:var(--warning-color,#ff9800)}
       .ecs-history{margin-top:5px;border-top:1px dashed var(--line);padding-top:5px}
       .ecs-history>summary{cursor:pointer;list-style:none;font-size:10px;color:var(--sub);font-weight:700;display:flex;align-items:center;gap:5px}
       .ecs-history>summary::-webkit-details-marker{display:none}
@@ -1081,8 +1269,48 @@ class PacSynoptiqueCard extends HTMLElement {
       details>summary:before{content:'▸';color:var(--summary-chevron);transition:transform .15s}details[open]>summary:before{transform:rotate(90deg)}
       .details-note{color:var(--sub);font-size:11px;margin:11px 0 13px;line-height:1.5}
       .diag-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+      .activity{margin:0 0 14px;padding:2px 0 4px}
+      .activity-date{padding:2px 0 10px;font-size:15px;font-weight:600}
+      .activity-list{position:relative;display:grid;padding-left:2px}
+      .activity-list::before{content:'';position:absolute;left:8px;top:10px;bottom:10px;width:2px;background:var(--divider-color)}
+      .activity-row{position:relative;display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:8px 0;border-top:1px solid var(--divider-color)}
+      .activity-row:first-child{border-top:0}
+      .activity-dot{width:12px;height:12px;margin-top:5px;border-radius:50%;background:var(--disabled-text-color);box-shadow:0 0 0 3px var(--card-background-color);z-index:1}
+      .activity-dot.first{background:#26a69a}
+      .activity-body{min-width:0}
+      .activity-line{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+      .activity-name{flex:0 0 32%;font-size:12px;font-weight:600}
+      .activity-message{flex:1;font-size:12px;line-height:1.35;text-align:right;overflow-wrap:anywhere}
+      .activity-meta{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:3px;font-size:11px;opacity:.65}
+      .activity-chevron{font-size:18px;line-height:.8}
+      .activity-empty{padding:9px 0;font-size:11px;opacity:.65}
+      .diag-activity{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start;margin:0 0 14px}
+      .diag-activity>.activity{min-width:0;margin:0}
+      .diag-activity>.activity:only-child{grid-column:1/-1}
+      .session-history>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px}
+      .session-history>summary::-webkit-details-marker{display:none}
+      .session-history>summary:before{content:'▸';font-size:11px;opacity:.65;transition:transform .15s}
+      .session-history[open]>summary:before{transform:rotate(90deg)}
+      .session-list{padding-top:2px}
+      .session-history .ecs-history-row{display:flex;flex-wrap:wrap;gap:3px 9px;padding:7px 0;border-top:1px solid var(--divider-color);font-size:11px;color:var(--secondary-text-color)}
+      .session-history .ecs-history-row:first-child{border-top:0}
+      .session-history .ecs-history-row strong{color:var(--primary-text-color);font-weight:600}
+      .session-history .ecs-history-row .eh-date{color:var(--secondary-text-color);opacity:.75}
       .diag-group{min-width:0;background:var(--surface);padding:13px;border-radius:12px;border:1px solid var(--panel-line)}
       .diag-group h4{margin:0 0 10px;font-size:12px;color:var(--text)}
+      .diag-activity-panel .activity{margin:0}
+      .diag-activity-panel .session-history{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+      .graph-panel{margin-top:8px;padding:12px 13px 8px;background:var(--surface);border:1px solid var(--panel-line);border-radius:12px}
+      .graph-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600}
+      .graph-head small{font-size:11px;font-weight:400;opacity:.65}
+      .graph-grid{display:grid;grid-template-columns:repeat(10,minmax(34px,1fr));gap:8px;align-items:end;height:190px;margin-top:12px;overflow-x:auto}
+      .graph-col{display:grid;grid-template-rows:auto 1fr auto;gap:5px;min-width:0;height:100%;text-align:center}
+      .graph-col>strong{font-size:10px;font-weight:600;white-space:nowrap}
+      .graph-track{display:flex;align-items:flex-end;height:100%;min-height:90px;border-radius:6px;background:var(--secondary-background-color);overflow:hidden}
+      .graph-bar{width:100%;min-height:3px;border-radius:5px 5px 0 0;background:#ff9800}
+      .graph-col>span{display:grid;gap:1px;font-size:10px;color:var(--sub);line-height:1.15}
+      .graph-col small{font-size:9px;opacity:.65}
+      .graph-note{padding:12px 0;font-size:12px;opacity:.7}
       .detail-row{border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:10px;justify-content:space-between;padding:6px 0;font-size:11px}
       .detail-row:last-child{border:0}.detail-row span{color:var(--sub);min-width:0}.detail-row strong{text-align:right;font-weight:700;max-width:58%;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
       .detail-row strong.na{color:var(--muted)}
@@ -1257,6 +1485,7 @@ class PacSynoptiqueCard extends HTMLElement {
 :host([data-orientation="portrait"]) .output-card:before{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:5px;margin-top:-2px;background:var(--pipe)}
       :host([data-orientation="portrait"]) .output-card.heat:after, :host([data-orientation="portrait"]) .output-card.cool:after, :host([data-orientation="portrait"]) .output-card.electric:after{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:3px;margin-top:-1px}
 :host([data-orientation="portrait"]) .diag-grid{grid-template-columns:1fr}
+:host([data-orientation="portrait"]) .diag-activity{grid-template-columns:1fr}
 :host([data-orientation="portrait"]) .out-values{grid-template-columns:repeat(2,minmax(0,1fr))}
 :host([data-orientation="portrait"]) .output-card .out-values strong{font-size:17px}
 :host([data-orientation="portrait"]) .wrap{overflow-x:visible}
@@ -1285,6 +1514,7 @@ class PacSynoptiqueCard extends HTMLElement {
 :host([data-orientation="auto"]) .output-card:before{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:5px;margin-top:-2px;background:var(--pipe)}
       :host([data-orientation="auto"]) .output-card.heat:after, :host([data-orientation="auto"]) .output-card.cool:after, :host([data-orientation="auto"]) .output-card.electric:after{content:'';display:block;position:absolute;left:-21px;top:50%;width:21px;height:3px;margin-top:-1px}
 :host([data-orientation="auto"]) .diag-grid{grid-template-columns:1fr}
+:host([data-orientation="auto"]) .diag-activity{grid-template-columns:1fr}
 :host([data-orientation="auto"]) .out-values{grid-template-columns:repeat(2,minmax(0,1fr))}
 :host([data-orientation="auto"]) .output-card .out-values strong{font-size:17px}
 :host([data-orientation="auto"]) .wrap{overflow-x:visible}
@@ -1606,10 +1836,10 @@ class PacSynoptiqueCard extends HTMLElement {
             <div class="out-top"><div class="tank-mini" aria-hidden="true"></div><div class="out-head">
               <div class="out-title">ECS <span>· Ballon</span></div><div class="out-status">${html(ecsText)}</div></div>
               <span class="state-dot ${ecsTone}"></span></div>
-            <div class="out-values"><div><span>Température ballon</span>${this._tempLink(ecs.tempBallon,this._ids?.ecsTemp,'Température ballon ECS')}</div>
-              <div><span>Consigne confort</span><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.target))}</strong></div></div>
+            <div class="out-values ecs-values"><div><span>Température ballon</span>${this._tempLink(ecs.tempBallon,this._ids?.ecsTemp,'Température ballon ECS')}</div>
+              <div><span>Consigne confort</span><strong class="editable" data-pac-action="edit" data-target="ecs" title="Cliquer pour modifier">${html(temp(ecs.target))}</strong></div>
+              <div><span>Consigne actuelle</span><strong>${html(temp(ecs.currentSetpoint))}</strong></div></div>
             ${ecsSessionHtml}
-            ${ecsHistoryHtml}
             <div class="out-foot">${chip(ecs.pump===true?'Pompe active':ecs.pump===false?'Pompe arrêtée':'Pompe inconnue',ecs.pump===true?'positive':'dim')}
               ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
               ${ecs.withElectric?chip('Appoint électrique actif','warning'):''}</div>
@@ -1625,8 +1855,12 @@ class PacSynoptiqueCard extends HTMLElement {
       ${this._config.show_diagnostics!==false?`<details data-panel="diagnostics" ${prevDetails?'open':''}>
         <summary>Diagnostics et capteurs complémentaires · ${statesCount} entités reconnues</summary>
         <p class="details-note">Lecture seule. « — » signifie : entité absente, désactivée, inconnue ou non publiée par BSB-LAN. Les températures de départ cibles des circuits ne sont pas des mesures.</p>
-        <div class="diag-grid">${diagComp}${diagPac}${diagCircs}</div>
+        <div class="diag-grid">${diagComp}${diagPac}${diagCircs}${diagActivity}</div>
       </details>`:''}
+      <details data-panel="graphs" class="alarm-details" ${prevGraphs?'open':''}>
+        <summary><span>Graphes</span></summary>
+        <div class="graph-panel">${this._graphsHtml()}</div>
+      </details>
       ${this._editor?this._editorHtml():''}
       ${this._history?this._historyHtml():''}
 
@@ -1675,6 +1909,10 @@ class PacSynoptiqueCardEditor extends HTMLElement {
       const element=event.target;
       if (element?.id==='pac-power-entity-picker') {
         this._changed('power_entity',String(event.detail?.value??'').trim());
+      } else if (element?.id==='pac-energy-entity-picker') {
+        this._graphs=null;
+        this._graphsLast=0;
+        this._changed('energy_entity',String(event.detail?.value??'').trim());
       }
     });
   }
@@ -1687,8 +1925,10 @@ class PacSynoptiqueCardEditor extends HTMLElement {
   }
   set hass(hass) {
     this._hass=hass;
-    const picker=this.shadowRoot?.querySelector?.('#pac-power-entity-picker');
-    if(picker) picker.hass=hass;
+    for(const id of ['#pac-power-entity-picker','#pac-energy-entity-picker']){
+      const picker=this.shadowRoot?.querySelector?.(id);
+      if(picker) picker.hass=hass;
+    }
   }
   _changed(key,value) {
     // Conserve les paramètres additionnels/associations d'entités et la
@@ -1712,6 +1952,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
     const circuit2Name=typeof config.circuit_2_name==='string'?config.circuit_2_name:'Étage';
     const ecsDelta=Number.isFinite(Number(config.ecs_eco_delta))?Number(config.ecs_eco_delta):3;
     const powerEntity=typeof config.power_entity==='string'?config.power_entity:'';
+    const energyEntity=typeof config.energy_entity==='string'?config.energy_entity:'';
     const selectedLayout=(config.layout_style||'classic');
     const selectedOrientation=['auto','landscape','portrait'].includes(config.layout_orientation)?config.layout_orientation:'auto';
     this.shadowRoot.innerHTML=`
@@ -1769,6 +2010,11 @@ class PacSynoptiqueCardEditor extends HTMLElement {
           <div class="hint">Entité instantanée (W ou kW), affichée avec les commandes. Tape pour rechercher parmi les capteurs.</div>
         </div>
         <div class="field">
+          <label for="pac-energy-entity-picker">Entité d’énergie consommée</label>
+          <ha-entity-picker id="pac-energy-entity-picker" allow-custom-entity></ha-entity-picker>
+          <div class="hint">Compteur d’énergie (kWh) utilisé pour l’historique quotidien sur 10 jours. Vide = détection automatique.</div>
+        </div>
+        <div class="field">
           <label class="toggle" for="pac-show-controls">
             <input type="checkbox" id="pac-show-controls"${checkedControls}>
             Afficher les commandes (mode PAC, Off/Auto, consigne)
@@ -1823,6 +2069,13 @@ class PacSynoptiqueCardEditor extends HTMLElement {
       powerPicker.value=powerEntity;
       powerPicker.includeDomains=['sensor'];
       powerPicker.entityFilter=state=>state?.attributes?.device_class==='power'||['W','kW'].includes(state?.attributes?.unit_of_measurement);
+    }
+    const energyPicker=this.shadowRoot.querySelector('#pac-energy-entity-picker');
+    if(energyPicker){
+      energyPicker.hass=this._hass;
+      energyPicker.value=energyEntity;
+      energyPicker.includeDomains=['sensor'];
+      energyPicker.entityFilter=state=>state?.attributes?.device_class==='energy'||['Wh','kWh','MWh'].includes(state?.attributes?.unit_of_measurement);
     }
   }
 }
