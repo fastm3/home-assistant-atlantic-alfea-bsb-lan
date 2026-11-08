@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.28 — COP ECS interne, historique des sessions et carte enrichie
+
+- Nouveau capteur interne **`ECS - COP session`** : calcul du COP moyen de la
+  dernière session ECS, durée, températures départ/fin, énergie électrique et
+  heure de début. Aucun helper externe n'est utilisé pour ce calcul.
+- Conservation des **4 dernières sessions** dans l'attribut `sessions`, avec
+  restauration après un redémarrage Home Assistant.
+- Carte synoptique : affichage compact du bilan de session et historique
+  repliable des sessions (date, COP, durée, températures, énergie).
+- Commandes ECS **Off / On** dans la barre de commandes.
+- Libellés **Échangeur air (extérieur)** / **Échangeur eau (intérieur)** et
+  panneau **PAC · Échangeurs**.
+- Badge **Post-circulation** pour un circulateur actif alors que le circuit est
+  arrêté ; animations limitées aux circuits réellement actifs.
+- Manifest **1.5.28**.
+
 ## 1.5.27 — Fusion upstream (programmes natifs, Q3, historique défauts)
 
 - Intègre la branche principale upstream jusqu'à **1.5.27** : programmes horaires

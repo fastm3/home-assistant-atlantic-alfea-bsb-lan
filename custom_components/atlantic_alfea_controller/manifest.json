@@ -9,7 +9,7 @@
   "after_dependencies": [
     "mqtt"
   ],
-  "version": "1.5.27",
+  "version": "1.5.28",
   "documentation": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan#readme",
   "issue_tracker": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/issues"
 }
