@@ -294,7 +294,9 @@ def dhw_charge_requested(value: str | None) -> bool | None:
 
     inactive_markers = (
         "chargé",
+        "charged",
         "charge bloquée",
+        "charging blocked",
         "blocage de charge",
         "charge en veille",
         "charge restreinte",
@@ -303,7 +305,7 @@ def dhw_charge_requested(value: str | None) -> bool | None:
     )
     if any(marker in normalized for marker in inactive_markers):
         return False
-    return normalized.startswith("charge")
+    return normalized.startswith(("charge", "charging"))
 
 
 def generator_is_cooling(value: str | None) -> bool | None:

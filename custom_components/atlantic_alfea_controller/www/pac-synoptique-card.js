@@ -928,8 +928,9 @@ class PacSynoptiqueCard extends HTMLElement {
     this._ensureGraphs();
     const defrost=this._b('defrost');
     const overrun=norm(this._v('pacState')).includes('overrun');
-    // Les animations illustrent une activité confirmée : compresseur, circuit, ECS ou overrun.
-    const exchangerRunning=(compressor===true || c1.active || c2.active || ecs.viaPac || overrun) && (mode==='heat'||mode==='cool');
+    // La liaison frigorifique extérieur/intérieur ne doit s'animer que si le
+    // compresseur tourne réellement. L'overrun ne concerne que les circulateurs.
+    const exchangerRunning=compressor===true && defrost!==true;
     // Vitesse proportionnelle à la modulation : 0 % = arrêt, 100 % = rotation rapide.
     const fanPct=Math.max(0,Math.min(100,nvalue(this._v('modulation'))??0));
     const fanDuration=fanPct>0?Math.max(0.6,Math.min(12,60/fanPct)):0;

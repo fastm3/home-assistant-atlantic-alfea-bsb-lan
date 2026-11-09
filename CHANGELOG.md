@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.31 — Corrections ECS et animations
+
+- Reconnaissance des états ECS anglais **Charging / Charged** : l'alerte
+  « écart départ / consigne » est bien suspendue pendant une charge ECS.
+- La liaison extérieur → intérieur ne s'anime plus que si le **compresseur**
+  tourne réellement ; l'overrun et la chauffe électrique ECS ne l'animent plus.
+- Manifest **1.5.31**.
+
 ## 1.5.30 — Intégration autonome, découverte MQTT et diagnostics enrichis
 
 - **Découverte Zeroconf** du BSB-LAN : l'adresse JSON est mise à jour
