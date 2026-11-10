@@ -35,6 +35,10 @@ const FIELDS = {
   regime2:         ['sensor','C2 - Régime temporaire'],
   override1:       ['binary_sensor','C1 - Dérogation'],
   override2:       ['binary_sensor','C2 - Dérogation'],
+  sim1:            ['switch','C1 - Simulation dérogation'],
+  sim2:            ['switch','C2 - Simulation dérogation'],
+  simDuration1:    ['number','C1 - Durée dérogation'],
+  simDuration2:    ['number','C2 - Durée dérogation'],
   heatState1:      ['sensor','8000 - Status heating circuit 1'],
   heatState2:      ['sensor','8001 - Status heating circuit 2'],
   coolState1:      ['sensor','8004 - Status cooling circuit 1'],
@@ -61,8 +65,24 @@ const FIELDS = {
   ecsEcoSetpoint:     ['number','ECS - Consigne réduite (1612)'],
   heatSetpointC1:  ['number','C1 - Chauffage T. Conf'],
   heatSetpointC2:  ['number','C2 - Chauffage T. Conf'],
+  heatReducedSetpointC1: ['number','C1 - Consigne réduite (712)'],
+  heatReducedSetpointC2: ['number','C2 - Consigne réduite (1012)'],
   coolSetpointC1:  ['number','C1 - Rafraîch. T. Conf'],
   coolSetpointC2:  ['number','C2 - Rafraîch. T. Conf'],
+  coolReducedSetpointC1: ['number','C1 - Consigne rafraîchissement réduite (903)'],
+  coolReducedSetpointC2: ['number','C2 - Consigne rafraîchissement réduite (1203)'],
+  curveSlope1:  ['sensor','720 - Heating curve slope'],
+  curveOffset1: ['sensor','721 - Heating curve parallel displacement'],
+  curveMin1:    ['sensor','740 - Flow temp min limitation'],
+  curveMax1:    ['sensor','741 - Flow temp max limitation'],
+  curveGain1:   ['sensor','750 - Room temp gain factor'],
+  curveWinter1: ['sensor','730 - Summer/winter changeover temp'],
+  curveSlope2:  ['sensor','1020 - Heating curve slope'],
+  curveOffset2: ['sensor','1021 - Heating curve parallel displacement'],
+  curveMin2:    ['sensor','1040 - Flow temp min limitation'],
+  curveMax2:    ['sensor','1041 - Flow temp max limitation'],
+  curveGain2:   ['sensor','1050 - Room temp gain factor'],
+  curveWinter2: ['sensor','1030 - Summer/winter changeover temp'],
   roomTemp1: ['sensor','Room temperature actual value 1'],
   roomTemp2: ['sensor','Room temperature actual value 2'],
   ecsPump:         ['binary_sensor','ECS - Pompe'],
@@ -206,6 +226,10 @@ class PacSynoptiqueCard extends HTMLElement {
     this._graphsLast=0;
     this._ecsForceUntil=0;
     this._ecsForceTimer=null;
+    this._simCountdownTimer=null;
+    this._regimePending=null;
+    this._regimeError=null;
+    this._curveHelp=false;
     this._onKeyDown=event=>this._handleKeyDown(event);
     this._keyboardBound=false;
     if(typeof this.shadowRoot?.addEventListener==='function'){
@@ -219,8 +243,15 @@ class PacSynoptiqueCard extends HTMLElement {
       document.addEventListener('keydown',this._onKeyDown);
       this._keyboardBound=true;
     }
+    if(!this._simCountdownTimer && typeof setInterval==='function'){
+      this._simCountdownTimer=setInterval(()=>this._updateSimCountdowns(),30000);
+    }
   }
   disconnectedCallback(){
+    if(this._simCountdownTimer && typeof clearInterval==='function'){
+      clearInterval(this._simCountdownTimer);
+      this._simCountdownTimer=null;
+    }
     for(const key of Object.keys(this._tempTimers||{})){
       if(this._tempTimers[key] && typeof clearTimeout==='function') clearTimeout(this._tempTimers[key]);
     }
@@ -247,6 +278,9 @@ class PacSynoptiqueCard extends HTMLElement {
       throw new Error('theme_mode doit être auto, light ou dark');
     }
     if(config.show_controls != null && typeof config.show_controls !== 'boolean') throw new Error('show_controls doit être un booléen');
+    if(config.show_simulation != null && typeof config.show_simulation !== 'boolean') throw new Error('show_simulation doit être un booléen');
+    if(config.show_graphs != null && typeof config.show_graphs !== 'boolean') throw new Error('show_graphs doit être un booléen');
+    if(config.show_curve != null && typeof config.show_curve !== 'boolean') throw new Error('show_curve doit être un booléen');
     if(config.power_entity != null && typeof config.power_entity !== 'string') throw new Error('power_entity doit être un entity_id');
     if(config.energy_entity != null && typeof config.energy_entity !== 'string') throw new Error('energy_entity doit être un entity_id');
     if(config.ecs_eco_delta != null && (!Number.isFinite(Number(config.ecs_eco_delta)) || Number(config.ecs_eco_delta) < 0 || Number(config.ecs_eco_delta) > 15)) throw new Error('ecs_eco_delta doit être un nombre entre 0 et 15');
@@ -356,14 +390,19 @@ class PacSynoptiqueCard extends HTMLElement {
     const actionText=isHeating?'Chauffe actuellement':isCooling?'Rafraîchit actuellement':off?'Arrêt':
       (isMissing(mode)?'État indisponible':'En attente');
     const season=this._resolveMode()==='cool'?'cool':'heat';
-    const setpointEntity=this._ids?.[`${season}SetpointC${i}`];
+    const regime=String(st?.attributes?.regime_consigne||this._v(`circuit${i}State`)||'');
+    const reduced=/r[ée]duit|reduced|eco/i.test(regime);
+    const setpointKey=`${season}${reduced?'Reduced':''}SetpointC${i}`;
+    const setpointEntity=this._ids?.[setpointKey];
     const pending=setpointEntity?this._pendingTemp[setpointEntity]:undefined;
-    const programmed=Number.isFinite(pending)?pending:this._v(`${season}SetpointC${i}`);
+    const programmed=Number.isFinite(pending)?pending:this._v(setpointKey);
     return {
       number:i, key, mode, action, active, off, isHeating, isCooling, actionText,
       nativePreset:this._nativePreset(st,off),
+      presetMode:st?.attributes?.preset_mode,
       current:st?.attributes?.current_temperature,target:st?.attributes?.temperature,
-      programmed, season,
+      targetDisplay:Number.isFinite(pending)?pending:st?.attributes?.temperature,
+      programmed, season, setpointKey, reduced,
       regime:st?.attributes?.regime_consigne, native:this._v(`circuit${i}State`),
       program:this._v(`program${i}`), pump:this._b(`pump${i}`),
       override:this._b(`override${i}`),
@@ -437,13 +476,41 @@ class PacSynoptiqueCard extends HTMLElement {
         await this._hass.callService('climate','set_hvac_mode',{entity_id:entity,hvac_mode:hvac});
         return;
       }
+      if(action==='regime'){
+        const entity=this._ids?.[`circuit${circuit}`];
+        if(!entity) return;
+        const value=target.dataset.value;
+        if(!['Auto','Confort','Réduit'].includes(value)) return;
+        const pending={circuit,value};
+        this._regimePending=pending;
+        this._regimeError=null;
+        this._render();
+        try{
+          if(this._hass.states?.[entity]?.state==='off'){
+            await this._hass.callService('climate','set_hvac_mode',{entity_id:entity,hvac_mode:'heat'});
+            await new Promise(resolve=>setTimeout(resolve,700));
+          }
+          await this._hass.callService('climate','set_preset_mode',{entity_id:entity,preset_mode:value==='Réduit'?'ECO':value});
+        }catch(err){
+          this._regimeError={circuit,message:String(err?.message||err)};
+        }finally{
+          if(this._regimePending===pending) this._regimePending=null;
+          this._render();
+        }
+        return;
+      }
+      if(action==='sim-toggle'){
+        const entity=this._ids?.[`sim${Number(target.dataset.circuit||0)}`];
+        if(entity) this._hass.callService('switch', target.checked?'turn_on':'turn_off', {entity_id:entity});
+        return;
+      }
       if(action==='temp'){
         const mode=this._resolveMode();
         const season=mode==='cool'?'cool':'heat';
-        const key=`${season}SetpointC${circuit}`;
-        const entity=this._ids?.[key];
+        const setpointKey=this._circuit(circuit).setpointKey||`${season}SetpointC${circuit}`;
+        const entity=this._ids?.[setpointKey];
         if(!entity) return;
-        const current=this._num(this._v(key));
+        const current=this._num(this._v(setpointKey));
         if(current===null) return;
         const base=Number.isFinite(this._pendingTemp[entity])?this._pendingTemp[entity]:current;
         const delta=Number(target.dataset.delta);
@@ -506,6 +573,16 @@ class PacSynoptiqueCard extends HTMLElement {
         this._closeHistory();
         return;
       }
+      if(action==='curve-help'){
+        this._curveHelp=true;
+        this._render();
+        return;
+      }
+      if(action==='close-curve-help'){
+        this._curveHelp=false;
+        this._render();
+        return;
+      }
       if(action==='close-editor'){
         this._editor=null;
         this._sliderEditing=false;
@@ -552,12 +629,13 @@ class PacSynoptiqueCard extends HTMLElement {
   async _setCircuitTarget(circuit,value){
     const mode=this._resolveMode();
     const season=mode==='cool'?'cool':'heat';
-    const entity=this._ids?.[`${season}SetpointC${circuit}`];
+    const key=this._circuit(circuit).setpointKey||`${season}SetpointC${circuit}`;
+    const entity=this._ids?.[key];
     if(!entity) return;
     const clamped=season==='cool'?Math.max(7,Math.min(30,value)):Math.max(7,Math.min(35,value));
     const rounded=Math.round(clamped*2)/2;
     this._pendingTemp[entity]=rounded;
-    if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];if(!this._sliderEditing)this._render();},15000);
+    if(typeof setTimeout==='function') setTimeout(()=>{delete this._pendingTemp[entity];if(!this._sliderEditing)this._render();},60000);
     await this._hass.callService('number','set_value',{entity_id:entity,value:rounded});
   }
   _modalTarget(event){
@@ -567,7 +645,7 @@ class PacSynoptiqueCard extends HTMLElement {
   _openEditor(target,circuit){
     const isEcs=target==='ecs';
     const season=this._resolveMode()==='cool'?'cool':'heat';
-    const value=isEcs?this._num(this._v('ecsComfortSetpoint')):this._num(this._v(`${season}SetpointC${circuit}`));
+    const value=isEcs?this._num(this._v('ecsComfortSetpoint')):this._num(this._v(this._circuit(circuit).setpointKey||`${season}SetpointC${circuit}`));
     if(value===null) return;
     this._editor={target,circuit,value,
       min:isEcs?40:7,
@@ -597,6 +675,13 @@ class PacSynoptiqueCard extends HTMLElement {
     if(label) label.textContent=temp(target.value);
   }
   async _onChange(event){
+    const sim=event.target?.closest?.('[data-pac-action="sim-duration"]');
+    if(sim){
+      const value=Number(sim.value);
+      const entity=this._ids?.[`simDuration${Number(sim.dataset.circuit||0)}`];
+      if(entity && Number.isFinite(value)) await this._hass.callService('number','set_value',{entity_id:entity,value});
+      return;
+    }
     const target=this._modalTarget(event);
     if(!target || !this._editor) return;
     const value=Number(target.value);
@@ -688,6 +773,7 @@ class PacSynoptiqueCard extends HTMLElement {
   _handleKeyDown(event){
     if(event.key!=='Escape') return;
     if(this._historyOpen){ this._closeHistory(); event.stopPropagation(); return; }
+    if(this._curveHelp){ this._curveHelp=false; this._render(); event.stopPropagation(); return; }
     if(this._editor){ this._editor=null; this._sliderEditing=false; this._render(); event.stopPropagation(); }
   }
   _ensureActivity(){
@@ -786,6 +872,72 @@ class PacSynoptiqueCard extends HTMLElement {
     }).join('');
     return `<div class="graph-head"><span>Consommation quotidienne</span><small>10 jours · ${html(unit)}</small></div><div class="graph-grid">${bars}</div>`;
   }
+  _curveHtml(){
+    const read=circuit=>{
+      const slope=nvalue(this._v(`curveSlope${circuit}`));
+      if(slope===null) return null;
+      const offset=nvalue(this._v(`curveOffset${circuit}`))??0;
+      const min=nvalue(this._v(`curveMin${circuit}`))??15;
+      const max=nvalue(this._v(`curveMax${circuit}`))??65;
+      const gain=nvalue(this._v(`curveGain${circuit}`));
+      return {circuit,slope,offset,min,max,gain};
+    };
+    const curves=[read(1),read(2)].filter(Boolean);
+    if(!curves.length) return '<div class="graph-note">Loi d’eau indisponible : paramètres 720/1020 non publiés.</div>';
+    const W=420,H=220,left=36,right=12,top=12,bottom=28;
+    const plotW=W-left-right,plotH=H-top-bottom;
+    const x=t=>left+(t+10)/30*plotW;
+    const y=v=>top+(65-v)/50*plotH;
+    const ticksX=[-10,0,10,20];
+    const ticksY=[15,25,35,45,55,65];
+    const grid=[...ticksX.map(t=>`<line x1="${x(t)}" y1="${top}" x2="${x(t)}" y2="${top+plotH}" class="curve-grid"/><text x="${x(t)}" y="${H-8}" class="curve-axis" text-anchor="middle">${t}</text>`),
+      ...ticksY.map(v=>`<line x1="${left}" y1="${y(v)}" x2="${left+plotW}" y2="${y(v)}" class="curve-grid"/><text x="${left-5}" y="${y(v)+3}" class="curve-axis" text-anchor="end">${v}</text>`)].join('');
+    const paths=curves.map(curve=>{
+      const color=curve.circuit===1?'var(--red)':'var(--blue)';
+      const points=[];
+      for(let t=-10;t<=20;t+=1){
+        const value=Math.max(curve.min,Math.min(curve.max,20+curve.slope*(20-t)+curve.offset));
+        points.push(`${x(t).toFixed(1)},${y(value).toFixed(1)}`);
+      }
+      return `<line x1="${left}" y1="${y(curve.max)}" x2="${left+plotW}" y2="${y(curve.max)}" stroke="${color}" stroke-width="1" stroke-dasharray="5 5" opacity=".35"/><line x1="${left}" y1="${y(curve.min)}" x2="${left+plotW}" y2="${y(curve.min)}" stroke="${color}" stroke-width="1" stroke-dasharray="2 4" opacity=".35"/><polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linejoin="round"/>`;
+    }).join('');
+    const value=(key,digits,unit='')=>{
+      const raw=nvalue(this._v(key));
+      return raw===null?'—':html(raw.toFixed(digits).replace('.',','))+(unit?`<small>${unit}</small>`:'');
+    };
+    const row=(circuit,slope,offset,minimum,maximum,gain,winter)=>`<div class="curve-table-row"><strong><i class="c${circuit}"></i>C${circuit}</strong><span>${value(slope,2)}</span><span>${value(offset,1,' °C')}</span><span>${value(minimum,1,' °C')}</span><span>${value(maximum,1,' °C')}</span><span>${value(gain,0,' %')}</span><span>${value(winter,1,' °C')}</span></div>`;
+    const table=`<div class="curve-table-wrap"><div class="curve-table">
+      <div class="curve-table-head"><span>Circuit</span><span>Pente</span><span>Décalage</span><span>Min</span><span>Max</span><span>Influence</span><span>Bascule</span></div>
+      ${row(1,'curveSlope1','curveOffset1','curveMin1','curveMax1','curveGain1','curveWinter1')}
+      ${row(2,'curveSlope2','curveOffset2','curveMin2','curveMax2','curveGain2','curveWinter2')}
+    </div></div>`;
+    return `<div class="curve-head"><span>Loi d’eau · T. départ selon T. extérieure</span><span class="curve-head-actions"><small>lecture seule</small><button type="button" class="curve-info" data-pac-action="curve-help" aria-label="Aide sur la loi d’eau" title="Aide et réglages">i</button></span></div><svg class="curve-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Loi d’eau C1 et C2"><text x="${left}" y="${top-2}" class="curve-axis">T. départ °C</text>${grid}<line x1="${left}" y1="${top}" x2="${left}" y2="${top+plotH}" class="curve-axis-line"/><line x1="${left}" y1="${top+plotH}" x2="${left+plotW}" y2="${top+plotH}" class="curve-axis-line"/>${paths}<text x="${left+plotW}" y="${H-8}" class="curve-axis" text-anchor="end">T. ext. °C</text></svg>${table}<div class="curve-note">Reconstruction à partir de la pente et du décalage BSB ; l’influence ambiante et les limites du régulateur s’appliquent ensuite. ECS : pas de loi d’eau, consignes 1610/1612.</div>`;
+  }
+  _curveHelpHtml(){
+    return `<div class="ctl-modal" data-pac-action="close-curve-help">
+      <div class="ctl-modal-panel curve-help-panel" data-pac-action="modal-panel" role="dialog" aria-modal="true" aria-label="Aide loi d’eau">
+        <div class="ctl-modal-head"><span>Optimiser la loi d’eau</span><button type="button" class="ctl-modal-close" data-pac-action="close-curve-help" aria-label="Fermer">×</button></div>
+        <div class="curve-help-body">
+          <p>Le paramètre le plus important est la <strong>pente de la loi d’eau</strong> :</p>
+          <ul><li><strong>C1 radiateurs :</strong> 720</li><li><strong>C2 plancher :</strong> 1020</li></ul>
+          <p>C’est elle qui détermine la température de départ selon la température extérieure. Une pente trop élevée fait circuler de l’eau plus chaude que nécessaire :</p>
+          <ul><li>baisse du COP de la PAC ;</li><li>consommation plus élevée ;</li><li>dépassements de consigne.</li></ul>
+          <h5>Ordre d’optimisation</h5>
+          <ol>
+            <li><strong>Pente :</strong> baisser par paliers de 0,1, puis attendre 24–48 h.</li>
+            <li><strong>Décalage parallèle (721/1021) :</strong> ajustement fin de −0,5 °C si le confort reste bon.</li>
+            <li><strong>Influence ambiante (750/1050) :</strong> à réduire seulement si elle fait trop monter le départ.</li>
+            <li><strong>Bascule été/hiver (730/1030) :</strong> éventuellement 17 °C au lieu de 18 pour chauffer moins en mi-saison.</li>
+            <li><strong>Limite max (741/1041) :</strong> paramètre de sécurité, pas d’économie directe.</li>
+          </ol>
+          <h5>Pour une chauffe plus rapide</h5>
+          <p>Augmenter le <strong>décalage parallèle</strong> 721/1021 de +1 à +2 °C, ou forcer le preset <strong>Confort</strong>. Pour un plancher chauffant, anticiper de 2 à 4 h : l’inertie de la dalle reste le facteur principal.</p>
+          <p class="curve-help-warning">Ces paramètres sont en lecture seule via BSB-LAN : les modifier sur le régulateur de la PAC. Toute hausse réduit le COP et peut provoquer une surchauffe.</p>
+        </div>
+        <div class="ctl-modal-actions"><button type="button" class="ctl-btn" data-pac-action="close-curve-help">Fermer</button></div>
+      </div>
+    </div>`;
+  }
   _activityHtml(){    const rows=this._activity;
     const dayLabel=when=>{
       const date=when?new Date(when):new Date();
@@ -856,6 +1008,21 @@ class PacSynoptiqueCard extends HTMLElement {
       <text class="hist-axis" x="${w-pad}" y="${hgt-4}" text-anchor="end">${time(t1)}</text>
     </svg>`;
   }
+  _simRemaining(until){
+    const deadline=until?Date.parse(until):NaN;
+    if(!Number.isFinite(deadline)) return 'durée inconnue';
+    const minutes=Math.max(0,Math.ceil((deadline-Date.now())/60000));
+    if(minutes<=0) return 'terminé';
+    if(minutes<60) return `${minutes} min restantes`;
+    const hours=Math.floor(minutes/60);
+    const rest=minutes%60;
+    return `${hours} h ${String(rest).padStart(2,'0')} restantes`;
+  }
+  _updateSimCountdowns(){
+    this.shadowRoot?.querySelectorAll?.('[data-sim-until]').forEach(el=>{
+      el.textContent=this._simRemaining(el.dataset.simUntil);
+    });
+  }
   _controlsHtml(mode,c1,c2,ecs){
     const season=mode==='heat'?'Chauffage':mode==='cool'?'Refroidissement':'Off';
     const globalBtn=(label,tone='')=>{
@@ -866,6 +1033,15 @@ class PacSynoptiqueCard extends HTMLElement {
       const name=this._circuitName(i);
       const auto=mode==='heat'||mode==='cool';
       const offActive=c.mode==='off';
+      const preset=String(c.presetMode||'');
+      const regimeText=String(c.regime||c.native||'');
+      const regimeMode=/confort/i.test(regimeText)||/comfort/i.test(regimeText)?'Confort':/r[ée]duit|reduced/i.test(regimeText)?'Réduit':'';
+      const selectorMode=/confort/i.test(preset)?'Confort':/eco|r[ée]duit|reduced/i.test(preset)?'Réduit':'Auto';
+      const modeLabel=selectorMode==='Auto'&&regimeMode?`Auto · ${regimeMode}`:regimeMode||selectorMode;
+      const regimePending=this._regimePending?.circuit===i?this._regimePending.value:null;
+      const regimeBusy=!!regimePending;
+      const shownMode=regimeBusy?`${regimePending}…`:modeLabel;
+      const regimeError=this._regimeError?.circuit===i?this._regimeError.message:'';
       const autoActive=auto && !offActive;
       const overrideActive=c.override===true;
       const tempEnabled=auto && !overrideActive;
@@ -874,11 +1050,24 @@ class PacSynoptiqueCard extends HTMLElement {
         tempEnabled?'':'Choisir d’abord Chauffage ou Refroidissement';
       const plusTitle=overrideActive?tempTitle:mode==='cool'?
         'En rafraîchissement, seule une consigne plus froide est acceptée':tempTitle;
-      return `<div class="ctl-group"><span class="ctl-label">${html(name)}</span><div class="ctl-buttons">
+      const simEntity=this._ids?.[`sim${i}`];
+      const simState=simEntity?this._hass?.states?.[simEntity]:null;
+      const simActive=simState?.state==='on';
+      const simUntil=simState?.attributes?.restauration;
+      const simOriginal=simState?.attributes?.consigne_originale;
+      const simDuration=this._v(`simDuration${i}`);
+      const simControl=(this._config.show_simulation!==false && simEntity)?`<div class="ctl-sim${simActive?' active':''}">
+        <label><input type="checkbox" data-pac-action="sim-toggle" data-circuit="${i}" ${simActive?'checked':''}> Simulation dérogation</label>
+        <span class="ctl-sim-hours"><input type="number" min="1" max="24" step="1" value="${html(simDuration ?? '2')}" data-pac-action="sim-duration" data-circuit="${i}" aria-label="Durée simulation dérogation ${html(name)}" ${simActive?'disabled':''}> h</span>
+        ${simActive?`<span class="sim-live"><b>Active</b><span data-sim-until="${html(simUntil || '')}">${html(this._simRemaining(simUntil))}</span></span>`:''}
+      </div>${simActive?`<div class="sim-values">Consigne <strong>${html(temp(c.programmed ?? c.target))}</strong><span>retour à ${simOriginal!=null?html(temp(simOriginal)):'—'}</span></div>`:''}`:'';
+      return `<div class="ctl-group"><span class="ctl-label">${html(name)}${offActive?'':`<span class="ctl-mode${regimeBusy?' pending':''}">${html(shownMode)}</span>`}</span><div class="ctl-buttons">
         <button type="button" class="ctl-btn${offActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="off">Off</button>
-        <button type="button" class="ctl-btn${autoActive?' active':''}" data-pac-action="hvac" data-circuit="${i}" data-value="auto"${auto?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Auto</button>
+        <button type="button" class="ctl-btn${!offActive&&(regimePending||selectorMode)==='Auto'?' active':''}" data-pac-action="regime" data-circuit="${i}" data-value="Auto"${auto&&!regimeBusy?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Auto</button>
+        <button type="button" class="ctl-btn${!offActive&&(regimePending||selectorMode)==='Confort'?' active':''}" data-pac-action="regime" data-circuit="${i}" data-value="Confort"${auto&&!regimeBusy?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Confort</button>
+        <button type="button" class="ctl-btn${!offActive&&(regimePending||selectorMode)==='Réduit'?' active':''}" data-pac-action="regime" data-circuit="${i}" data-value="Réduit"${auto&&!regimeBusy?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Réduit</button>
         <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong>${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
-      </div></div>`;
+      </div>${simControl}${regimeError?`<div class="ctl-error">${html(regimeError)}</div>`:''}</div>`;
     };
     const ecsModeEntity=this._ecsWaterHeater();
     const ecsModeState=this._hass?.states[ecsModeEntity];
@@ -920,6 +1109,7 @@ class PacSynoptiqueCard extends HTMLElement {
     const prevAlarms=this.shadowRoot.querySelector('details[data-panel="alarms"]')?.open ?? false;
     const prevDetails=this.shadowRoot.querySelector('details[data-panel="diagnostics"]')?.open ?? false;
     const prevGraphs=this.shadowRoot.querySelector('details[data-panel="graphs"]')?.open ?? false;
+    const prevCurve=this.shadowRoot.querySelector('details[data-panel="curve"]')?.open ?? false;
     const mode=this._resolveMode();
     this.dataset.flow=mode==='cool'?'cool':mode==='heat'?'heat':'off';
     const compressor=this._b('compressor');
@@ -1038,7 +1228,7 @@ class PacSynoptiqueCard extends HTMLElement {
         <div><span>Consigne ${c.season==='cool'?'rafraîch.':'chauffage'}</span><strong class="editable" data-pac-action="edit" data-target="circuit" data-circuit="${c.number}" title="Cliquer pour modifier">${html(temp(c.programmed ?? c.target))}</strong></div></div>
       <div class="out-foot">${chip(c.nativePreset?.label ?? (c.off?'OFF':'Régime indisponible'),c.nativePreset?.tone ?? 'dim')}
         ${chip(c.native??'État BSB-LAN indisponible','dim')}
-        ${c.target!=null?chip('Eff. '+temp(c.target),'dim'):''}
+        ${c.targetDisplay!=null?chip('Eff. '+temp(c.targetDisplay),'dim'):''}
         ${this._config.show_pump_badges!==false && c.pump!==null?chip(c.pump?(c.off?'Post-circulation':'Circulateur actif'):'Circulateur arrêté',c.pump&&!c.off?'positive':'dim'):''}
         ${c.override===true?chip('Dérogation active','warning'):''}</div>
     </section>`;
@@ -1312,6 +1502,37 @@ class PacSynoptiqueCard extends HTMLElement {
       .graph-col>span{display:grid;gap:1px;font-size:10px;color:var(--sub);line-height:1.15}
       .graph-col small{font-size:9px;opacity:.65}
       .graph-note{padding:12px 0;font-size:12px;opacity:.7}
+      .curve-panel{margin-top:8px;padding:12px 13px 8px;background:var(--surface);border:1px solid var(--panel-line);border-radius:12px}
+      .curve-head{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:600}
+      .curve-head small{font-weight:400;opacity:.65}
+      .curve-head-actions{display:inline-flex;align-items:center;gap:8px}
+      .curve-info{width:22px;height:22px;border-radius:50%;border:1px solid var(--panel-line);background:var(--soft);color:var(--text);font:700 12px/1 var(--primary-font-family,sans-serif);cursor:pointer;display:inline-grid;place-items:center;padding:0}
+      .curve-info:hover{border-color:var(--blue);color:var(--blue)}
+      .curve-help-panel{width:min(520px,100%);max-height:min(82vh,680px)}
+      .curve-help-body{overflow:auto;font-size:12px;line-height:1.5;padding-right:4px}
+      .curve-help-body p{margin:0 0 8px}
+      .curve-help-body ul,.curve-help-body ol{margin:0 0 10px;padding-left:20px;display:grid;gap:4px}
+      .curve-help-body h5{margin:12px 0 6px;font-size:12px}
+      .curve-help-warning{margin-top:10px!important;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--warn-text);font-size:11px}
+      .curve-svg{width:100%;height:auto;display:block;margin-top:8px}
+      .curve-grid{stroke:var(--line);stroke-width:.7;opacity:.55}
+      .curve-axis{fill:var(--sub);font-size:9px}
+      .curve-axis-line{stroke:var(--line);stroke-width:1}
+      .curve-legend{display:flex;flex-wrap:wrap;gap:5px 16px;font-size:11px;color:var(--sub);margin-top:4px}
+      .curve-legend span{display:inline-flex;align-items:center;gap:6px}
+      .curve-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+      .curve-table-wrap{margin-top:8px;overflow-x:auto}
+      .curve-table{display:grid;min-width:590px;border-top:1px solid var(--divider-color)}
+      .curve-table-head,.curve-table-row{display:grid;grid-template-columns:52px repeat(6,minmax(72px,1fr));gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--divider-color);font-size:11px}
+      .curve-table-head{font-weight:600;color:var(--sub)}
+      .curve-table-head span:not(:first-child){text-align:right}
+      .curve-table-row>strong{display:inline-flex;align-items:center;gap:5px;font-weight:700}
+      .curve-table-row>strong i{width:8px;height:8px;border-radius:50%;display:inline-block}
+      .curve-table-row>strong i.c1{background:var(--red)}
+      .curve-table-row>strong i.c2{background:var(--blue)}
+      .curve-table-row>span{text-align:right;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+      .curve-table-row small{font-weight:400;color:var(--sub);margin-left:1px}
+      .curve-note{font-size:10px;color:var(--sub);opacity:.8;line-height:1.35;margin-top:6px}
       .detail-row{border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:10px;justify-content:space-between;padding:6px 0;font-size:11px}
       .detail-row:last-child{border:0}.detail-row span{color:var(--sub);min-width:0}.detail-row strong{text-align:right;font-weight:700;max-width:58%;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
       .detail-row strong.na{color:var(--muted)}
@@ -1722,11 +1943,15 @@ class PacSynoptiqueCard extends HTMLElement {
         :host([data-layout-style="aerien"]) .mod-bar>i{animation:none!important;transition:none!important}
       }
       /* Commandes optionnelles (Climate/Select de l'intégration). */
-      .controls{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end;
+      .controls{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-start;
         border-top:1px solid var(--line);padding:14px 2px 2px;margin:0 0 4px}
       .ctl-group{display:flex;flex-direction:column;gap:7px}
       .ctl-label{font-size:10px;letter-spacing:.7px;text-transform:uppercase;
         color:var(--sub);font-weight:800}
+      .ctl-mode{margin-left:7px;padding:2px 6px;border-radius:20px;background:var(--soft);color:var(--blue);font-size:9px;letter-spacing:.3px;text-transform:none}
+      .ctl-mode.pending{color:var(--amber);animation:pulse-soft 1.2s ease-in-out infinite}
+      .ctl-error{font-size:10px;color:var(--red);line-height:1.3;max-width:360px}
+      @keyframes pulse-soft{50%{opacity:.45}}
       .ctl-power{display:flex;flex-direction:column;gap:4px;margin-left:auto;padding:7px 11px;
         border:1px solid var(--panel-line);border-radius:10px;background:var(--surface)}
       .ctl-power span{font-size:10px;letter-spacing:.7px;text-transform:uppercase;
@@ -1749,6 +1974,18 @@ class PacSynoptiqueCard extends HTMLElement {
         font-size:16px;font-weight:700;width:28px;height:28px;border-radius:7px;cursor:pointer}
       .ctl-temp button:hover{background:var(--soft)}
       .ctl-temp strong{min-width:58px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
+      .ctl-sim{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--sub)}
+      .ctl-sim label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+      .ctl-sim input[type=checkbox]{accent-color:var(--blue);cursor:pointer}
+      .ctl-sim-hours{display:inline-flex;align-items:center;gap:3px}
+      .ctl-sim-hours input{width:44px;padding:3px 4px;border:1px solid var(--panel-line);border-radius:6px;background:var(--soft);color:var(--text);font:inherit;text-align:right}
+      .ctl-sim-hours input:disabled{opacity:.55}
+      .ctl-sim.active{color:var(--text)}
+      .sim-live{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--green)}
+      .sim-live b{font-size:10px;letter-spacing:.5px;text-transform:uppercase}
+      .sim-values{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--sub);margin-top:-2px}
+      .sim-values strong{color:var(--text);font-size:13px;font-variant-numeric:tabular-nums}
+      .sim-values span{white-space:nowrap}
       .editable{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
       .editable:hover{color:var(--blue)}
       .temp-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
@@ -1858,14 +2095,20 @@ class PacSynoptiqueCard extends HTMLElement {
         <p class="details-note">Lecture seule. « — » signifie : entité absente, désactivée, inconnue ou non publiée par BSB-LAN. Les températures de départ cibles des circuits ne sont pas des mesures.</p>
         <div class="diag-grid">${diagComp}${diagPac}${diagCircs}${diagActivity}</div>
       </details>`:''}
-      <details data-panel="graphs" class="alarm-details" ${prevGraphs?'open':''}>
+      ${this._config.show_graphs!==false?`<details data-panel="graphs" class="alarm-details" ${prevGraphs?'open':''}>
         <summary><span>Graphes</span></summary>
         <div class="graph-panel">${this._graphsHtml()}</div>
-      </details>
+      </details>`:''}
+      ${this._config.show_curve!==false?`<details data-panel="curve" class="alarm-details" ${prevCurve?'open':''}>
+        <summary><span>Loi d’eau</span></summary>
+        <div class="curve-panel">${this._curveHtml()}</div>
+      </details>`:''}
       ${this._editor?this._editorHtml():''}
       ${this._history?this._historyHtml():''}
+      ${this._curveHelp?this._curveHelpHtml():''}
 
     </div></ha-card>`;
+    this._updateSimCountdowns();
   }
 }
 /**
@@ -1896,6 +2139,12 @@ class PacSynoptiqueCardEditor extends HTMLElement {
         this._changed('show_diagnostics',Boolean(element.checked));
       } else if (element?.id==='pac-show-controls') {
         this._changed('show_controls',Boolean(element.checked));
+      } else if (element?.id==='pac-show-simulation') {
+        this._changed('show_simulation',Boolean(element.checked));
+      } else if (element?.id==='pac-show-graphs') {
+        this._changed('show_graphs',Boolean(element.checked));
+      } else if (element?.id==='pac-show-curve') {
+        this._changed('show_curve',Boolean(element.checked));
       } else if (element?.id==='pac-circuit-1-name') {
         this._changed('circuit_1_name',element.value);
       } else if (element?.id==='pac-circuit-2-name') {
@@ -1949,6 +2198,9 @@ class PacSynoptiqueCardEditor extends HTMLElement {
     const checkedMotion=config.animate_flows!==false?' checked':'';
     const checkedPumps=config.show_pump_badges!==false?' checked':'';
     const checkedControls=config.show_controls!==false?' checked':'';
+    const checkedSimulation=config.show_simulation!==false?' checked':'';
+    const checkedGraphs=config.show_graphs!==false?' checked':'';
+    const checkedCurve=config.show_curve!==false?' checked':'';
     const circuit1Name=typeof config.circuit_1_name==='string'?config.circuit_1_name:'RDC';
     const circuit2Name=typeof config.circuit_2_name==='string'?config.circuit_2_name:'Étage';
     const ecsDelta=Number.isFinite(Number(config.ecs_eco_delta))?Number(config.ecs_eco_delta):3;
@@ -2021,6 +2273,22 @@ class PacSynoptiqueCardEditor extends HTMLElement {
             Afficher les commandes (mode PAC, Off/Auto, consigne)
           </label>
           <div class="hint">Les commandes passent par les entités Climate/Select de l'intégration, avec la dérogation native sécurisée.</div>
+          <label class="toggle" for="pac-show-simulation">
+            <input type="checkbox" id="pac-show-simulation"${checkedSimulation}>
+            Afficher la simulation de dérogation
+          </label>
+          <div class="hint">Case à cocher, durée et température de retour sur chaque circuit.</div>
+        </div>
+        <div class="field">
+          <label class="toggle" for="pac-show-graphs">
+            <input type="checkbox" id="pac-show-graphs"${checkedGraphs}>
+            Afficher la section Graphes
+          </label>
+          <label class="toggle" for="pac-show-curve">
+            <input type="checkbox" id="pac-show-curve"${checkedCurve}>
+            Afficher la section Loi d’eau
+          </label>
+          <div class="hint">Désactive les sections dont tu n’as pas besoin pour alléger la carte.</div>
         </div>
         <div class="field">
           <label for="pac-orientation-choice">Orientation de la carte</label>

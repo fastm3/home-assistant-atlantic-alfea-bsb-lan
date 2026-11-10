@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.32 — Loi d'eau, dérogation simulée et modes de circuit
+
+- Nouvelle section **Loi d'eau** dans le synoptique : courbes C1/C2,
+  pente, décalage, limites, influence ambiante et bascule été/hiver.
+- **Simulation de dérogation** par circuit : durée réglable, compte à rebours,
+  consigne d'origine restaurée automatiquement.
+- La dérogation simulée suit le régime actif (confort ou réduit) et restaure
+  la bonne consigne.
+- Cartes programmes : consignes confort/réduit affichées et modifiables dans
+  chaque onglet, y compris ECS et rafraîchissement.
+- Nouveaux boutons **Auto / Confort / Réduit** par circuit, avec retour visuel
+  pendant la confirmation BSB et reprise en cas de bus occupé.
+- Rafraîchissement immédiat de la consigne effective après modification.
+- Options d'affichage pour masquer la simulation, les graphes ou la loi d'eau.
+- Corrections d'alignement, de double état actif et de rafraîchissement de la
+  carte programmes.
+- Manifest **1.5.32**.
+
 ## 1.5.31 — Corrections ECS et animations
 
 - Reconnaissance des états ECS anglais **Charging / Charged** : l'alerte

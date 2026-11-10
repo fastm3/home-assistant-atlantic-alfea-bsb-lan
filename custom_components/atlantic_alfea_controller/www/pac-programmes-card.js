@@ -9,11 +9,11 @@
   if (customElements.get(TAG)) return;
 
   const PROGRAMS = [
-    {key:'chauffage_c1',label:'Chauffage RDC',base:'501',color:'var(--warning-color,#e6a23c)'},
-    {key:'chauffage_c2',label:'Chauffage étage',base:'521',color:'var(--info-color,#039be5)'},
-    {key:'ecs',label:'Eau chaude sanitaire',base:'561',color:'var(--success-color,#43a047)'},
-    {key:'rafraichissement_c1',label:'Rafraîchissement RDC',base:'11000',color:'#0891b2'},
-    {key:'rafraichissement_c2',label:'Rafraîchissement étage',base:'11010',color:'#7c3aed'}
+    {key:'chauffage_c1',label:'Chauffage étage',base:'501',color:'var(--warning-color,#e6a23c)',setpoints:[710,712]},
+    {key:'chauffage_c2',label:'Chauffage RDC',base:'521',color:'var(--info-color,#039be5)',setpoints:[1010,1012]},
+    {key:'ecs',label:'Eau chaude sanitaire',base:'561',color:'var(--success-color,#43a047)',setpoints:[1610,1612]},
+    {key:'rafraichissement_c1',label:'Rafraîchissement étage',base:'11000',color:'#0891b2',setpoints:[902,903]},
+    {key:'rafraichissement_c2',label:'Rafraîchissement RDC',base:'11010',color:'#7c3aed',setpoints:[1202,1203]}
   ];
   const DAYS = [
     ['lundi','Lundi'],['mardi','Mardi'],['mercredi','Mercredi'],
@@ -37,6 +37,8 @@
       this._selected = 'chauffage_c1';
       this._hass = null;
       this._refreshing = false;
+      this._spTimers = {};
+      this._spDesired = {};
     }
     setConfig(config) {
       this._config = config || {};
@@ -45,6 +47,9 @@
     }
     set hass(hass) {
       this._hass = hass;
+      const signature = this._signature();
+      if (signature === this._signatureCache) return;
+      this._signatureCache = signature;
       this._render();
     }
     getCardSize() { return 5; }
@@ -66,10 +71,78 @@
         (s.attributes?.friendly_name || '').includes('Programmes natifs - Actualiser')
       ) || null;
     }
+    _signature() {
+      if (!this._hass) return '';
+      const parts = [this._selected, this._refreshing ? '1' : '0', this._lastError || ''];
+      for (const program of PROGRAMS) {
+        const sensor = this._sensor(program);
+        parts.push(program.key, sensor?.state || '', sensor?.attributes?.derniere_importation || '',
+          sensor?.attributes?.erreur_derniere_lecture || '', JSON.stringify(sensor?.attributes?.jours || {}));
+      }
+      const button = this._button();
+      parts.push('button', button?.state || '');
+      for (const parameter of [710, 712, 1010, 1012, 1610, 1612, 902, 903, 1202, 1203]) {
+        parts.push(String(parameter), this._hass.states?.[this._setpointEntity(parameter)?.entity_id]?.state || '');
+      }
+      return parts.join('|');
+    }
+    _setpointEntity(parameter) {
+      return Object.values(this._hass?.states || {}).find(s =>
+        s.entity_id.startsWith('number.') &&
+        (s.entity_id.includes(`_${parameter}`) ||
+         (s.attributes?.friendly_name || '').includes(`(${parameter})`))
+      ) || null;
+    }
+    _setpointValue(parameter) {
+      const state = this._setpointEntity(parameter);
+      const value = Number(String(state?.state ?? '').replace(',', '.'));
+      return {state, value: Number.isFinite(value) ? value : null};
+    }
+    _setpointHtml(program) {
+      if (!program?.setpoints) return '';
+      const [comfortParam, reducedParam] = program.setpoints;
+      const isDhw = program.key === 'ecs';
+      const isCooling = program.key.startsWith('rafraichissement_');
+      const circuit = program.key.endsWith('_c1') ? 'C1' : program.key.endsWith('_c2') ? 'C2' : 'ECS';
+      const labels = isDhw ? ['Nominale', 'Réduite'] : ['Confort', 'Réduit'];
+      const comfort = this._setpointValue(comfortParam);
+      const reduced = this._setpointValue(reducedParam);
+      const item = (name, data) => `<span class="sp-item"><span>${name}</span>
+        <button type="button" data-sp="${data.state?.entity_id || ''}" data-delta="-1" ${data.state ? '' : 'disabled'} aria-label="Diminuer ${name} ${circuit}">−</button>
+        <strong>${data.value === null ? '—' : data.value.toFixed(1).replace('.', ',')} °C</strong>
+        <button type="button" data-sp="${data.state?.entity_id || ''}" data-delta="1" ${data.state ? '' : 'disabled'} aria-label="Augmenter ${name} ${circuit}">+</button></span>`;
+      return `<div class="setpoints"><div class="sp-head"><span>Consignes · ${esc(program.label)}</span><small>${isDhw ? 'ECS' : isCooling ? 'rafraîchissement' : 'chauffage'}</small></div>
+        <div class="sp-circuit"><strong>${circuit}</strong>${item(labels[0], comfort)}${item(labels[1], reduced)}</div></div>`;
+    }
+    _changeSetpoint(entityId, delta) {
+      if (!entityId) return;
+      const state = this._hass?.states?.[entityId];
+      if (!state) return;
+      const current = Number(String(state.state).replace(',', '.'));
+      if (!Number.isFinite(current)) return;
+      const base = Number.isFinite(this._spDesired[entityId]) ? this._spDesired[entityId] : current;
+      const minimum = Number(state.attributes?.min ?? 5);
+      const maximum = Number(state.attributes?.max ?? 35);
+      const next = Math.round(Math.max(minimum, Math.min(maximum, base + delta)) * 10) / 10;
+      this._spDesired[entityId] = next;
+      clearTimeout(this._spTimers[entityId]);
+      this._spTimers[entityId] = setTimeout(async () => {
+        const value = this._spDesired[entityId];
+        delete this._spDesired[entityId];
+        try {
+          await this._hass.callService('number', 'set_value', {entity_id: entityId, value});
+        } catch (err) {
+          this._lastError = String(err?.message || err);
+          this._render();
+        }
+      }, 600);
+    }
     async _refresh() {
       const button = this._button();
       if (!button || button.state === 'unavailable' || this._refreshing) return;
+      const started = Date.now();
       this._refreshing = true;
+      this._lastError = null;
       this._render();
       try {
         await this._hass.callService('button','press',{entity_id:button.entity_id});
@@ -77,8 +150,12 @@
         // Les capteurs conservent le détail des erreurs d'importation.
         this._lastError = String(err?.message || err);
       } finally {
-        this._refreshing = false;
-        this._render();
+        // Garde un retour visuel minimal même si le service répond très vite.
+        const remaining = Math.max(0, 4000 - (Date.now() - started));
+        setTimeout(() => {
+          this._refreshing = false;
+          this._render();
+        }, remaining);
       }
     }
     _visiblePrograms() {
@@ -157,6 +234,17 @@
           .range{white-space:nowrap}
           .empty{color:var(--secondary-text-color)}
           .warning{font-size:12px;color:var(--error-color);margin-top:10px;overflow-wrap:anywhere}
+          .setpoints{border:1px solid var(--divider-color);border-radius:12px;padding:10px 12px;margin:0 0 14px;display:grid;gap:7px}
+          .sp-head{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:650}
+          .sp-head small{font-weight:400;color:var(--secondary-text-color)}
+          .sp-circuit{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:11px}
+          .sp-circuit>strong{min-width:24px;font-size:12px}
+          .sp-item{display:inline-flex;align-items:center;gap:4px;padding:2px 4px;border-radius:8px;background:var(--secondary-background-color)}
+          .sp-item>span{color:var(--secondary-text-color)}
+          .sp-item button{border:0;background:transparent;color:var(--primary-text-color);font:700 16px/1 inherit;width:24px;height:24px;border-radius:6px;cursor:pointer;padding:0}
+          .sp-item button:hover{background:var(--divider-color)}
+          .sp-item button:disabled{opacity:.35;cursor:default}
+          .sp-item strong{min-width:53px;text-align:center;font-variant-numeric:tabular-nums;font-size:12px}
           .foot{font-size:11px;color:var(--secondary-text-color);margin-top:14px}
           @media(max-width:440px){
             ha-card{padding:14px 10px}
@@ -176,17 +264,22 @@
           <div class="meta"><span class="state">${esc(status)}</span>
             <span>${updated ? 'Dernière importation : '+esc(updated.replace('T',' ')) : 'Aucune importation'}</span>
           </div>
+          ${this._setpointHtml(selected)}
           <div class="scale"><span></span><div class="ticks"><span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>24h</span></div></div>
           <div class="days">${rows}</div>
           ${error ? `<div class="warning">Dernière lecture : ${esc(error)}</div>` : ''}
           ${this._lastError ? `<div class="warning">Actualisation : ${esc(this._lastError)}</div>` : ''}
           ${hidden.length ? `<div class="foot">Onglets masqués : ${hidden.map(p=>esc(p.label)).join(', ')} — capteur en erreur ou indisponible.</div>` : ''}
-          <div class="foot">Horaires natifs de la PAC · consultation uniquement · aucune programmation Home Assistant</div>
+          <div class="foot">Horaires natifs de la PAC · consignes C1/C2 modifiables via les entités Atlantic</div>
         </ha-card>`;
       this.shadowRoot.querySelectorAll('[data-tab]').forEach(el =>
         el.addEventListener('click', () => {this._selected=el.dataset.tab;this._render();})
       );
       this.shadowRoot.querySelector('.refresh')?.addEventListener('click', () => this._refresh());
+      this.shadowRoot.querySelectorAll('[data-sp]').forEach(el =>
+        el.addEventListener('click', () => this._changeSetpoint(el.dataset.sp, Number(el.dataset.delta)))
+      );
+      this._signatureCache = this._signature();
     }
   }
   customElements.define(TAG,PacProgrammesCard);

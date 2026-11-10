@@ -69,13 +69,20 @@ class RegimeAPI:
                 "parameter": parameter, "value": str(desired),
                 "type": 1, "destination": 0,
             }
-            async with asyncio.timeout(8):
-                async with self._session.post(f"{self._base}/JS", json=payload) as response:
-                    response.raise_for_status()
-                    result = await response.json(content_type=None)
-            # BSB-LAN /JS returns {"700": {"status": 1, "destination": 0}}.
-            # Still read back the actual value with /JQ below.
-            outcome = result.get(str(parameter)) if isinstance(result, dict) else None
+            result = None
+            outcome = None
+            for attempt in range(3):
+                # BSB-LAN can briefly answer status 0 while the bus is busy
+                # just after the preceding /JQ read.
+                await asyncio.sleep(0.25 if attempt == 0 else 0.6)
+                async with asyncio.timeout(8):
+                    async with self._session.post(f"{self._base}/JS", json=payload) as response:
+                        response.raise_for_status()
+                        result = await response.json(content_type=None)
+                # BSB-LAN /JS returns {"700": {"status": 1, "destination": 0}}.
+                outcome = result.get(str(parameter)) if isinstance(result, dict) else None
+                if isinstance(outcome, dict) and outcome.get("status") == 1:
+                    break
             if not isinstance(outcome, dict) or outcome.get("status") != 1:
                 raise ValueError(f"BSB-LAN did not acknowledge {parameter}: {result!r}")
             for _ in range(5):

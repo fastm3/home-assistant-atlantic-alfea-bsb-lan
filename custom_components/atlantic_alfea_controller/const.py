@@ -3,7 +3,7 @@
 from typing import Final
 
 DOMAIN: Final = "atlantic_alfea_controller"
-PLATFORMS: Final = ["select", "number", "climate", "water_heater", "sensor", "binary_sensor", "button"]
+PLATFORMS: Final = ["select", "number", "climate", "water_heater", "sensor", "binary_sensor", "button", "switch"]
 
 CONF_CLOCK_DATETIME: Final = "clock_datetime"
 
@@ -89,7 +89,7 @@ BSB_REFRESH_ECS_INTERVAL_SECONDS: Final = 60
 BSB_REFRESH_INITIAL_DELAY_SECONDS: Final = 45
 BSB_REFRESH_FAST_PARAMETERS: Final = (8411,)
 BSB_REFRESH_SLOW_PARAMETERS: Final = (3113, 8450, 8451)
-BSB_REFRESH_ECS_PARAMETERS: Final = (8830,)
+BSB_REFRESH_ECS_PARAMETERS: Final = (8741, 8771, 8830)
 
 SHORT_CYCLES_PER_HOUR: Final = 2
 SHORT_CYCLES_PER_SIX_HOURS: Final = 3

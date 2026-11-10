@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import timedelta
 
 from homeassistant.components.climate import ClimateEntity
@@ -11,6 +12,7 @@ from homeassistant.components.climate.const import ClimateEntityFeature, HVACAct
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
@@ -114,6 +116,8 @@ class AlfeaCircuitClimate(ClimateEntity):
         self._pending_target_temperature: float | None = None
         self._pending_base_temperature: float | None = None
         self._pending_override_task: asyncio.Task | None = None
+        self._requested_temperature: float | None = None
+        self._requested_deadline: float = 0.0
         self._attr_name = f"C{circuit} - Circuit {circuit}"
         self._attr_unique_id = f"{entry.entry_id}_circuit_{circuit}"
         self._attr_device_info = DeviceInfo(
@@ -371,6 +375,15 @@ class AlfeaCircuitClimate(ClimateEntity):
                 _PARAM[self._circuit]["effective_setpoint"],
             ),
         )
+        if self._requested_temperature is not None:
+            if effective is not None and abs(effective - self._requested_temperature) < 0.05:
+                self._requested_temperature = None
+                self._requested_deadline = 0.0
+            elif time.monotonic() < self._requested_deadline:
+                return self._requested_temperature
+            else:
+                self._requested_temperature = None
+                self._requested_deadline = 0.0
         if effective is not None:
             return effective
 
@@ -607,10 +620,21 @@ class AlfeaCircuitClimate(ClimateEntity):
             raise HomeAssistantError("Consigne attendue entre 5 et 35 °C.")
 
         self._pending_target_temperature = value
+        self._requested_temperature = value
+        self._requested_deadline = time.monotonic() + 30.0
         self.async_write_ha_state()
         try:
             await async_set_numeric_entity(self.hass, source, value)
             await async_poll_parameters(self.hass, (parameter,))
+            effective_parameter = _PARAM[self._circuit]["effective_setpoint"]
+            base = str(self._entry.options.get("bsb_base_url", "")).strip().rstrip("/")
+            if base:
+                try:
+                    session = async_get_clientsession(self.hass)
+                    async with session.get(f"{base}/JQ={effective_parameter}") as response:
+                        await response.read()
+                except Exception:  # noqa: BLE001 - the optimistic target covers this
+                    pass
             for _ in range(60):
                 confirmed = state_float(self.hass, source)
                 if confirmed is not None and abs(confirmed - value) < 0.01:
