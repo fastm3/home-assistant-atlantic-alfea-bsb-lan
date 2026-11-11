@@ -94,6 +94,12 @@
       const returnValue = num(returnTemp?.state);
       const c1Active = isOn(pump1) || c1?.attributes?.hvac_action === 'heating' || c1?.attributes?.hvac_action === 'cooling';
       const c2Active = isOn(pump2) || c2?.attributes?.hvac_action === 'heating' || c2?.attributes?.hvac_action === 'cooling';
+      const c1Off = c1?.state === 'off';
+      const c2Off = c2?.state === 'off';
+      const c1Post = isOn(pump1) && c1Off;
+      const c2Post = isOn(pump2) && c2Off;
+      const c1Demand = !c1Off && (isOn(pump1) || c1?.attributes?.hvac_action === 'heating' || c1?.attributes?.hvac_action === 'cooling');
+      const c2Demand = !c2Off && (isOn(pump2) || c2?.attributes?.hvac_action === 'heating' || c2?.attributes?.hvac_action === 'cooling');
       const ecsText = String(ecsProduction?.state || '');
       const ecsActive = isOn(ecsPump) || (/chauffe|charge|pac|appoint/i.test(ecsText) && !/inactive|attente|arrêt/i.test(ecsText));
       const modeText = String(globalMode?.state || (c1?.state === 'cool' || c2?.state === 'cool' ? 'Refroidissement' : 'Chauffage'));
@@ -101,7 +107,7 @@
       return {compressor,compressorOn,modulation:modulationValue,outdoor,flow,flowTarget,returnTemp,
         flowValue,returnValue,delta:flowValue!==null&&returnValue!==null?flowValue-returnValue:null,
         flowTargetValue:num(flowTarget?.state),
-        c1,c2,pump1,pump2,c1Active,c2Active,ecsTemp,ecsSetpoint,ecsText,ecsActive,
+        c1,c2,pump1,pump2,c1Active,c2Active,c1Off,c2Off,c1Post,c2Post,c1Demand,c2Demand,ecsTemp,ecsSetpoint,ecsText,ecsActive,
         ecsElectric:isOn(ecsElectric),defrost:isOn(defrost),pacState,power,modeText,cooling};
     }
 
@@ -135,8 +141,8 @@
       const c2Status = String(m.c2?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
       const c1Mode = m.c1?.state === 'off' ? 'OFF' : String(m.c1?.attributes?.preset_mode || 'AUTO').toUpperCase();
       const c2Mode = m.c2?.state === 'off' ? 'OFF' : String(m.c2?.attributes?.preset_mode || 'AUTO').toUpperCase();
-      const c1Pump = m.pump1?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
-      const c2Pump = m.pump2?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
+      const c1Pump = m.c1Post ? 'Post-circulation' : m.pump1?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
+      const c2Pump = m.c2Post ? 'Post-circulation' : m.pump2?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
       const modeTone = m.cooling ? 'cool' : 'heat';
       this.shadowRoot.innerHTML = `
         <style>${this._styles()}</style>
@@ -174,19 +180,19 @@
               </section>
 
               <section class="panel circuit-card c1" data-more-info="${esc(m.c1?.entity_id || '')}">
-                <div class="panel-head"><span>Circuit 1 · Étage</span><span class="dot ${m.c1Active?'on':''}"></span></div>
+                <div class="panel-head"><span>Circuit 1 · Étage</span><span class="dot ${m.c1Demand?'on':''}"></span></div>
                 <div class="circuit-sub">Radiateurs</div>
                 <div class="circuit-labels"><span>Température ambiante</span><span>Consigne chauffage</span></div>
                 <div class="circuit-values"><strong>${fmt(c1Temp,1,'°C')}</strong><em>${fmt(c1Target,1,'°C')}</em></div>
-                <div class="chips circuit-chips"><span class="chip">${esc(c1Mode)}</span>${c1Status?`<span class="chip">${esc(c1Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c1?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c1Pump)}</span></div>
+                <div class="chips circuit-chips"><span class="chip">${esc(c1Mode)}</span>${c1Status&&!(m.c1Post&&/post/i.test(c1Status))?`<span class="chip">${esc(c1Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c1?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c1Pump)}</span></div>
               </section>
 
               <section class="panel circuit-card c2" data-more-info="${esc(m.c2?.entity_id || '')}">
-                <div class="panel-head"><span>Circuit 2 · RDC</span><span class="dot ${m.c2Active?'on':''}"></span></div>
+                <div class="panel-head"><span>Circuit 2 · RDC</span><span class="dot ${m.c2Demand?'on':''}"></span></div>
                 <div class="circuit-sub">Plancher chauffant</div>
                 <div class="circuit-labels"><span>Température ambiante</span><span>Consigne chauffage</span></div>
                 <div class="circuit-values"><strong>${fmt(c2Temp,1,'°C')}</strong><em>${fmt(c2Target,1,'°C')}</em></div>
-                <div class="chips circuit-chips"><span class="chip">${esc(c2Mode)}</span>${c2Status?`<span class="chip">${esc(c2Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c2?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c2Pump)}</span></div>
+                <div class="chips circuit-chips"><span class="chip">${esc(c2Mode)}</span>${c2Status&&!(m.c2Post&&/post/i.test(c2Status))?`<span class="chip">${esc(c2Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c2?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c2Pump)}</span></div>
               </section>
 
               <section class="panel performance">
