@@ -83,6 +83,9 @@
       const ecsProduction = get('ecs_production','sensor',['ecs_production']);
       const ecsPump = get('ecs_pump','binary_sensor',['ecs_pompe']);
       const ecsElectric = get('ecs_electric','binary_sensor',['ecs_appoint_electrique']);
+      const ecsSession = get('ecs_session','sensor',['ecs_cop_session']);
+      const ecsComfort = get('ecs_comfort','sensor',['ecs_t_confort']);
+      const ecsEco = get('ecs_eco','sensor',['ecs_t_eco']);
       const defrost = get('defrost','binary_sensor',['pac_degivrage_di6']);
       const globalMode = get('global_mode','select',['mode_global']);
       const pacState = get('pac_state','sensor',['pac_etat']);
@@ -107,7 +110,7 @@
       return {compressor,compressorOn,modulation:modulationValue,outdoor,flow,flowTarget,returnTemp,
         flowValue,returnValue,delta:flowValue!==null&&returnValue!==null?flowValue-returnValue:null,
         flowTargetValue:num(flowTarget?.state),
-        c1,c2,pump1,pump2,c1Active,c2Active,c1Off,c2Off,c1Post,c2Post,c1Demand,c2Demand,ecsTemp,ecsSetpoint,ecsText,ecsActive,
+        c1,c2,pump1,pump2,c1Active,c2Active,c1Off,c2Off,c1Post,c2Post,c1Demand,c2Demand,ecsTemp,ecsSetpoint,ecsText,ecsActive,ecsSession,ecsComfort,ecsEco,
         ecsElectric:isOn(ecsElectric),defrost:isOn(defrost),pacState,power,modeText,cooling};
     }
 
@@ -117,6 +120,10 @@
         m.c1?.state,m.c1?.attributes?.current_temperature,m.c1?.attributes?.temperature,m.c1?.attributes?.hvac_action,
         m.c2?.state,m.c2?.attributes?.current_temperature,m.c2?.attributes?.temperature,m.c2?.attributes?.hvac_action,
         m.pump1?.state,m.pump2?.state,m.ecsTemp?.state,m.ecsProduction?.state,m.ecsPump?.state,
+        m.ecsSession?.state,m.ecsSession?.attributes?.cop,m.ecsSession?.attributes?.duree_session_min,
+        m.ecsSession?.attributes?.t_depart_reel,m.ecsSession?.attributes?.t_fin,
+        m.ecsSession?.attributes?.fin_session,m.ecsSession?.attributes?.conso_session_kwh,
+        m.ecsComfort?.state,m.ecsEco?.state,
         m.ecsElectric?.state,m.defrost?.state,m.pacState?.state,m.power?.state,m.modeText].join('|');
     }
 
@@ -137,6 +144,17 @@
       const ecsTemp = this._temp(m.ecsTemp?.state);
       const ecsTarget = this._temp(m.ecsSetpoint?.state);
       const power = this._temp(m.power?.state);
+      const cycle = m.ecsSession?.attributes || {};
+      const ecsComfort = this._temp(m.ecsComfort?.state, this._temp(cycle.t_fin));
+      const ecsCurrent = this._temp(m.ecsSetpoint?.state, ecsComfort);
+      const ecsEco = this._temp(m.ecsEco?.state);
+      const cycleCop = num(cycle.cop ?? m.ecsSession?.state);
+      const cycleDuration = num(cycle.duree_session_min);
+      const cycleStart = this._temp(cycle.t_depart_reel);
+      const cycleEnd = this._temp(cycle.t_fin);
+      const cycleEnergy = num(cycle.conso_session_kwh);
+      const cycleTime = cycle.fin_session ? new Date(cycle.fin_session).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '—';
+      const cycleEnergyText = cycleEnergy === null ? '—' : new Intl.NumberFormat('fr-FR', {minimumFractionDigits:3,maximumFractionDigits:3}).format(cycleEnergy);
       const c1Status = String(m.c1?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
       const c2Status = String(m.c2?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
       const activityOf = (circuit, status, pump) => {
@@ -218,12 +236,21 @@
 
               <section class="panel ecs" data-more-info="${esc(m.ecsTemp?.entity_id || '')}">
                 <div class="panel-head"><span>Ballon ECS</span><span class="dot ${m.ecsActive?'on':''}"></span></div>
-                <div class="split">
+                <div class="ecs-top">
                   <div><div class="value">${fmt(ecsTemp,1,'°C')}</div><div class="caption">Température ballon</div></div>
-                  <div><div class="value small">${fmt(ecsTarget,1,'°C')}</div><div class="caption">Consigne</div></div>
+                  <div><div class="value small">${fmt(ecsComfort,1,'°C')}</div><div class="caption">Consigne confort</div></div>
+                  <div><div class="value small">${fmt(ecsCurrent,1,'°C')}</div><div class="caption">Consigne actuelle</div></div>
                 </div>
-                <div class="row"><span>Production</span><b>${esc(m.ecsText || 'Inactive')}</b></div>
-                <div class="bar hot"><i style="width:${ecsTemp===null?8:Math.max(8,Math.min(100,(ecsTemp-25)/40*100))}%"></i></div>
+                <div class="ecs-cycle">
+                  <div class="cycle-head"><span>Dernier cycle</span><time>${cycleTime}</time></div>
+                  <div class="cycle-metrics">
+                    <span><small>COP</small><b>${fmt(cycleCop,2)}</b></span>
+                    <span><small>Durée</small><b>${cycleDuration===null?'—':`${cycleDuration} min`}</b></span>
+                    <span><small>Temp.</small><b>${fmt(cycleStart,1,'°C')} → ${fmt(cycleEnd,1,'°C')}</b></span>
+                    <span><small>Énergie</small><b>${cycleEnergyText} kWh</b></span>
+                  </div>
+                </div>
+                <div class="chips ecs-chips"><span class="chip">${m.ecsElectric?'Appoint électrique':(m.ecsPump?.state==='on'?'Pompe active':'Pompe arrêtée')}</span><span class="chip">${esc(m.ecsText || 'Inactive')}</span>${ecsEco!==null?`<span class="chip">Éco ${fmt(ecsEco,1,'°C')}</span>`:''}</div>
               </section>
 
               <section class="panel state">
@@ -257,7 +284,7 @@
         .panel{position:absolute;width:23%;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,rgba(12,26,35,.86),rgba(7,15,21,.8));box-shadow:0 18px 45px #0008,inset 0 1px 0 #ffffff14;backdrop-filter:blur(18px) saturate(1.1);-webkit-backdrop-filter:blur(18px) saturate(1.1);cursor:pointer;overflow:hidden}
         .panel:before{content:'';position:absolute;inset:0;background:linear-gradient(130deg,#c8f2ff0e,transparent 38%,transparent 70%,#ffb28408);pointer-events:none}
         .panel.outdoor{left:2.2%;top:3%}.panel.hydraulic{left:38.5%;top:3%}.panel.circuit-card{right:2.2%;width:20%;padding:10px 12px;background:linear-gradient(160deg,rgba(12,26,35,.62),rgba(7,15,21,.56));backdrop-filter:blur(14px) saturate(1.08);-webkit-backdrop-filter:blur(14px) saturate(1.08)}.panel.c1{top:3%}.panel.c2{top:54%}
-        .panel.performance{left:2.2%;bottom:3%}.panel.ecs{left:38.5%;bottom:3%}.panel.state{right:2.2%;bottom:3%}
+        .panel.performance{left:2.2%;bottom:3%}.panel.ecs{left:36%;width:28%;bottom:3%}.panel.state{right:2.2%;bottom:3%}
         .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#b9d3e0}
         .dot{width:7px;height:7px;border-radius:50%;background:#3b5362;box-shadow:0 0 0 3px #ffffff08}
         .dot.on{background:var(--green);box-shadow:0 0 10px var(--green),0 0 0 3px #55dfb122}
@@ -293,6 +320,19 @@
         .circuit-values em{font-size:12px;color:var(--sub);font-style:normal;white-space:nowrap}
         .circuit-chips{margin-top:7px;gap:4px}
         .circuit-chips .chip{font-size:7px;padding:2px 5px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ecs-top{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:8px;margin-top:8px}
+        .ecs-top .value{font-size:26px;margin-top:0}
+        .ecs-top .value.small{font-size:18px;margin-top:4px}
+        .ecs-top .caption{font-size:8px}
+        .ecs-cycle{margin-top:8px;padding-top:7px;border-top:1px solid #ffffff14}
+        .cycle-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:8px;color:var(--sub);text-transform:uppercase;letter-spacing:.8px}
+        .cycle-head time{font-variant-numeric:tabular-nums;color:#c8dde9}
+        .cycle-metrics{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px;font-size:8px;color:var(--sub)}
+        .cycle-metrics span{white-space:nowrap}
+        .cycle-metrics small{font-size:7px;margin-right:3px;text-transform:uppercase;letter-spacing:.4px}
+        .cycle-metrics b{font-size:9px;color:var(--text);font-variant-numeric:tabular-nums}
+        .ecs-chips{margin-top:6px;gap:4px}
+        .ecs-chips .chip{font-size:7px;padding:2px 5px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .bar{height:4px;border-radius:4px;background:#1d303b;margin-top:9px;overflow:hidden}
         .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#4fc9ee,#9ce8ff);transition:width .6s ease}
         .bar.hot i{background:linear-gradient(90deg,#e65d3f,#ffb184)}
@@ -310,7 +350,7 @@
         @keyframes tankPulse{0%,100%{opacity:.45}50%{opacity:.9}}
         @media(max-width:1050px){
           .scene{aspect-ratio:1672/941}
-          .panel{width:27%;padding:10px}.panel.hydraulic{left:36.5%}.panel.ecs{left:36.5%}
+          .panel{width:27%;padding:10px}.panel.hydraulic{left:36.5%}.panel.ecs{left:33%;width:32%}
           .panel.state{display:none}
         }
         @media(max-width:720px){
@@ -318,6 +358,7 @@
           .panels{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:10px;inset:auto;width:100%;box-sizing:border-box}
           .panel{position:relative;width:auto;min-width:0;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;padding:9px 10px;overflow:hidden}
           .panel.circuit-card{width:auto}
+          .panel.ecs{width:auto}
           .panel.hydraulic,.panel.circuit-card,.panel.state,.panel.performance,.panel.ecs{grid-column:auto;display:block}
           .value{font-size:27px}.value.small{font-size:21px}
           .legend{display:none}.fan-motion,.tank-glow{opacity:.5}
