@@ -138,12 +138,18 @@
             <div class="panels">
               <section class="panel outdoor" data-more-info="${esc(m.outdoor?.entity_id || '')}">
                 <div class="panel-head"><span>Unité extérieure</span><span class="dot ${m.compressorOn?'on':''}"></span></div>
-                <div class="value">${fmt(num(m.outdoor?.state),1,'°C')}</div>
-                <div class="caption">Température air</div>
-                <div class="row"><span>Ventilateur</span><b>${m.modulation.toFixed(0)} %</b></div>
-                <div class="bar"><i style="width:${Math.max(3,m.modulation)}%"></i></div>
-                <div class="chips"><span class="chip ${m.compressorOn?'active':'idle'}">${m.compressorOn?'Compresseur actif':'Compresseur arrêté'}</span>${m.defrost?'<span class="chip warn">Dégivrage</span>':''}</div>
-                <div class="status-line">${esc(m.pacState?.state || 'État unité extérieure indisponible')}</div>
+                <div class="outdoor-grid">
+                  <div class="outdoor-temp">
+                    <div class="value">${fmt(num(m.outdoor?.state),1,'°C')}</div>
+                    <div class="caption">Température air</div>
+                  </div>
+                  <div class="outdoor-meta">
+                    <div class="row"><span>Ventilateur</span><b>${m.modulation.toFixed(0)} %</b></div>
+                    <div class="bar"><i style="width:${Math.max(3,m.modulation)}%"></i></div>
+                    <div class="chips"><span class="chip ${m.compressorOn?'active':'idle'}">${m.compressorOn?'Compresseur actif':'Compresseur arrêté'}</span>${m.defrost?'<span class="chip warn">Dégivrage</span>':''}</div>
+                    <div class="status-line">${esc(m.pacState?.state || 'État unité extérieure indisponible')}</div>
+                  </div>
+                </div>
               </section>
 
               <section class="panel hydraulic">
@@ -217,6 +223,13 @@
         .dot{width:7px;height:7px;border-radius:50%;background:#3b5362;box-shadow:0 0 0 3px #ffffff08}
         .dot.on{background:var(--green);box-shadow:0 0 10px var(--green),0 0 0 3px #55dfb122}
         .value{font-size:clamp(24px,2.5vw,38px);line-height:1.05;font-weight:750;letter-spacing:-1.2px;font-variant-numeric:tabular-nums;margin-top:9px;text-shadow:0 2px 12px #0008}
+        .outdoor-grid{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;margin-top:8px}
+        .outdoor-temp .value{margin-top:0}
+        .outdoor-meta{min-width:0}
+        .outdoor-meta .row{margin-top:0}
+        .outdoor-meta .bar{margin-top:6px}
+        .outdoor-meta .chips{margin-top:6px;flex-wrap:wrap}
+        .outdoor-meta .status-line{margin-top:5px;white-space:normal;line-height:1.35}
         .value.small{font-size:clamp(18px,1.8vw,27px);letter-spacing:-.7px;margin-top:4px}
         .caption{font-size:10px;color:var(--sub);margin-top:2px}
         .row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:10px;color:var(--sub);margin-top:8px}
