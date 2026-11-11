@@ -566,7 +566,9 @@ class PacSynoptiqueCard extends HTMLElement {
         return;
       }
       if(action==='history'){
-        this._openHistory(target.dataset.entity,target.dataset.label);
+        if(target.dataset.entity) this.dispatchEvent(new CustomEvent('hass-more-info',{
+          detail:{entityId:target.dataset.entity},bubbles:true,composed:true
+        }));
         return;
       }
       if(action==='close-history'){
@@ -695,7 +697,9 @@ class PacSynoptiqueCard extends HTMLElement {
     }
   }
   _tempLink(value,entity,label){
-    const text=html(temp(value));
+    return this._valueLink(value,entity,label,html(temp(value)));
+  }
+  _valueLink(value,entity,label,text){
     if(!entity) return `<strong>${text}</strong>`;
     return `<strong class="temp-link" data-pac-action="history" data-entity="${html(entity)}" data-label="${html(label)}" title="Historique sur 3 h">${text}</strong>`;
   }
@@ -704,7 +708,8 @@ class PacSynoptiqueCard extends HTMLElement {
     if(!entity) return;
     this._editor=null;
     this._sliderEditing=false;
-    this._history={entity,label:label||entity,loading:true,points:[],error:null};
+    this._history={entity,label:label||entity,loading:true,points:[],error:null,
+      unit:this._hass?.states?.[entity]?.attributes?.unit_of_measurement||'°C'};
     this._historyOpen=true;
     this._render();
     this._loadHistory();
@@ -716,10 +721,10 @@ class PacSynoptiqueCard extends HTMLElement {
     try{
       const points=await this._historyPoints(entity);
       if(this._history?.entity!==entity) return;
-      this._history={entity,label:current.label,loading:false,points,error:null};
+      this._history={entity,label:current.label,loading:false,points,error:null,unit:current.unit};
     }catch(err){
       if(this._history?.entity!==entity) return;
-      this._history={entity,label:current.label,loading:false,points:[],error:'Historique indisponible : '+String(err?.message||err)};
+      this._history={entity,label:current.label,loading:false,points:[],error:'Historique indisponible : '+String(err?.message||err),unit:current.unit};
     }
     this._render();
   }
@@ -834,24 +839,30 @@ class PacSynoptiqueCard extends HTMLElement {
     try{
       if(typeof this._hass.callWS!=='function') throw new Error('statistiques indisponibles');
       const end=new Date();
-      const start=new Date();
-      start.setDate(start.getDate()-9);
-      start.setHours(0,0,0,0);
-      const result=await this._hass.callWS({
-        type:'recorder/statistics_during_period',
-        start_time:start.toISOString(),
-        end_time:end.toISOString(),
-        statistic_ids:[entity],
-        period:'day',
-        types:['change']
-      });
-      const rows=(result?.[entity]||[]).map(row=>({
-        start:new Date(row.start),
-        value:Number(row.change)
-      })).filter(row=>!Number.isNaN(row.start.getTime()) && Number.isFinite(row.value)).slice(-10);
-      this._graphs={entity,rows,error:rows.length?null:'Aucune statistique quotidienne disponible'};
+      const dayStart=new Date();
+      dayStart.setDate(dayStart.getDate()-9);
+      dayStart.setHours(0,0,0,0);
+      const todayStart=new Date();
+      todayStart.setHours(0,0,0,0);
+      const [daily,hourly]=await Promise.all([
+        this._hass.callWS({
+          type:'recorder/statistics_during_period',start_time:dayStart.toISOString(),
+          end_time:end.toISOString(),statistic_ids:[entity],period:'day',types:['change']
+        }),
+        this._hass.callWS({
+          type:'recorder/statistics_during_period',start_time:todayStart.toISOString(),
+          end_time:end.toISOString(),statistic_ids:[entity],period:'hour',types:['change']
+        })
+      ]);
+      const clean=result=>(result?.[entity]||[]).map(row=>({
+        start:new Date(row.start),value:Number(row.change)
+      })).filter(row=>!Number.isNaN(row.start.getTime()) && Number.isFinite(row.value));
+      const dailyRows=clean(daily).slice(-10);
+      const hourlyRows=clean(hourly);
+      this._graphs={entity,rows:dailyRows,hourlyRows,
+        error:dailyRows.length||hourlyRows.length?null:'Aucune statistique disponible'};
     }catch(err){
-      this._graphs={error:'Statistiques indisponibles : '+String(err?.message||err),rows:[]};
+      this._graphs={error:'Statistiques indisponibles : '+String(err?.message||err),rows:[],hourlyRows:[]};
     }
     this._graphsLoading=false;
     this._render();
@@ -860,17 +871,27 @@ class PacSynoptiqueCard extends HTMLElement {
     const graph=this._graphs;
     if(graph===null) return '<div class="graph-note">Chargement des consommations…</div>';
     if(graph.error) return `<div class="graph-note">${html(graph.error)}</div>`;
-    if(!graph.rows.length) return '<div class="graph-note">Aucune donnée sur 10 jours.</div>';
-    const maximum=Math.max(0.001,...graph.rows.map(row=>row.value));
     const unit=this._hass?.states?.[graph.entity]?.attributes?.unit_of_measurement||'kWh';
-    const bars=graph.rows.map(row=>{
+    const daily=graph.rows||[];
+    const maximum=Math.max(0.001,...daily.map(row=>row.value));
+    const dailyBars=daily.map(row=>{
       const value=Math.max(0,row.value);
       const height=Math.max(3,Math.round(value/maximum*100));
       const day=row.start.toLocaleDateString('fr-FR',{weekday:'short'});
       const date=row.start.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
       return `<div class="graph-col" title="${html(date)} : ${html(value.toFixed(2))} ${html(unit)}"><strong>${html(value.toFixed(2))}</strong><div class="graph-track"><div class="graph-bar" style="height:${height}%"></div></div><span>${html(day)}<small>${html(date)}</small></span></div>`;
     }).join('');
-    return `<div class="graph-head"><span>Consommation quotidienne</span><small>10 jours · ${html(unit)}</small></div><div class="graph-grid">${bars}</div>`;
+    const byHour=new Map((graph.hourlyRows||[]).map(row=>[row.start.getHours(),row.value]));
+    const hourlyValues=Array.from({length:24},(_,hour)=>Math.max(0,byHour.get(hour)||0));
+    const hourlyMaximum=Math.max(0.001,...hourlyValues);
+    const nowHour=new Date().getHours();
+    const hourlyBars=hourlyValues.map((value,hour)=>{
+      const height=value<=0?1:Math.max(3,Math.round(value/hourlyMaximum*100));
+      return `<div class="graph-col${hour===nowHour?' now':''}" title="${String(hour).padStart(2,'0')}h : ${html(value.toFixed(2))} ${html(unit)}"><strong>${html(value.toFixed(2))}</strong><div class="graph-track"><div class="graph-bar" style="height:${height}%"></div></div><span>${String(hour).padStart(2,'0')}h</span></div>`;
+    }).join('');
+    const dailyBlock=daily.length?`<div class="graph-block"><div class="graph-head"><span>Consommation quotidienne</span><small>10 jours · ${html(unit)}</small></div><div class="graph-grid">${dailyBars}</div></div>`:'<div class="graph-note">Aucune donnée sur 10 jours.</div>';
+    const hourlyBlock=`<div class="graph-block"><div class="graph-head"><span>Aujourd’hui heure par heure</span><small>${html(unit)}</small></div><div class="graph-grid hourly">${hourlyBars}</div></div>`;
+    return `${dailyBlock}${hourlyBlock}`;
   }
   _curveHtml(){
     const read=circuit=>{
@@ -973,15 +994,19 @@ class PacSynoptiqueCard extends HTMLElement {
       h.points.length<2?'<div class="hist-note">Pas assez de points sur les 3 dernières heures.</div>':
       this._historySvg(h);
     const legend=h.points.length>=2?`<div class="hist-legend">
-      <span>Min <b>${html(temp(Math.min(...h.points.map(p=>p.v))))}</b></span>
-      <span>Max <b>${html(temp(Math.max(...h.points.map(p=>p.v))))}</b></span>
-      <span>Actuel <b>${html(temp(h.points[h.points.length-1].v))}</b></span></div>`:'';
+      <span>Min <b>${html(this._historyValue(Math.min(...h.points.map(p=>p.v)),h))}</b></span>
+      <span>Max <b>${html(this._historyValue(Math.max(...h.points.map(p=>p.v)),h))}</b></span>
+      <span>Actuel <b>${html(this._historyValue(h.points[h.points.length-1].v,h))}</b></span></div>`:'';
     return `<div class="ctl-modal" data-pac-action="close-history">
       <div class="ctl-modal-panel" data-pac-action="modal-panel" role="dialog" aria-modal="true" aria-label="Historique ${html(h.label)}">
         <div class="ctl-modal-head"><span>${html(h.label)} · 3 h</span><button type="button" class="ctl-modal-close" data-pac-action="close-history" aria-label="Fermer">×</button></div>
         ${body}${legend}
         <div class="ctl-modal-actions"><button type="button" class="ctl-btn" data-pac-action="close-history">Fermer</button></div>
       </div></div>`;
+  }
+  _historyValue(value,h){
+    const unit=h?.unit||'°C';
+    return `${decimal.format(value)} ${unit}`;
   }
   _historySvg(h){
     const points=h.points;
@@ -1398,6 +1423,7 @@ class PacSynoptiqueCard extends HTMLElement {
         background-size:22px 4px;box-shadow:0 0 7px var(--flow-color);filter:drop-shadow(0 0 4px var(--flow-color));
         animation:branchFlow var(--flow-duration,1.15s) linear infinite,branchPulse var(--flow-duration,1.15s) ease-in-out infinite}
       .output-card[aria-label="Eau chaude sanitaire"]:after{display:none!important;content:none!important;animation:none!important}
+      .output-card[aria-label^="Circuit "]:after{display:none!important;content:none!important;animation:none!important}
       @keyframes branchFlow{to{background-position:22px 0}}
       @keyframes branchPulse{0%,100%{opacity:.45}50%{opacity:1}}
       .out-top{display:flex;align-items:center;gap:11px}
@@ -1495,6 +1521,11 @@ class PacSynoptiqueCard extends HTMLElement {
       .graph-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600}
       .graph-head small{font-size:11px;font-weight:400;opacity:.65}
       .graph-grid{display:grid;grid-template-columns:repeat(10,minmax(34px,1fr));gap:8px;align-items:end;height:190px;margin-top:12px;overflow-x:auto}
+      .graph-block+.graph-block{margin-top:14px;padding-top:13px;border-top:1px solid var(--panel-line)}
+      .graph-grid.hourly{grid-template-columns:repeat(24,minmax(30px,1fr));height:165px;gap:5px}
+      .graph-grid.hourly .graph-col>strong{font-size:8px}
+      .graph-grid.hourly .graph-col>span{font-size:9px}
+      .graph-col.now .graph-bar{background:var(--blue)}
       .graph-col{display:grid;grid-template-rows:auto 1fr auto;gap:5px;min-width:0;height:100%;text-align:center}
       .graph-col>strong{font-size:10px;font-weight:600;white-space:nowrap}
       .graph-track{display:flex;align-items:flex-end;height:100%;min-height:90px;border-radius:6px;background:var(--secondary-background-color);overflow:hidden}
@@ -2038,7 +2069,7 @@ class PacSynoptiqueCard extends HTMLElement {
             </svg></div></div>
           <div><div class="field-title">Air extérieur</div><div class="big-value">${this._tempLink(this._v('outdoor'),this._ids?.outdoor,'Air extérieur')}</div></div>
           <div class="machine-stat"><div class="field-title">Compresseur</div><div>${chip(compressorText,compressionTone==='active'?'positive':'dim')}</div></div>
-          <div class="machine-stat"><div class="field-title">Modulation du compresseur</div><div class="big-value">${html(formatted(gauge,'%'))}</div>
+          <div class="machine-stat"><div class="field-title">Modulation du compresseur</div><div class="big-value">${this._valueLink(gauge,this._ids?.modulation,'Modulation compresseur',html(formatted(gauge,'%')))}</div>
             <div class="mod-bar"><i style="width:${gauge!==null?Math.max(0,Math.min(100,gauge)):0}%"></i></div></div>
           ${defrost===true?`<div>${chip('Dégivrage actif','cool')}</div>`:''}
         </section>
@@ -2096,7 +2127,7 @@ class PacSynoptiqueCard extends HTMLElement {
         <div class="diag-grid">${diagComp}${diagPac}${diagCircs}${diagActivity}</div>
       </details>`:''}
       ${this._config.show_graphs!==false?`<details data-panel="graphs" class="alarm-details" ${prevGraphs?'open':''}>
-        <summary><span>Graphes</span></summary>
+        <summary><span>Consommation énergie</span></summary>
         <div class="graph-panel">${this._graphsHtml()}</div>
       </details>`:''}
       ${this._config.show_curve!==false?`<details data-panel="curve" class="alarm-details" ${prevCurve?'open':''}>
@@ -2282,7 +2313,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
         <div class="field">
           <label class="toggle" for="pac-show-graphs">
             <input type="checkbox" id="pac-show-graphs"${checkedGraphs}>
-            Afficher la section Graphes
+            Afficher la section Consommation énergie
           </label>
           <label class="toggle" for="pac-show-curve">
             <input type="checkbox" id="pac-show-curve"${checkedCurve}>
