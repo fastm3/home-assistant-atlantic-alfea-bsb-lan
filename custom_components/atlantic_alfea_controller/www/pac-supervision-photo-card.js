@@ -95,14 +95,14 @@
       const modulationValue = Math.max(0, Math.min(100, num(modulation?.state) ?? 0));
       const flowValue = num(flow?.state);
       const returnValue = num(returnTemp?.state);
-      const c1Active = isOn(pump1) || c1?.attributes?.hvac_action === 'heating' || c1?.attributes?.hvac_action === 'cooling';
-      const c2Active = isOn(pump2) || c2?.attributes?.hvac_action === 'heating' || c2?.attributes?.hvac_action === 'cooling';
+      const c1Active = c1?.attributes?.hvac_action === 'heating' || c1?.attributes?.hvac_action === 'cooling';
+      const c2Active = c2?.attributes?.hvac_action === 'heating' || c2?.attributes?.hvac_action === 'cooling';
       const c1Off = c1?.state === 'off';
       const c2Off = c2?.state === 'off';
       const c1Post = /post.?circulation/i.test(String(c1?.attributes?.etat_circuit_bsb || ''));
       const c2Post = /post.?circulation/i.test(String(c2?.attributes?.etat_circuit_bsb || ''));
-      const c1Demand = !c1Off && (isOn(pump1) || c1?.attributes?.hvac_action === 'heating' || c1?.attributes?.hvac_action === 'cooling');
-      const c2Demand = !c2Off && (isOn(pump2) || c2?.attributes?.hvac_action === 'heating' || c2?.attributes?.hvac_action === 'cooling');
+      const c1Demand = !c1Off && c1Active;
+      const c2Demand = !c2Off && c2Active;
       const ecsText = String(ecsProduction?.state || '');
       const ecsActive = isOn(ecsPump) || (/chauffe|charge|pac|appoint/i.test(ecsText) && !/inactive|attente|arrêt/i.test(ecsText));
       const modeText = String(globalMode?.state || (c1?.state === 'cool' || c2?.state === 'cool' ? 'Refroidissement' : 'Chauffage'));
@@ -172,8 +172,6 @@
         if (circuit.state === 'off') return {label:'Arrêt', tone:'off'};
         if (circuit.attributes?.hvac_action === 'heating') return {label:'Chauffe actuellement', tone:'run'};
         if (circuit.attributes?.hvac_action === 'cooling') return {label:'Refroidit actuellement', tone:'run'};
-        if (isOn(pump) && circuit.state === 'heat') return {label:'Chauffe actuellement', tone:'run'};
-        if (isOn(pump) && circuit.state === 'cool') return {label:'Refroidit actuellement', tone:'run'};
         return {label:'En attente', tone:'standby'};
       };
       const c1Activity = activityOf(m.c1, c1Status, m.pump1);

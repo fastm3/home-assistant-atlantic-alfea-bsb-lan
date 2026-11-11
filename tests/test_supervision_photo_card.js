@@ -66,7 +66,7 @@ const rendered = card.shadowRoot.innerHTML;
 for (const text of [
   'Unité extérieure', 'Unité intérieure', 'Circuit 1 · Étage', 'Circuit 2 · RDC',
   'Température ambiante', 'Consigne chauffage', 'Room temperature limitation',
-  'Chauffe actuellement', 'Circulateur arrêté', 'Dernier cycle',
+  'En attente', 'Circulateur arrêté', 'Dernier cycle',
   'COP', '24 min', '44,0', '51,0', '1,035 kWh', 'Éco 48,0 °C'
 ]) {
   assert(rendered.includes(text), `missing "${text}"`);
