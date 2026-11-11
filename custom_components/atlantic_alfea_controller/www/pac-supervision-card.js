@@ -281,15 +281,17 @@
         .status.cool{border-color:#2c6685;color:#a7e3ff;background:#0d202b}
         .status.idle{opacity:.62}
         .scene{display:grid;grid-template-columns:236px 58px minmax(260px,1fr) 72px 286px;gap:0;align-items:stretch}
-        .unit{position:relative;border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,var(--panel),#0f1820);box-shadow:0 18px 35px #0006;overflow:hidden}
+        .unit{position:relative;border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,var(--panel),#0f1820);box-shadow:0 18px 35px #0006;overflow:hidden;display:flex;flex-direction:column}
+        .outdoor-card,.hydraulic-card{min-height:100%}
+        .outdoor-card .metrics,.hydraulic-card .metrics{margin-top:auto}
         .unit-head{display:flex;justify-content:space-between;align-items:center;padding:11px 12px 0;font-size:9px;letter-spacing:1.5px;color:#8ca6ba;font-weight:800}
         .live{width:6px;height:6px;border-radius:50%;background:#465b6c}
         .live.on{background:var(--green);box-shadow:0 0 9px var(--green)}
-        .outdoor-art{height:156px;display:grid;place-items:center;position:relative;margin:2px 10px 0}
-        .outdoor-body{position:relative;width:170px;height:112px;border-radius:12px;background:linear-gradient(145deg,#d8e5ed,#7d96a8 55%,#536a7c);box-shadow:inset 0 1px 0 #fff9,0 14px 20px #0007;border:1px solid #b9cedb}
+        .outdoor-art{flex:1;min-height:190px;display:grid;place-items:center;position:relative;margin:2px 10px 0}
+        .outdoor-body{position:relative;width:200px;height:132px;border-radius:12px;background:linear-gradient(145deg,#d8e5ed,#7d96a8 55%,#536a7c);box-shadow:inset 0 1px 0 #fff9,0 14px 20px #0007;border:1px solid #b9cedb}
         .outdoor-body:before{content:'';position:absolute;inset:8px 9px;border-radius:8px;background:linear-gradient(160deg,#26343f,#101920);box-shadow:inset 0 0 16px #0009}
         .grille{position:absolute;left:13px;right:13px;top:13px;bottom:13px;border-radius:7px;background:repeating-linear-gradient(0deg,#405361 0 1px,#1b2933 1px 5px);opacity:.55}
-        .fan-shell{position:absolute;left:23px;top:14px;width:84px;height:84px;color:#a8d9f1;filter:drop-shadow(0 0 8px #45b9f355)}
+        .fan-shell{position:absolute;left:28px;top:17px;width:100px;height:100px;color:#a8d9f1;filter:drop-shadow(0 0 8px #45b9f355)}
         .fan-shell.spinning{animation:spin var(--fan-duration) linear infinite}
         .fan{width:100%;height:100%;fill:#7bb4cf}
         .frost{position:absolute;inset:8px 9px;border-radius:8px;background:radial-gradient(circle at 30% 30%,#e8fbff77,transparent 38%),repeating-linear-gradient(125deg,#d8f8ff33 0 2px,transparent 2px 8px);box-shadow:inset 0 0 25px #c8f6ff66;animation:frostPulse 2.5s ease-in-out infinite}
@@ -305,30 +307,30 @@
         .unit-foot{padding:0 12px 11px;color:#6f899d;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .flow-link{position:relative;display:grid;place-items:center;min-width:0}
         .flow-link svg{width:100%;height:100%;min-height:210px;overflow:visible}
-        .flow-link .track{fill:none;stroke:#2a3d4d;stroke-width:10;stroke-linecap:round}
+        .flow-link .track{fill:none;stroke:#22323e;stroke-width:7;stroke-linecap:round;opacity:.55}
         .flow-link .water{fill:none;stroke:var(--cold);stroke-width:5;stroke-linecap:round;stroke-dasharray:8 12;animation:waterFlow 1s linear infinite;filter:drop-shadow(0 0 5px var(--cold))}
         .flow-link.heat .water{stroke:var(--hot);filter:drop-shadow(0 0 6px var(--hot))}
         .flow-link.cool .water{stroke:var(--cold)}
         .flow-link:not(.active) .water{display:none}
         .link-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:8px;letter-spacing:1.3px;color:#7d99ad;background:#0d141b;padding:2px 4px;border-radius:4px}
-        .hydraulic-art{height:156px;margin:2px 10px 0;display:grid;place-items:center}
-        .glass-case{position:relative;width:100%;height:132px;border:1px solid #5e788a55;border-radius:12px;background:linear-gradient(150deg,#c7e8f51a,#13222d 45%,#0c141b);box-shadow:inset 0 1px 0 #fff2,inset 0 0 30px #4db7dc12;overflow:hidden}
+        .hydraulic-art{flex:1;min-height:250px;margin:2px 10px 0;display:grid;place-items:center}
+        .glass-case{position:relative;width:100%;height:100%;min-height:230px;border:1px solid #5e788a55;border-radius:12px;background:linear-gradient(150deg,#c7e8f51a,#13222d 45%,#0c141b);box-shadow:inset 0 1px 0 #fff2,inset 0 0 30px #4db7dc12;overflow:hidden}
         .glass-case:before{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 35%,#c9efff12 36%,transparent 55%);pointer-events:none}
         .inner-label{position:absolute;left:9px;top:8px;font-size:8px;letter-spacing:1.4px;color:#6e8da2}
-        .compressor-block{position:absolute;left:12px;bottom:15px;width:50px;height:58px;border-radius:14px 14px 9px 9px;background:linear-gradient(135deg,#718494,#26343e 45%,#111b22);border:1px solid #8da5b4;box-shadow:inset 0 1px 0 #fff6,0 8px 12px #0008;display:grid;place-items:center;color:#a7c1d3;font-size:9px;letter-spacing:1px}
+        .compressor-block{position:absolute;left:20px;bottom:22px;width:70px;height:82px;border-radius:16px 16px 10px 10px;background:linear-gradient(135deg,#718494,#26343e 45%,#111b22);border:1px solid #8da5b4;box-shadow:inset 0 1px 0 #fff6,0 8px 12px #0008;display:grid;place-items:center;color:#a7c1d3;font-size:10px;letter-spacing:1px}
         .compressor-block.working{animation:compressorVibe .18s linear infinite}
         .compressor-block .bolt{position:absolute;width:4px;height:4px;border-radius:50%;background:#0d151b;top:6px;left:6px;box-shadow:38px 0 #0d151b}
         .compressor-block .bolt+.bolt{top:auto;bottom:6px}
-        .exchanger{position:absolute;left:78px;top:25px;width:108px;height:70px;color:#6fb6db;opacity:.9}
+        .exchanger{position:absolute;left:110px;right:130px;top:44px;height:110px;color:#6fb6db;opacity:.9}
         .exchanger svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 4px #429bc866)}
         .exchanger.heat{color:#ff9b75;filter:drop-shadow(0 0 5px #ff8a5b66)}
         .exchanger.working svg{animation:coilPulse 2.4s ease-in-out infinite}
-        .pump-block{position:absolute;right:11px;bottom:12px;width:45px;height:45px;color:#8fc6df}
+        .pump-block{position:absolute;right:20px;bottom:22px;width:62px;height:62px;color:#8fc6df}
         .pump-block svg{width:100%;height:100%}
         .pump-block .impeller{transform-origin:45px 45px}
         .pump-block.working .impeller{animation:spin .75s linear infinite}
         .pump-block b,.valve-block b{position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);font-size:7px;letter-spacing:.8px;color:#7691a5}
-        .valve-block{position:absolute;right:16px;top:13px;width:34px;height:34px;color:#7de0c0}
+        .valve-block{position:absolute;right:24px;top:22px;width:46px;height:46px;color:#7de0c0}
         .valve-block svg{width:100%;height:100%}
         .valve-block.working svg{animation:valvePulse 2.1s ease-in-out infinite}
         .pipe.internal{position:absolute;height:4px;border-radius:3px;opacity:.75}
@@ -382,13 +384,19 @@
         @keyframes bubble{0%{transform:translateY(0);opacity:0}20%{opacity:.8}100%{transform:translateY(-48px);opacity:0}}
         @keyframes frostPulse{0%,100%{opacity:.55}50%{opacity:.95}}
         @media(max-width:1050px){
-          .scene{grid-template-columns:220px 42px minmax(220px,1fr);grid-template-areas:'out in hyd' 'out . outputs' 'out . outputs'}
-          .outdoor-card{grid-area:out}.in{grid-area:in}.hydraulic-card{grid-area:hyd}.out{display:none}.outputs{grid-area:outputs;margin-top:8px}
+          .scene{display:flex;flex-direction:column;gap:8px}
+          .flow-link{display:none}
+          .outdoor-art{height:180px;min-height:180px;flex:none}
+          .hydraulic-art{height:250px;min-height:250px;flex:none}
+          .glass-case{min-height:235px}
+          .outputs{grid-template-columns:1fr 1fr;grid-template-rows:none}
+          .ecs-zone{grid-column:1/-1}
         }
         @media(max-width:720px){
           .supervision{padding:12px}.topbar{display:block}.statuses{justify-content:flex-start;margin-top:8px}
           .scene{display:flex;flex-direction:column;gap:8px}.flow-link{display:none}.outputs{grid-template-rows:none;grid-template-columns:1fr 1fr}.ecs-zone{grid-column:1/-1}
-          .outdoor-art,.hydraulic-art{height:140px}.foot{font-size:8px}
+          .outdoor-art{height:170px;min-height:170px;flex:none}.hydraulic-art{height:240px;min-height:240px;flex:none}.glass-case{min-height:225px}
+          .foot{font-size:8px;line-height:1.45;overflow-wrap:anywhere}
         }
       `;
     }
