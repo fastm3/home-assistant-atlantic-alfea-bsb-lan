@@ -13,7 +13,9 @@
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[c]);
   const num = value => {
-    const n = Number(String(value ?? '').replace(',', '.'));
+    const raw = String(value ?? '').trim();
+    if (!raw) return null;
+    const n = Number(raw.replace(',', '.'));
     return Number.isFinite(n) ? n : null;
   };
   const fmt = (value, digits = 1, unit = '') => value === null
@@ -71,6 +73,7 @@
       const modulation = get('modulation','sensor',['comp_modulation','_8413_']);
       const outdoor = get('outdoor','sensor',['pac_t_exterieure']);
       const flow = get('flow','sensor',['pac_t_depart']);
+      const flowTarget = get('flow_target','sensor',['pac_t_depart_cible']);
       const returnTemp = get('return','sensor',['pac_t_retour']);
       const c1 = get('c1','climate',['_c1_circuit_1']);
       const c2 = get('c2','climate',['_c2_circuit_2']);
@@ -95,15 +98,16 @@
       const ecsActive = isOn(ecsPump) || (/chauffe|charge|pac|appoint/i.test(ecsText) && !/inactive|attente|arrêt/i.test(ecsText));
       const modeText = String(globalMode?.state || (c1?.state === 'cool' || c2?.state === 'cool' ? 'Refroidissement' : 'Chauffage'));
       const cooling = /refroid|froid|cool/i.test(modeText);
-      return {compressor,compressorOn,modulation:modulationValue,outdoor,flow,returnTemp,
+      return {compressor,compressorOn,modulation:modulationValue,outdoor,flow,flowTarget,returnTemp,
         flowValue,returnValue,delta:flowValue!==null&&returnValue!==null?flowValue-returnValue:null,
+        flowTargetValue:num(flowTarget?.state),
         c1,c2,pump1,pump2,c1Active,c2Active,ecsTemp,ecsSetpoint,ecsText,ecsActive,
         ecsElectric:isOn(ecsElectric),defrost:isOn(defrost),pacState,power,modeText,cooling};
     }
 
     _signature() {
       const m = this._model();
-      return [m.compressor?.state,m.modulation,m.outdoor?.state,m.flow?.state,m.returnTemp?.state,
+      return [m.compressor?.state,m.modulation,m.outdoor?.state,m.flow?.state,m.flowTarget?.state,m.returnTemp?.state,
         m.c1?.state,m.c1?.attributes?.current_temperature,m.c1?.attributes?.temperature,m.c1?.attributes?.hvac_action,
         m.c2?.state,m.c2?.attributes?.current_temperature,m.c2?.attributes?.temperature,m.c2?.attributes?.hvac_action,
         m.pump1?.state,m.pump2?.state,m.ecsTemp?.state,m.ecsProduction?.state,m.ecsPump?.state,
@@ -154,9 +158,10 @@
 
               <section class="panel hydraulic">
                 <div class="panel-head"><span>Unité intérieure</span><span class="dot ${m.c1Active||m.c2Active?'on':''}"></span></div>
-                <div class="split">
+                <div class="split three">
                   <div><div class="value small">${fmt(m.flowValue,1,'°C')}</div><div class="caption">Départ PAC</div></div>
                   <div><div class="value small">${fmt(m.returnValue,1,'°C')}</div><div class="caption">Retour PAC</div></div>
+                  <div><div class="value small">${fmt(m.flowTargetValue,1,'°C')}</div><div class="caption">Consigne départ</div></div>
                 </div>
                 <div class="row"><span>ΔT</span><b>${fmt(m.delta,1,'K')}</b><span class="pill">${esc(m.pacState?.state || 'État indisponible')}</span></div>
               </section>
@@ -241,6 +246,7 @@
         .chip.idle{opacity:.55}
         .chip.warn{border-color:#8a5b37;color:#ffd1a2;background:#2a1b12}
         .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .split.three{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
         .bar{height:4px;border-radius:4px;background:#1d303b;margin-top:9px;overflow:hidden}
         .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#4fc9ee,#9ce8ff);transition:width .6s ease}
         .bar.hot i{background:linear-gradient(90deg,#e65d3f,#ffb184)}
