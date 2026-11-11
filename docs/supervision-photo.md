@@ -12,7 +12,7 @@ Fond        : www/supervision-bg.png
 Route       : /alfea-synoptique/pac-supervision-photo-card.js
 Tableau     : supervision-photo-test
 URL         : http://192.168.31.112:8123/supervision-photo-test
-Version     : 0.2.4
+Version     : 0.2.5
 ```
 
 ## Fonds selon l'état

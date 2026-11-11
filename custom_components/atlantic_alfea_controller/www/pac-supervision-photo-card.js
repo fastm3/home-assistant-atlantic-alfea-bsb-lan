@@ -180,8 +180,12 @@
       const c2Activity = activityOf(m.c2, c2Status, m.pump2);
       const c1Mode = m.c1?.state === 'off' ? 'OFF' : String(m.c1?.attributes?.preset_mode || 'AUTO').toUpperCase();
       const c2Mode = m.c2?.state === 'off' ? 'OFF' : String(m.c2?.attributes?.preset_mode || 'AUTO').toUpperCase();
-      const c1Pump = m.c1Post ? 'Post-circulation' : `Circulateur ${m.pump1?.state === 'on' ? 'actif' : 'arrêté'}`;
-      const c2Pump = m.c2Post ? 'Post-circulation' : `Circulateur ${m.pump2?.state === 'on' ? 'actif' : 'arrêté'}`;
+      const c1Pump = m.c1Post ? 'Post-circulation'
+        : m.c1Off ? 'Circulateur arrêté'
+        : `Circulateur ${m.pump1?.state === 'on' ? 'actif' : 'arrêté'}`;
+      const c2Pump = m.c2Post ? 'Post-circulation'
+        : m.c2Off ? 'Circulateur arrêté'
+        : `Circulateur ${m.pump2?.state === 'on' ? 'actif' : 'arrêté'}`;
       const modeTone = m.cooling ? 'cool' : 'heat';
       this.shadowRoot.innerHTML = `
         <style>${this._styles()}</style>
