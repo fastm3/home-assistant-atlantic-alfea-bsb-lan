@@ -18,15 +18,40 @@
 
 ## Direction retenue
 
-**Phase 1 — 2,5D photoréaliste**
+**Référence visuelle** : rendu photoréaliste fixe, composition large, avec incrustations
+de verre et animations superposées. Ce n'est pas une scène 3D temps réel complète.
 
-Rendus fixes en coupe, calques, gradients, ombres et animations SVG/CSS. Meilleur rapport
-rendu / performance pour une tablette, sans dépendance WebGL.
+**Architecture cible**
 
-**Phase 2 — 3D WebGL**
+1. Image de fond photoréaliste 16:9, sans texte ni interface.
+2. Calques SVG/HTML pour les panneaux de valeurs.
+3. Animations superposées : flux d'eau, ventilateur, chaleur, ballon.
+4. Les animations restent pilotées par les entités HA.
 
-Si la phase 1 est validée : Three.js, modèle GLB, matériaux PBR, vitrages transparents,
-caméra orbitale. La carte 2,5D reste le fallback.
+Le prototype Three.js procédural reste un banc d'essai technique. Il ne doit pas être
+considéré comme la direction artistique finale.
+
+### Prompt de génération du visuel de fond
+
+```text
+Photorealistic technical cutaway of an Atlantic Alféa Duo air-to-water heat pump
+installation, wide cinematic 16:9 composition. On the left, a realistic white
+outdoor heat pump unit with a large front fan and fine grille. In the center, an
+open indoor hydraulic module with transparent casing showing a plate heat
+exchanger, compressor, circulation pump and three-way valve. On the right, a
+modern radiator and a transparent underfloor heating circuit in a concrete slab.
+In the foreground, a tall semi-transparent domestic hot water tank with a copper
+coil and visible warm water layers. Transparent red and blue pipes connect the
+units, with subtle glowing flow. Dark premium technical dashboard background,
+soft blue rim lighting, warm orange heat accents, shallow depth of field,
+ultra-detailed, realistic materials, no text, no UI, no logos, no watermark.
+```
+
+### Assets nécessaires
+
+- `supervision-bg.webp` : fond 2560 × 1440, sans interface ;
+- option : calques détachés de l'unité extérieure et du ballon pour les animations ;
+- icônes et panneaux réalisés en HTML/CSS, pas dans l'image.
 
 ## Scène
 
