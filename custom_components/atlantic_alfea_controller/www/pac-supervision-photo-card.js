@@ -96,8 +96,8 @@
       const c2Active = isOn(pump2) || c2?.attributes?.hvac_action === 'heating' || c2?.attributes?.hvac_action === 'cooling';
       const c1Off = c1?.state === 'off';
       const c2Off = c2?.state === 'off';
-      const c1Post = isOn(pump1) && c1Off;
-      const c2Post = isOn(pump2) && c2Off;
+      const c1Post = /post.?circulation/i.test(String(c1?.attributes?.etat_circuit_bsb || ''));
+      const c2Post = /post.?circulation/i.test(String(c2?.attributes?.etat_circuit_bsb || ''));
       const c1Demand = !c1Off && (isOn(pump1) || c1?.attributes?.hvac_action === 'heating' || c1?.attributes?.hvac_action === 'cooling');
       const c2Demand = !c2Off && (isOn(pump2) || c2?.attributes?.hvac_action === 'heating' || c2?.attributes?.hvac_action === 'cooling');
       const ecsText = String(ecsProduction?.state || '');
@@ -141,8 +141,10 @@
       const c2Status = String(m.c2?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
       const c1Mode = m.c1?.state === 'off' ? 'OFF' : String(m.c1?.attributes?.preset_mode || 'AUTO').toUpperCase();
       const c2Mode = m.c2?.state === 'off' ? 'OFF' : String(m.c2?.attributes?.preset_mode || 'AUTO').toUpperCase();
-      const c1Pump = m.c1Post ? 'Post-circulation' : m.pump1?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
-      const c2Pump = m.c2Post ? 'Post-circulation' : m.pump2?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
+      const c1PumpName = /QX1|9031/i.test(String(m.pump1?.attributes?.source || '')) ? 'Pompe primaire' : 'Circulateur';
+      const c2PumpName = /QX1|9031/i.test(String(m.pump2?.attributes?.source || '')) ? 'Pompe primaire' : 'Circulateur';
+      const c1Pump = m.c1Post ? 'Post-circulation' : `${c1PumpName} ${m.pump1?.state === 'on' ? 'active' : 'arrêtée'}`;
+      const c2Pump = m.c2Post ? 'Post-circulation' : `${c2PumpName} ${m.pump2?.state === 'on' ? 'active' : 'arrêtée'}`;
       const modeTone = m.cooling ? 'cool' : 'heat';
       this.shadowRoot.innerHTML = `
         <style>${this._styles()}</style>
