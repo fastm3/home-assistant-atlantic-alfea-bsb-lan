@@ -139,6 +139,18 @@
       const power = this._temp(m.power?.state);
       const c1Status = String(m.c1?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
       const c2Status = String(m.c2?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
+      const activityOf = (circuit, status, pump) => {
+        if (/post.?circulation/i.test(status)) return {label:'Post-circulation', tone:'standby'};
+        if (!circuit) return {label:'Indisponible', tone:'off'};
+        if (circuit.state === 'off') return {label:'Arrêt', tone:'off'};
+        if (circuit.attributes?.hvac_action === 'heating') return {label:'Chauffe actuellement', tone:'run'};
+        if (circuit.attributes?.hvac_action === 'cooling') return {label:'Refroidit actuellement', tone:'run'};
+        if (isOn(pump) && circuit.state === 'heat') return {label:'Chauffe actuellement', tone:'run'};
+        if (isOn(pump) && circuit.state === 'cool') return {label:'Refroidit actuellement', tone:'run'};
+        return {label:'En attente', tone:'standby'};
+      };
+      const c1Activity = activityOf(m.c1, c1Status, m.pump1);
+      const c2Activity = activityOf(m.c2, c2Status, m.pump2);
       const c1Mode = m.c1?.state === 'off' ? 'OFF' : String(m.c1?.attributes?.preset_mode || 'AUTO').toUpperCase();
       const c2Mode = m.c2?.state === 'off' ? 'OFF' : String(m.c2?.attributes?.preset_mode || 'AUTO').toUpperCase();
       const c1Pump = m.c1Post ? 'Post-circulation' : `Circulateur ${m.pump1?.state === 'on' ? 'actif' : 'arrêté'}`;
@@ -181,7 +193,7 @@
 
               <section class="panel circuit-card c1" data-more-info="${esc(m.c1?.entity_id || '')}">
                 <div class="panel-head"><span>Circuit 1 · Étage</span><span class="dot ${m.c1Demand?'on':''}"></span></div>
-                <div class="circuit-sub">Radiateurs</div>
+                <div class="circuit-sub">Radiateurs · <b class="${c1Activity.tone}">${esc(c1Activity.label)}</b></div>
                 <div class="circuit-labels"><span>Température ambiante</span><span>Consigne chauffage</span></div>
                 <div class="circuit-values"><strong>${fmt(c1Temp,1,'°C')}</strong><em>${fmt(c1Target,1,'°C')}</em></div>
                 <div class="chips circuit-chips"><span class="chip">${esc(c1Mode)}</span>${c1Status&&!(m.c1Post&&/post/i.test(c1Status))?`<span class="chip">${esc(c1Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c1?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c1Pump)}</span></div>
@@ -189,7 +201,7 @@
 
               <section class="panel circuit-card c2" data-more-info="${esc(m.c2?.entity_id || '')}">
                 <div class="panel-head"><span>Circuit 2 · RDC</span><span class="dot ${m.c2Demand?'on':''}"></span></div>
-                <div class="circuit-sub">Plancher chauffant</div>
+                <div class="circuit-sub">Plancher chauffant · <b class="${c2Activity.tone}">${esc(c2Activity.label)}</b></div>
                 <div class="circuit-labels"><span>Température ambiante</span><span>Consigne chauffage</span></div>
                 <div class="circuit-values"><strong>${fmt(c2Temp,1,'°C')}</strong><em>${fmt(c2Target,1,'°C')}</em></div>
                 <div class="chips circuit-chips"><span class="chip">${esc(c2Mode)}</span>${c2Status&&!(m.c2Post&&/post/i.test(c2Status))?`<span class="chip">${esc(c2Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c2?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c2Pump)}</span></div>
@@ -271,6 +283,10 @@
         .hydro-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin-top:8px}
         .hydro-grid .value.small{margin-top:0}
         .circuit-sub{font-size:9px;color:var(--sub);margin-top:1px}
+        .circuit-sub b{font-weight:700}
+        .circuit-sub b.run{color:#7ff0c8}
+        .circuit-sub b.standby{color:#ffc66f}
+        .circuit-sub b.off{color:#8fa3b2}
         .circuit-labels{display:flex;justify-content:space-between;gap:8px;font-size:8px;color:var(--sub);margin-top:7px}
         .circuit-values{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:1px}
         .circuit-values strong{font-size:18px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
