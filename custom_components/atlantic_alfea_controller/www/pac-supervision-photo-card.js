@@ -135,7 +135,15 @@
     _render() {
       if (!this.shadowRoot || !this._hass) return;
       const m = this._model();
-      const bg = (this._config.background_image || '/alfea-synoptique/supervision-bg.png').replace(/"/g,'%22');
+      const images = this._config.background_images || {};
+      const fullyStopped = !m.compressorOn && !m.ecsActive && !m.c1Demand && !m.c2Demand && !m.defrost;
+      const variant = fullyStopped ? 'stopped' : m.cooling ? 'cooling' : 'heating';
+      const configured = images[variant]
+        || (variant === 'cooling' ? images.stopped : null)
+        || images.active
+        || this._config.background_image
+        || '/alfea-synoptique/supervision-bg.png';
+      const bg = configured.replace(/"/g,'%22');
       const fanDuration = m.compressorOn ? Math.max(0.7, Math.min(6.5, 100 / Math.max(16,m.modulation))) : 0;
       const c1Temp = this._temp(m.c1?.attributes?.current_temperature);
       const c1Target = this._temp(m.c1?.attributes?.temperature);
@@ -181,6 +189,7 @@
             <div class="shade"></div>
             ${m.compressorOn?`<div class="fan-motion" style="--fan-duration:${fanDuration}s"></div>`:''}
             ${m.ecsActive?`<div class="tank-glow ${m.ecsElectric?'electric':''}"></div>`:''}
+            <div class="ecs-resistance ${m.ecsElectric?'on':''}" title="Résistance électrique ECS"></div>
             <div class="panels">
               <section class="panel outdoor" data-more-info="${esc(m.outdoor?.entity_id || '')}">
                 <div class="panel-head"><span>Unité extérieure</span><span class="dot ${m.compressorOn?'on':''}"></span></div>
@@ -250,7 +259,7 @@
                     <span><small>Énergie</small><b>${cycleEnergyText} kWh</b></span>
                   </div>
                 </div>
-                <div class="chips ecs-chips"><span class="chip">${m.ecsElectric?'Appoint électrique':(m.ecsPump?.state==='on'?'Pompe active':'Pompe arrêtée')}</span><span class="chip">${esc(m.ecsText || 'Inactive')}</span>${ecsEco!==null?`<span class="chip">Éco ${fmt(ecsEco,1,'°C')}</span>`:''}</div>
+                <div class="chips ecs-chips"><span class="chip">${m.ecsPump?.state==='on'?'Pompe active':'Pompe arrêtée'}</span><span class="chip ${m.ecsElectric?'warn':'idle'}">Résistance ${m.ecsElectric?'active':'arrêtée'}</span><span class="chip">${esc(m.ecsText || 'Inactive')}</span>${ecsEco!==null?`<span class="chip">Éco ${fmt(ecsEco,1,'°C')}</span>`:''}</div>
               </section>
 
               <section class="panel state">
@@ -346,6 +355,11 @@
         .fan-motion{position:absolute;left:9.2%;top:37%;width:17%;aspect-ratio:1;border-radius:50%;z-index:2;pointer-events:none;background:conic-gradient(from 0deg,#bdefff00,#bdefff22,#bdefff00,#bdefff1a,#bdefff00);filter:blur(8px);mix-blend-mode:screen;animation:fanSpin var(--fan-duration) linear infinite;mask-image:radial-gradient(circle,#000 0 38%,transparent 70%)}
         .tank-glow{position:absolute;left:63.5%;top:20%;width:17%;height:56%;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 55%,#ff7a3f55,transparent 68%);filter:blur(17px);animation:tankPulse 2.6s ease-in-out infinite}
         .tank-glow.electric{background:radial-gradient(ellipse at 50% 55%,#ffd45c66,transparent 68%)}
+        .ecs-resistance{position:absolute;left:68.3%;top:24%;width:1.15%;height:38%;z-index:2;pointer-events:none;border-radius:3px;background:linear-gradient(90deg,#667781,#e7f1f4 45%,#8fa1aa 55%,#53646e);box-shadow:0 0 0 1px #ffffff33,0 3px 10px #0007;opacity:.82;transition:box-shadow .35s,background .35s}
+        .ecs-resistance:before{content:'';position:absolute;left:-45%;top:-3%;width:190%;height:5%;border-radius:3px;background:linear-gradient(90deg,#4c5c65,#c8d7dd,#4c5c65);box-shadow:0 1px 3px #0008}
+        .ecs-resistance:after{content:'';position:absolute;left:50%;top:7%;width:36%;height:86%;transform:translateX(-50%);border-radius:2px;background:linear-gradient(180deg,#f4fafb,#7f919a 55%,#d9e5e9);opacity:.75}
+        .ecs-resistance.on{background:linear-gradient(90deg,#71321f,#ffb05f 45%,#ff6b3d 55%,#7e3320);box-shadow:0 0 0 1px #ffd0a766,0 0 15px #ff6b3daa,0 0 32px #ff6b3d55;opacity:1}
+        .ecs-resistance.on:after{background:linear-gradient(180deg,#fff1d6,#ff8b52 48%,#ffd26e);opacity:1}
         @keyframes fanSpin{to{transform:rotate(360deg)}}
         @keyframes tankPulse{0%,100%{opacity:.45}50%{opacity:.9}}
         @media(max-width:1050px){

@@ -62,6 +62,11 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
                 str(Path(__file__).resolve().parent / "www" / "supervision-bg.png"),
                 False,
             ),
+            StaticPathConfig(
+                "/alfea-synoptique/supervision-bg-stopped.png",
+                str(Path(__file__).resolve().parent / "www" / "supervision-bg-stopped.png"),
+                False,
+            ),
         ]
     )
     return True
