@@ -131,6 +131,12 @@
       const ecsTemp = this._temp(m.ecsTemp?.state);
       const ecsTarget = this._temp(m.ecsSetpoint?.state);
       const power = this._temp(m.power?.state);
+      const c1Status = String(m.c1?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
+      const c2Status = String(m.c2?.attributes?.etat_circuit_bsb || '').replace(/^\d+\s*-\s*/, '');
+      const c1Mode = m.c1?.state === 'off' ? 'OFF' : String(m.c1?.attributes?.preset_mode || 'AUTO').toUpperCase();
+      const c2Mode = m.c2?.state === 'off' ? 'OFF' : String(m.c2?.attributes?.preset_mode || 'AUTO').toUpperCase();
+      const c1Pump = m.pump1?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
+      const c2Pump = m.pump2?.state === 'on' ? 'Circulateur actif' : 'Circulateur arrêté';
       const modeTone = m.cooling ? 'cool' : 'heat';
       this.shadowRoot.innerHTML = `
         <style>${this._styles()}</style>
@@ -170,15 +176,17 @@
               <section class="panel circuit-card c1" data-more-info="${esc(m.c1?.entity_id || '')}">
                 <div class="panel-head"><span>Circuit 1 · Étage</span><span class="dot ${m.c1Active?'on':''}"></span></div>
                 <div class="circuit-sub">Radiateurs</div>
+                <div class="circuit-labels"><span>Température ambiante</span><span>Consigne chauffage</span></div>
                 <div class="circuit-values"><strong>${fmt(c1Temp,1,'°C')}</strong><em>${fmt(c1Target,1,'°C')}</em></div>
-                <div class="status-line"><span class="${m.c1Active?'ok':''}">●</span> ${m.pump1?.state==='on'?'Circulation active':m.c1Active?'En demande':'En attente'}</div>
+                <div class="chips circuit-chips"><span class="chip">${esc(c1Mode)}</span>${c1Status?`<span class="chip">${esc(c1Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c1?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c1Pump)}</span></div>
               </section>
 
               <section class="panel circuit-card c2" data-more-info="${esc(m.c2?.entity_id || '')}">
                 <div class="panel-head"><span>Circuit 2 · RDC</span><span class="dot ${m.c2Active?'on':''}"></span></div>
                 <div class="circuit-sub">Plancher chauffant</div>
+                <div class="circuit-labels"><span>Température ambiante</span><span>Consigne chauffage</span></div>
                 <div class="circuit-values"><strong>${fmt(c2Temp,1,'°C')}</strong><em>${fmt(c2Target,1,'°C')}</em></div>
-                <div class="status-line"><span class="${m.c2Active?'ok':''}">●</span> ${m.pump2?.state==='on'?'Circulation active':m.c2Active?'En demande':'En attente'}</div>
+                <div class="chips circuit-chips"><span class="chip">${esc(c2Mode)}</span>${c2Status?`<span class="chip">${esc(c2Status)}</span>`:''}<span class="chip">Eff. ${fmt(m.c2?.attributes?.temperature,1,'°C')}</span><span class="chip">${esc(c2Pump)}</span></div>
               </section>
 
               <section class="panel performance">
@@ -230,7 +238,7 @@
         .panels{position:absolute;inset:0;z-index:3}
         .panel{position:absolute;width:23%;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,rgba(12,26,35,.86),rgba(7,15,21,.8));box-shadow:0 18px 45px #0008,inset 0 1px 0 #ffffff14;backdrop-filter:blur(18px) saturate(1.1);-webkit-backdrop-filter:blur(18px) saturate(1.1);cursor:pointer;overflow:hidden}
         .panel:before{content:'';position:absolute;inset:0;background:linear-gradient(130deg,#c8f2ff0e,transparent 38%,transparent 70%,#ffb28408);pointer-events:none}
-        .panel.outdoor{left:2.2%;top:3%}.panel.hydraulic{left:38.5%;top:3%}.panel.circuit-card{right:2.2%;width:23%;padding:10px 12px}.panel.c1{top:3%}.panel.c2{top:16.5%}
+        .panel.outdoor{left:2.2%;top:3%}.panel.hydraulic{left:38.5%;top:3%}.panel.circuit-card{right:2.2%;width:20%;padding:10px 12px;background:linear-gradient(160deg,rgba(12,26,35,.62),rgba(7,15,21,.56));backdrop-filter:blur(14px) saturate(1.08);-webkit-backdrop-filter:blur(14px) saturate(1.08)}.panel.c1{top:3%}.panel.c2{top:54%}
         .panel.performance{left:2.2%;bottom:3%}.panel.ecs{left:38.5%;bottom:3%}.panel.state{right:2.2%;bottom:3%}
         .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#b9d3e0}
         .dot{width:7px;height:7px;border-radius:50%;background:#3b5362;box-shadow:0 0 0 3px #ffffff08}
@@ -257,10 +265,12 @@
         .hydro-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin-top:8px}
         .hydro-grid .value.small{margin-top:0}
         .circuit-sub{font-size:9px;color:var(--sub);margin-top:1px}
-        .circuit-values{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:4px}
+        .circuit-labels{display:flex;justify-content:space-between;gap:8px;font-size:8px;color:var(--sub);margin-top:7px}
+        .circuit-values{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:1px}
         .circuit-values strong{font-size:18px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
-        .circuit-values em{font-size:10px;color:var(--sub);font-style:normal;white-space:nowrap}
-        .circuit-values em:before{content:'consigne ';font-size:8px;opacity:.75}
+        .circuit-values em{font-size:12px;color:var(--sub);font-style:normal;white-space:nowrap}
+        .circuit-chips{margin-top:7px;gap:4px}
+        .circuit-chips .chip{font-size:7px;padding:2px 5px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .bar{height:4px;border-radius:4px;background:#1d303b;margin-top:9px;overflow:hidden}
         .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#4fc9ee,#9ce8ff);transition:width .6s ease}
         .bar.hot i{background:linear-gradient(90deg,#e65d3f,#ffb184)}
