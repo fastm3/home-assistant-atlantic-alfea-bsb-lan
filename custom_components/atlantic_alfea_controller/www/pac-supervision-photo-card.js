@@ -171,6 +171,18 @@
         || this._config.background_image
         || '/alfea-synoptique/supervision-bg.png';
       const bg = configured.replace(/"/g,'%22');
+      const defaultSpots = {
+        fan: {left:9.2, top:37, width:17},
+        tank: {left:63.5, top:20, width:17, height:56},
+        c1: {left:78, top:23, width:17, height:25},
+        c2: {left:56, top:73, width:35, height:20},
+        outdoor: {left:6, top:29, width:21, height:34}
+      };
+      const spots = {...defaultSpots, ...(this._config.hotspots || {})};
+      const spotStyle = key => {
+        const spot = spots[key] || {};
+        return `left:${spot.left}%;top:${spot.top}%;width:${spot.width}%;${spot.height ? `height:${spot.height}%;` : ''}`;
+      };
       const fanDuration = m.compressorOn ? Math.max(0.7, Math.min(6.5, 100 / Math.max(16,m.modulation))) : 0;
       const c1Temp = this._temp(m.c1?.attributes?.current_temperature);
       const c1Target = this._temp(m.c1?.attributes?.temperature);
@@ -216,11 +228,11 @@
         <ha-card>
           <div class="scene ${modeTone} ${m.compressorOn?'running':''}" style="background-image:url('${bg}')">
             <div class="shade"></div>
-            ${m.compressorOn?`<div class="fan-motion" style="--fan-duration:${fanDuration}s"></div>`:''}
-            ${m.ecsActive?`<div class="tank-glow ${m.ecsElectric?'electric':''}"></div>`:''}
-            ${m.c1Demand?`<div class="zone-glow c1 ${m.cooling?'cold':''}"></div>`:''}
-            ${m.c2Demand?`<div class="zone-glow c2 ${m.cooling?'cold':''}"></div>`:''}
-            ${m.compressorOn?`<div class="zone-glow outdoor ${m.cooling?'cold':''}"></div>`:''}
+            ${m.compressorOn?`<div class="fan-motion" style="--fan-duration:${fanDuration}s;${spotStyle('fan')}"></div>`:''}
+            ${m.ecsActive?`<div class="tank-glow ${m.ecsElectric?'electric':''}" style="${spotStyle('tank')}"></div>`:''}
+            ${m.c1Demand?`<div class="zone-glow c1 ${m.cooling?'cold':''}" style="${spotStyle('c1')}"></div>`:''}
+            ${m.c2Demand?`<div class="zone-glow c2 ${m.cooling?'cold':''}" style="${spotStyle('c2')}"></div>`:''}
+            ${m.compressorOn?`<div class="zone-glow outdoor ${m.cooling?'cold':''}" style="${spotStyle('outdoor')}"></div>`:''}
             <div class="ecs-resistance ${m.ecsElectric?'on':''}" title="Résistance électrique ECS"></div>
             <div class="panels">
               <section class="panel outdoor" data-more-info="${esc(m.outdoor?.entity_id || '')}">

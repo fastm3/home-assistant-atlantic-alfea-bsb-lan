@@ -12,7 +12,7 @@ Fond        : www/supervision-bg.png
 Route       : /alfea-synoptique/pac-supervision-photo-card.js
 Tableau     : supervision-photo-test
 URL         : http://192.168.31.112:8123/supervision-photo-test
-Version     : 0.2.7
+Version     : 0.2.8
 ```
 
 ## Fonds selon l'état
@@ -25,12 +25,50 @@ background_images:
   active: /alfea-synoptique/supervision-bg.png
 ```
 
-La carte utilise le fond neutre `stopped` quand le compresseur, l'ECS, les
-circuits et le dégivrage sont tous inactifs. Le fond actif orangé est réservé
-aux états de chauffage/ECS. Le refroidissement utilisera le fond neutre tant
-qu'une variante bleue n'est pas générée.
+La carte utilise le fond neutre `stopped` par défaut. Le fond actif orangé
+n'est utilisé que si C1, C2 et l'ECS sont tous actifs. Une demande partielle
+garde le fond neutre et ajoute une lueur localisée sur la zone concernée.
 
-## Configuration
+Les chemins peuvent pointer vers n'importe quelle image servie par Home
+Assistant (`/local/...` ou `/alfea-synoptique/...`). Remplacer le fond ne
+demande aucune modification du JavaScript.
+
+## Ancrages des animations
+
+Les positions sont configurables, en pourcentage de l'image :
+
+```yaml
+hotspots:
+  fan:
+    left: 9.2
+    top: 37
+    width: 17
+  tank:
+    left: 63.5
+    top: 20
+    width: 17
+    height: 56
+  c1:
+    left: 78
+    top: 23
+    width: 17
+    height: 25
+  c2:
+    left: 56
+    top: 73
+    width: 35
+    height: 20
+  outdoor:
+    left: 6
+    top: 29
+    width: 21
+    height: 34
+```
+
+Si le fond change de cadrage, on ajuste uniquement ces valeurs. Les panneaux,
+les états et les animations restent inchangés.
+
+## Configuration minimale
 
 ```yaml
 type: custom:pac-supervision-photo-card
