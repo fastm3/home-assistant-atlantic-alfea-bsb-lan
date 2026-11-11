@@ -137,7 +137,8 @@
       const m = this._model();
       const images = this._config.background_images || {};
       const fullyStopped = !m.compressorOn && !m.ecsActive && !m.c1Demand && !m.c2Demand && !m.defrost;
-      const variant = fullyStopped ? 'stopped' : m.cooling ? 'cooling' : 'heating';
+      const allZonesActive = m.c1Demand && m.c2Demand && m.ecsActive;
+      const variant = allZonesActive ? (m.cooling ? 'cooling' : 'heating') : 'stopped';
       const configured = images[variant]
         || (variant === 'cooling' ? images.stopped : null)
         || images.active
@@ -189,6 +190,9 @@
             <div class="shade"></div>
             ${m.compressorOn?`<div class="fan-motion" style="--fan-duration:${fanDuration}s"></div>`:''}
             ${m.ecsActive?`<div class="tank-glow ${m.ecsElectric?'electric':''}"></div>`:''}
+            ${m.c1Demand?`<div class="zone-glow c1 ${m.cooling?'cold':''}"></div>`:''}
+            ${m.c2Demand?`<div class="zone-glow c2 ${m.cooling?'cold':''}"></div>`:''}
+            ${m.compressorOn?`<div class="zone-glow outdoor ${m.cooling?'cold':''}"></div>`:''}
             <div class="ecs-resistance ${m.ecsElectric?'on':''}" title="Résistance électrique ECS"></div>
             <div class="panels">
               <section class="panel outdoor" data-more-info="${esc(m.outdoor?.entity_id || '')}">
@@ -355,6 +359,13 @@
         .fan-motion{position:absolute;left:9.2%;top:37%;width:17%;aspect-ratio:1;border-radius:50%;z-index:2;pointer-events:none;background:conic-gradient(from 0deg,#bdefff00,#bdefff22,#bdefff00,#bdefff1a,#bdefff00);filter:blur(8px);mix-blend-mode:screen;animation:fanSpin var(--fan-duration) linear infinite;mask-image:radial-gradient(circle,#000 0 38%,transparent 70%)}
         .tank-glow{position:absolute;left:63.5%;top:20%;width:17%;height:56%;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 55%,#ff7a3f55,transparent 68%);filter:blur(17px);animation:tankPulse 2.6s ease-in-out infinite}
         .tank-glow.electric{background:radial-gradient(ellipse at 50% 55%,#ffd45c66,transparent 68%)}
+        .zone-glow{position:absolute;z-index:2;pointer-events:none;filter:blur(20px);opacity:.82;animation:zonePulse 2.8s ease-in-out infinite}
+        .zone-glow.c1{left:78%;top:23%;width:17%;height:25%;background:radial-gradient(ellipse at 50% 50%,#ff7b3f99,transparent 70%)}
+        .zone-glow.c2{left:56%;top:73%;width:35%;height:20%;background:radial-gradient(ellipse at 50% 50%,#ff7b3f99,transparent 72%)}
+        .zone-glow.outdoor{left:6%;top:29%;width:21%;height:34%;background:radial-gradient(ellipse at 50% 50%,#ff8c4c66,transparent 72%);opacity:.55}
+        .zone-glow.cold{background:radial-gradient(ellipse at 50% 50%,#53c8ff99,transparent 70%)}
+        .zone-glow.outdoor.cold{background:radial-gradient(ellipse at 50% 50%,#53c8ff66,transparent 72%)}
+        @keyframes zonePulse{0%,100%{opacity:.45}50%{opacity:.8}}
         .ecs-resistance{position:absolute;left:68.3%;top:24%;width:1.15%;height:38%;z-index:2;pointer-events:none;border-radius:3px;background:linear-gradient(90deg,#667781,#e7f1f4 45%,#8fa1aa 55%,#53646e);box-shadow:0 0 0 1px #ffffff33,0 3px 10px #0007;opacity:.82;transition:box-shadow .35s,background .35s}
         .ecs-resistance:before{content:'';position:absolute;left:-45%;top:-3%;width:190%;height:5%;border-radius:3px;background:linear-gradient(90deg,#4c5c65,#c8d7dd,#4c5c65);box-shadow:0 1px 3px #0008}
         .ecs-resistance:after{content:'';position:absolute;left:50%;top:7%;width:36%;height:86%;transform:translateX(-50%);border-radius:2px;background:linear-gradient(180deg,#f4fafb,#7f919a 55%,#d9e5e9);opacity:.75}
