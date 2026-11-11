@@ -142,7 +142,8 @@
                 <div class="caption">Température air</div>
                 <div class="row"><span>Ventilateur</span><b>${m.modulation.toFixed(0)} %</b></div>
                 <div class="bar"><i style="width:${Math.max(3,m.modulation)}%"></i></div>
-                <div class="chips"><span class="chip ${m.compressorOn?'active':'idle'}">${m.compressorOn?'Compresseur actif':'Compresseur arrêté'}</span></div>
+                <div class="chips"><span class="chip ${m.compressorOn?'active':'idle'}">${m.compressorOn?'Compresseur actif':'Compresseur arrêté'}</span>${m.defrost?'<span class="chip warn">Dégivrage</span>':''}</div>
+                <div class="status-line">${esc(m.pacState?.state || 'État unité extérieure indisponible')}</div>
               </section>
 
               <section class="panel hydraulic">
@@ -225,6 +226,7 @@
         .chip{border:1px solid #3b5565;border-radius:99px;padding:3px 7px;font-size:8px;color:#b9d2df}
         .chip.active{border-color:#3c8068;color:#9af0cb;background:#10231e}
         .chip.idle{opacity:.55}
+        .chip.warn{border-color:#8a5b37;color:#ffd1a2;background:#2a1b12}
         .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
         .bar{height:4px;border-radius:4px;background:#1d303b;margin-top:9px;overflow:hidden}
         .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#4fc9ee,#9ce8ff);transition:width .6s ease}
