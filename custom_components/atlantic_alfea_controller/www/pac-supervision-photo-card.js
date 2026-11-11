@@ -158,19 +158,27 @@
 
               <section class="panel hydraulic">
                 <div class="panel-head"><span>Unité intérieure</span><span class="dot ${m.c1Active||m.c2Active?'on':''}"></span></div>
-                <div class="split three">
+                <div class="hydro-grid">
                   <div><div class="value small">${fmt(m.flowValue,1,'°C')}</div><div class="caption">Départ PAC</div></div>
                   <div><div class="value small">${fmt(m.returnValue,1,'°C')}</div><div class="caption">Retour PAC</div></div>
                   <div><div class="value small">${fmt(m.flowTargetValue,1,'°C')}</div><div class="caption">Consigne départ</div></div>
+                  <div><div class="value small">${fmt(m.delta,1,'K')}</div><div class="caption">ΔT</div></div>
                 </div>
-                <div class="row"><span>ΔT</span><b>${fmt(m.delta,1,'K')}</b><span class="pill">${esc(m.pacState?.state || 'État indisponible')}</span></div>
+                <div class="status-line">${esc(m.pacState?.state || 'État indisponible')}</div>
               </section>
 
-              <section class="panel circuits" data-more-info="${esc(m.c2?.entity_id || '')}">
-                <div class="panel-head"><span>Circuits chauffage</span><span class="dot ${m.c1Active||m.c2Active?'on':''}"></span></div>
-                <div class="circuit"><div><b>Étage</b><small>Radiateurs</small></div><strong>${fmt(c1Temp,1,'°C')}</strong><em>${fmt(c1Target,1,'°C')}</em></div>
-                <div class="circuit"><div><b>RDC</b><small>Plancher</small></div><strong>${fmt(c2Temp,1,'°C')}</strong><em>${fmt(c2Target,1,'°C')}</em></div>
-                <div class="status-line"><span class="${m.c1Active?'ok':''}">●</span>${m.c1Active?'Étage en demande':'Étage en attente'} · <span class="${m.c2Active?'ok':''}">●</span>${m.c2Active?'RDC en demande':'RDC en attente'}</div>
+              <section class="panel circuit-card c1" data-more-info="${esc(m.c1?.entity_id || '')}">
+                <div class="panel-head"><span>Circuit 1 · Étage</span><span class="dot ${m.c1Active?'on':''}"></span></div>
+                <div class="circuit-sub">Radiateurs</div>
+                <div class="circuit-values"><strong>${fmt(c1Temp,1,'°C')}</strong><em>${fmt(c1Target,1,'°C')}</em></div>
+                <div class="status-line"><span class="${m.c1Active?'ok':''}">●</span> ${m.pump1?.state==='on'?'Circulation active':m.c1Active?'En demande':'En attente'}</div>
+              </section>
+
+              <section class="panel circuit-card c2" data-more-info="${esc(m.c2?.entity_id || '')}">
+                <div class="panel-head"><span>Circuit 2 · RDC</span><span class="dot ${m.c2Active?'on':''}"></span></div>
+                <div class="circuit-sub">Plancher chauffant</div>
+                <div class="circuit-values"><strong>${fmt(c2Temp,1,'°C')}</strong><em>${fmt(c2Target,1,'°C')}</em></div>
+                <div class="status-line"><span class="${m.c2Active?'ok':''}">●</span> ${m.pump2?.state==='on'?'Circulation active':m.c2Active?'En demande':'En attente'}</div>
               </section>
 
               <section class="panel performance">
@@ -222,7 +230,7 @@
         .panels{position:absolute;inset:0;z-index:3}
         .panel{position:absolute;width:23%;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,rgba(12,26,35,.86),rgba(7,15,21,.8));box-shadow:0 18px 45px #0008,inset 0 1px 0 #ffffff14;backdrop-filter:blur(18px) saturate(1.1);-webkit-backdrop-filter:blur(18px) saturate(1.1);cursor:pointer;overflow:hidden}
         .panel:before{content:'';position:absolute;inset:0;background:linear-gradient(130deg,#c8f2ff0e,transparent 38%,transparent 70%,#ffb28408);pointer-events:none}
-        .panel.outdoor{left:2.2%;top:3%}.panel.hydraulic{left:38.5%;top:3%}.panel.circuits{right:2.2%;top:3%}
+        .panel.outdoor{left:2.2%;top:3%}.panel.hydraulic{left:38.5%;top:3%}.panel.circuit-card{right:2.2%;width:23%;padding:10px 12px}.panel.c1{top:3%}.panel.c2{top:16.5%}
         .panel.performance{left:2.2%;bottom:3%}.panel.ecs{left:38.5%;bottom:3%}.panel.state{right:2.2%;bottom:3%}
         .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#b9d3e0}
         .dot{width:7px;height:7px;border-radius:50%;background:#3b5362;box-shadow:0 0 0 3px #ffffff08}
@@ -246,7 +254,13 @@
         .chip.idle{opacity:.55}
         .chip.warn{border-color:#8a5b37;color:#ffd1a2;background:#2a1b12}
         .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-        .split.three{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+        .hydro-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin-top:8px}
+        .hydro-grid .value.small{margin-top:0}
+        .circuit-sub{font-size:9px;color:var(--sub);margin-top:1px}
+        .circuit-values{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:4px}
+        .circuit-values strong{font-size:18px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+        .circuit-values em{font-size:10px;color:var(--sub);font-style:normal;white-space:nowrap}
+        .circuit-values em:before{content:'consigne ';font-size:8px;opacity:.75}
         .bar{height:4px;border-radius:4px;background:#1d303b;margin-top:9px;overflow:hidden}
         .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#4fc9ee,#9ce8ff);transition:width .6s ease}
         .bar.hot i{background:linear-gradient(90deg,#e65d3f,#ffb184)}
@@ -271,7 +285,8 @@
           .scene{aspect-ratio:auto;min-height:900px;background-size:cover;background-position:center top}
           .panels{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:10px;inset:auto;width:100%;box-sizing:border-box}
           .panel{position:relative;width:auto;min-width:0;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;padding:9px 10px;overflow:hidden}
-          .panel.hydraulic,.panel.circuits,.panel.state,.panel.performance,.panel.ecs{grid-column:auto;display:block}
+          .panel.circuit-card{width:auto}
+          .panel.hydraulic,.panel.circuit-card,.panel.state,.panel.performance,.panel.ecs{grid-column:auto;display:block}
           .value{font-size:27px}.value.small{font-size:21px}
           .legend{display:none}.fan-motion,.tank-glow{opacity:.5}
         }
