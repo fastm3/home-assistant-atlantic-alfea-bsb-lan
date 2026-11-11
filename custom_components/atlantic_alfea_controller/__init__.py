@@ -47,6 +47,11 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
                 str(Path(__file__).resolve().parent / "www" / "pac-programmes-card.js"),
                 False,
             ),
+            StaticPathConfig(
+                "/alfea-synoptique/pac-supervision-card.js",
+                str(Path(__file__).resolve().parent / "www" / "pac-supervision-card.js"),
+                False,
+            ),
         ]
     )
     return True
