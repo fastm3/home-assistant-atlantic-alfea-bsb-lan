@@ -29,6 +29,7 @@
       this._config = {};
       this._hass = null;
       this._signatureCache = '';
+      this._sim = {};
     }
 
     static getStubConfig() {
@@ -107,11 +108,36 @@
       const ecsActive = isOn(ecsPump) || (/chauffe|charge|pac|appoint/i.test(ecsText) && !/inactive|attente|arrêt/i.test(ecsText));
       const modeText = String(globalMode?.state || (c1?.state === 'cool' || c2?.state === 'cool' ? 'Refroidissement' : 'Chauffage'));
       const cooling = /refroid|froid|cool/i.test(modeText);
-      return {compressor,compressorOn,modulation:modulationValue,outdoor,flow,flowTarget,returnTemp,
+      const model = {compressor,compressorOn,modulation:modulationValue,outdoor,flow,flowTarget,returnTemp,
         flowValue,returnValue,delta:flowValue!==null&&returnValue!==null?flowValue-returnValue:null,
         flowTargetValue:num(flowTarget?.state),
         c1,c2,pump1,pump2,c1Active,c2Active,c1Off,c2Off,c1Post,c2Post,c1Demand,c2Demand,ecsTemp,ecsSetpoint,ecsText,ecsActive,ecsSession,ecsComfort,ecsEco,
         ecsElectric:isOn(ecsElectric),defrost:isOn(defrost),pacState,power,modeText,cooling};
+      const sim = this._sim || {};
+      if (sim.compressor) {
+        model.compressorOn = true;
+        model.modulation = 45;
+        model.compressor = {...(model.compressor || {}), state:'on'};
+      }
+      if (sim.c1) {
+        model.c1 = {...(model.c1 || {}), state: sim.cooling ? 'cool' : 'heat', attributes:{...(model.c1?.attributes || {}), hvac_action: sim.cooling ? 'cooling' : 'heating', etat_circuit_bsb: sim.cooling ? 'Cooling mode' : 'Heating mode Comfort'}};
+        model.c1Active = true; model.c1Demand = true; model.c1Off = false; model.c1Post = false;
+        model.pump1 = {...(model.pump1 || {}), state:'on'};
+      }
+      if (sim.c2) {
+        model.c2 = {...(model.c2 || {}), state: sim.cooling ? 'cool' : 'heat', attributes:{...(model.c2?.attributes || {}), hvac_action: sim.cooling ? 'cooling' : 'heating', etat_circuit_bsb: sim.cooling ? 'Cooling mode' : 'Heating mode Comfort'}};
+        model.c2Active = true; model.c2Demand = true; model.c2Off = false; model.c2Post = false;
+        model.pump2 = {...(model.pump2 || {}), state:'on'};
+      }
+      if (sim.ecs) {
+        model.ecsActive = true;
+        model.ecsText = 'Charging';
+        model.ecsPump = {...(model.ecsPump || {}), state:'on'};
+      }
+      if (sim.electric) model.ecsElectric = true;
+      if (sim.defrost) model.defrost = true;
+      if (sim.cooling) model.cooling = true;
+      return model;
     }
 
     _signature() {
@@ -278,7 +304,27 @@
             </div>
             <div class="legend"><span><i class="hot"></i>Chaud</span><span><i class="cold"></i>Froid</span><span><i class="live"></i>Actif</span></div>
           </div>
+          ${this._config.debug_controls ? `<div class="debug-bar">
+            <span class="debug-title">Test animations</span>
+            <button data-sim="compressor" class="${this._sim.compressor?'on':''}">Compresseur</button>
+            <button data-sim="ecs" class="${this._sim.ecs?'on':''}">ECS actif</button>
+            <button data-sim="c1" class="${this._sim.c1?'on':''}">C1 actif</button>
+            <button data-sim="c2" class="${this._sim.c2?'on':''}">C2 actif</button>
+            <button data-sim="electric" class="${this._sim.electric?'on':''}">Résistance</button>
+            <button data-sim="defrost" class="${this._sim.defrost?'on':''}">Dégivrage</button>
+            <button data-sim="cooling" class="${this._sim.cooling?'on':''}">Froid</button>
+            <button data-sim="reset" class="reset">Reset</button>
+          </div>` : ''}
         </ha-card>`;
+      this.shadowRoot.querySelectorAll('[data-sim]').forEach(el => {
+        el.addEventListener('click', () => {
+          const key = el.dataset.sim;
+          if (key === 'reset') this._sim = {};
+          else this._sim = {...this._sim, [key]: !this._sim[key]};
+          this._signatureCache = '';
+          this._render();
+        });
+      });
       this.shadowRoot.querySelectorAll('[data-more-info]').forEach(el => {
         el.addEventListener('click', () => {
           if (!el.dataset.moreInfo) return;
@@ -358,6 +404,12 @@
         .status-line .ok{color:var(--green)}
         .legend{display:none}
         .legend span{display:inline-flex;align-items:center;gap:4px}.legend i{width:11px;height:2px;border-radius:2px}.legend .hot{background:var(--hot)}.legend .cold{background:var(--cold)}.legend .live{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+        .debug-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px 12px;border-top:1px solid #ffffff14;background:#050b10;z-index:5;position:relative}
+        .debug-title{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#7f9bad;margin-right:4px}
+        .debug-bar button{border:1px solid #345064;background:#0b1922;color:#b9cfdd;border-radius:99px;padding:4px 8px;font:inherit;font-size:8px;cursor:pointer}
+        .debug-bar button:hover{border-color:#5ab6d6;color:#eaf8ff}
+        .debug-bar button.on{border-color:#3d9b7d;background:#102a22;color:#8df0c8;box-shadow:0 0 8px #3d9b7d44}
+        .debug-bar button.reset{border-color:#6d4a3c;color:#d9b09c}
         .fan-motion{position:absolute;left:9.2%;top:37%;width:17%;aspect-ratio:1;border-radius:50%;z-index:2;pointer-events:none;background:conic-gradient(from 0deg,#bdefff00,#bdefff22,#bdefff00,#bdefff1a,#bdefff00);filter:blur(8px);mix-blend-mode:screen;animation:fanSpin var(--fan-duration) linear infinite;mask-image:radial-gradient(circle,#000 0 38%,transparent 70%)}
         .tank-glow{position:absolute;left:63.5%;top:20%;width:17%;height:56%;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 55%,#ff7a3f55,transparent 68%);filter:blur(17px);animation:tankPulse 2.6s ease-in-out infinite}
         .tank-glow.electric{background:radial-gradient(ellipse at 50% 55%,#ffd45c66,transparent 68%)}
