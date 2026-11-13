@@ -869,59 +869,118 @@ class PacSynoptiqueCard extends HTMLElement {
     this._activityLoading=false;
     this._render();
   }
+  _energySplitIds(){
+    const states=this._hass?.states||{};
+    const find=(configured,suffix)=>{
+      if(configured && states[configured]) return configured;
+      return Object.keys(states).find(id=>id.startsWith('sensor.') && id.endsWith(suffix))||null;
+    };
+    return {
+      circuits:find(this._config?.energy_circuits_entity,'_c1_c2_energie_consommee'),
+      ecs:find(this._config?.energy_ecs_entity,'_ecs_energie_consommee')
+    };
+  }
   _ensureGraphs(){
     if(this._graphsLoading || Date.now()-this._graphsLast<300000) return;
-    const energy=this._config?.energy_entity ||
-      (this._hass?.states?.['sensor.phase_a_diff_pac_energy']?'sensor.phase_a_diff_pac_energy':this._ids?.energy);
-    if(!energy){
-      this._graphs={error:'Entité de consommation indisponible',rows:[]};
+    const ids=this._energySplitIds();
+    if(!ids.circuits && !ids.ecs){
+      this._graphs={error:'Capteurs « C1+C2 / ECS - Énergie consommée » introuvables (intégration ≥ 1.5.42).'};
       return;
     }
     this._graphsLoading=true;
     this._graphsLast=Date.now();
-    this._loadGraphs(energy);
+    this._loadGraphs(ids);
   }
-  async _loadGraphs(entity){
+  async _loadGraphs(ids){
     try{
       if(typeof this._hass.callWS!=='function') throw new Error('statistiques indisponibles');
-      const end=new Date();
-      const start=new Date();
-      start.setDate(start.getDate()-9);
-      start.setHours(0,0,0,0);
-      const result=await this._hass.callWS({
+      const statIds=[ids.circuits,ids.ecs].filter(Boolean);
+      const now=new Date();
+      const today=new Date(now); today.setHours(0,0,0,0);
+      const weekStart=new Date(today); weekStart.setDate(weekStart.getDate()-6);
+      const query=(start,period)=>this._hass.callWS({
         type:'recorder/statistics_during_period',
-        start_time:start.toISOString(),
-        end_time:end.toISOString(),
-        statistic_ids:[entity],
-        period:'day',
-        types:['change']
+        start_time:start.toISOString(),end_time:now.toISOString(),
+        statistic_ids:statIds,period,types:['change']
       });
-      const rows=(result?.[entity]||[]).map(row=>({
-        start:new Date(row.start),
-        value:Number(row.change)
-      })).filter(row=>!Number.isNaN(row.start.getTime()) && Number.isFinite(row.value)).slice(-10);
-      this._graphs={entity,rows,error:rows.length?null:'Aucune statistique quotidienne disponible'};
+      const [daily,hourly]=await Promise.all([query(weekStart,'day'),query(today,'hour')]);
+      const dayKey=d=>`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+      const fill=(result,buckets,keyOf)=>{
+        for(const [series,id] of [['circuits',ids.circuits],['ecs',ids.ecs]]){
+          for(const row of (id&&result?.[id])||[]){
+            const start=new Date(row.start);
+            const value=Number(row.change);
+            const bucket=buckets.get(keyOf(start));
+            if(bucket && Number.isFinite(value)) bucket[series]+=Math.max(0,value);
+          }
+        }
+      };
+      const days=new Map();
+      for(let i=0;i<7;i++){
+        const d=new Date(weekStart); d.setDate(d.getDate()+i);
+        days.set(dayKey(d),{start:d,circuits:0,ecs:0,current:i===6});
+      }
+      fill(daily,days,dayKey);
+      const hours=new Map();
+      for(let h=0;h<24;h++){
+        const d=new Date(today); d.setHours(h);
+        hours.set(h,{start:d,circuits:0,ecs:0,current:h===now.getHours(),future:h>now.getHours()});
+      }
+      fill(hourly,hours,d=>dayKey(d)===dayKey(today)?d.getHours():-1);
+      this._graphs={ids,days:[...days.values()],hours:[...hours.values()],updated:now};
     }catch(err){
-      this._graphs={error:'Statistiques indisponibles : '+String(err?.message||err),rows:[]};
+      this._graphs={error:'Statistiques indisponibles : '+String(err?.message||err)};
     }
     this._graphsLoading=false;
     this._render();
+  }
+  _energyChartHtml(title,subtitle,rows,kind){
+    const fmt=(v,d=1)=>v.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
+    const sum=key=>rows.reduce((t,r)=>t+r[key],0);
+    const circuits=sum('circuits'), ecs=sum('ecs'), total=circuits+ecs;
+    const maximum=Math.max(0.001,...rows.map(r=>r.circuits+r.ecs));
+    const digits=kind==='hour'?2:1;
+    const bars=rows.map((r,index)=>{
+      const t=r.circuits+r.ecs;
+      const label=kind==='hour'
+        ? (index%3===0?`${String(r.start.getHours()).padStart(2,'0')}h`:'')
+        : r.start.toLocaleDateString('fr-FR',{weekday:'short'}).replace('.','');
+      const sub=kind==='hour'?'':r.start.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+      const when=kind==='hour'
+        ? `${String(r.start.getHours()).padStart(2,'0')}:00–${String(r.start.getHours()+1).padStart(2,'0')}:00`
+        : r.start.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+      const tip=`${when}\nC1+C2 : ${fmt(r.circuits,3)} kWh\nECS : ${fmt(r.ecs,3)} kWh\nTotal : ${fmt(t,3)} kWh`;
+      const value=kind==='day' && t>0?`<strong>${fmt(t,digits)}</strong>`:'<strong></strong>';
+      const cls=['eg-col',r.current?'is-now':'',r.future?'is-future':''].filter(Boolean).join(' ');
+      return `<div class="${cls}" title="${html(tip)}">${value}<div class="eg-track">`+
+        `<div class="eg-seg eg-ecs" style="height:${(r.ecs/maximum*100).toFixed(2)}%"></div>`+
+        `<div class="eg-seg eg-circ" style="height:${(r.circuits/maximum*100).toFixed(2)}%"></div>`+
+        `</div><span>${html(label)}${sub?`<small>${html(sub)}</small>`:''}</span></div>`;
+    }).join('');
+    const share=total>0?Math.round(ecs/total*100):0;
+    return `<section class="eg-card eg-${kind}">
+      <header class="eg-head">
+        <div><span class="eg-title">${html(title)}</span><small>${html(subtitle)}</small></div>
+        <div class="eg-total"><b>${fmt(total,digits)}</b><small>kWh</small></div>
+      </header>
+      <div class="eg-legend">
+        <span><i class="eg-dot eg-circ"></i>C1+C2 <b>${fmt(circuits,digits)}</b></span>
+        <span><i class="eg-dot eg-ecs"></i>ECS <b>${fmt(ecs,digits)}</b></span>
+        <span class="eg-share"><span class="eg-share-bar"><span style="width:${100-share}%"></span></span>${100-share}% / ${share}%</span>
+      </div>
+      <div class="eg-plot"><div class="eg-grid" style="--n:${rows.length}">${bars}</div></div>
+    </section>`;
   }
   _graphsHtml(){
     const graph=this._graphs;
     if(graph===null) return '<div class="graph-note">Chargement des consommations…</div>';
     if(graph.error) return `<div class="graph-note">${html(graph.error)}</div>`;
-    if(!graph.rows.length) return '<div class="graph-note">Aucune donnée sur 10 jours.</div>';
-    const maximum=Math.max(0.001,...graph.rows.map(row=>row.value));
-    const unit=this._hass?.states?.[graph.entity]?.attributes?.unit_of_measurement||'kWh';
-    const bars=graph.rows.map(row=>{
-      const value=Math.max(0,row.value);
-      const height=Math.max(3,Math.round(value/maximum*100));
-      const day=row.start.toLocaleDateString('fr-FR',{weekday:'short'});
-      const date=row.start.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
-      return `<div class="graph-col" title="${html(date)} : ${html(value.toFixed(2))} ${html(unit)}"><strong>${html(value.toFixed(2))}</strong><div class="graph-track"><div class="graph-bar" style="height:${height}%"></div></div><span>${html(day)}<small>${html(date)}</small></span></div>`;
-    }).join('');
-    return `<div class="graph-head"><span>Consommation quotidienne</span><small>10 jours · ${html(unit)}</small></div><div class="graph-grid">${bars}</div>`;
+    const now=graph.updated.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="eg-wrap">
+      ${this._energyChartHtml('Consommation quotidienne','7 derniers jours',graph.days,'day')}
+      ${this._energyChartHtml('Aujourd’hui heure par heure',`mise à jour ${now}`,graph.hours,'hour')}
+      <p class="eg-note">Compteur global réparti par l’intégration : ECS pendant une charge ECS (8003), sinon C1+C2.</p>
+    </div>`;
   }
   _curveHtml(){
     const read=circuit=>{
@@ -1547,16 +1606,48 @@ class PacSynoptiqueCard extends HTMLElement {
       .diag-group h4{margin:0 0 10px;font-size:12px;color:var(--text)}
       .diag-activity-panel .activity{margin:0}
       .diag-activity-panel .session-history{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
-      .graph-panel{margin-top:8px;padding:12px 13px 8px;background:var(--surface);border:1px solid var(--panel-line);border-radius:12px}
-      .graph-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600}
-      .graph-head small{font-size:11px;font-weight:400;opacity:.65}
-      .graph-grid{display:grid;grid-template-columns:repeat(10,minmax(34px,1fr));gap:8px;align-items:end;height:190px;margin-top:12px;overflow-x:auto}
-      .graph-col{display:grid;grid-template-rows:auto 1fr auto;gap:5px;min-width:0;height:100%;text-align:center}
-      .graph-col>strong{font-size:10px;font-weight:600;white-space:nowrap}
-      .graph-track{display:flex;align-items:flex-end;height:100%;min-height:90px;border-radius:6px;background:var(--secondary-background-color);overflow:hidden}
-      .graph-bar{width:100%;min-height:3px;border-radius:5px 5px 0 0;background:#ff9800}
-      .graph-col>span{display:grid;gap:1px;font-size:10px;color:var(--sub);line-height:1.15}
-      .graph-col small{font-size:9px;opacity:.65}
+      .graph-panel{margin-top:8px;padding:0;background:none;border:0}
+      .eg-wrap{display:grid;gap:10px}
+      .eg-card{--eg-circ:#ff7a3d;--eg-circ2:#ffb347;--eg-ecs:#2f8cff;--eg-ecs2:#5fd0ff;
+        padding:13px 14px 10px;border-radius:14px;border:1px solid var(--panel-line);
+        background:radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--eg-circ) 9%,transparent),transparent 60%),
+          radial-gradient(120% 90% at 100% 0%,color-mix(in srgb,var(--eg-ecs) 9%,transparent),transparent 60%),
+          linear-gradient(165deg,var(--surface),var(--surface2))}
+      .eg-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+      .eg-head>div:first-child{display:grid;gap:2px}
+      .eg-title{font-size:13px;font-weight:700;letter-spacing:.01em}
+      .eg-head small{font-size:11px;color:var(--sub)}
+      .eg-total{display:flex;align-items:baseline;gap:3px;white-space:nowrap}
+      .eg-total b{font-size:22px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;
+        background:linear-gradient(90deg,var(--eg-circ),var(--eg-ecs));-webkit-background-clip:text;background-clip:text;color:transparent}
+      .eg-total small{font-size:11px;color:var(--sub)}
+      .eg-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:9px 0 4px;font-size:11px;color:var(--sub)}
+      .eg-legend b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;margin-left:3px}
+      .eg-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+      .eg-dot.eg-circ{background:linear-gradient(180deg,var(--eg-circ2),var(--eg-circ))}
+      .eg-dot.eg-ecs{background:linear-gradient(180deg,var(--eg-ecs2),var(--eg-ecs))}
+      .eg-share{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+      .eg-share-bar{display:inline-block;width:54px;height:6px;border-radius:3px;overflow:hidden;background:linear-gradient(90deg,var(--eg-ecs2),var(--eg-ecs))}
+      .eg-share-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--eg-circ),var(--eg-circ2))}
+      .eg-plot{position:relative;margin-top:6px;padding-top:4px;
+        background:repeating-linear-gradient(to top,transparent 0,transparent calc(25% - 1px),color-mix(in srgb,var(--panel-line) 55%,transparent) calc(25% - 1px),color-mix(in srgb,var(--panel-line) 55%,transparent) 25%) 0 0/100% calc(100% - 30px) no-repeat}
+      .eg-grid{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px;align-items:end;height:170px}
+      .eg-hour .eg-grid{gap:3px;height:140px}
+      .eg-col{display:grid;grid-template-rows:14px 1fr 30px;gap:3px;height:100%;min-width:0;text-align:center;cursor:default}
+      .eg-col>strong{font-size:10px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;align-self:end}
+      .eg-track{display:flex;flex-direction:column-reverse;justify-content:flex-start;height:100%;border-radius:7px 7px 3px 3px;overflow:hidden;
+        background:color-mix(in srgb,var(--text) 4%,transparent);transition:transform .15s ease}
+      .eg-seg{width:100%;flex:none;transition:height .6s cubic-bezier(.2,.8,.2,1)}
+      .eg-seg.eg-circ{background:linear-gradient(180deg,var(--eg-circ2),var(--eg-circ))}
+      .eg-seg.eg-ecs{background:linear-gradient(180deg,var(--eg-ecs2),var(--eg-ecs))}
+      .eg-track .eg-seg:last-child{border-radius:6px 6px 0 0}
+      .eg-col:hover .eg-track{transform:scaleY(1.02);box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 18%,transparent)}
+      .eg-col.is-now .eg-track{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--eg-circ) 70%,var(--eg-ecs)),0 6px 16px -6px color-mix(in srgb,var(--eg-circ) 55%,transparent)}
+      .eg-col.is-future .eg-track{background:repeating-linear-gradient(135deg,transparent 0 3px,color-mix(in srgb,var(--text) 5%,transparent) 3px 6px)}
+      .eg-col>span{display:grid;gap:1px;font-size:10px;color:var(--sub);line-height:1.15;text-transform:capitalize;white-space:nowrap}
+      .eg-col.is-now>span{color:var(--text);font-weight:700}
+      .eg-col small{font-size:9px;opacity:.7}
+      .eg-note{margin:0;font-size:10.5px;color:var(--sub);opacity:.85}
       .graph-note{padding:12px 0;font-size:12px;opacity:.7}
       .curve-panel{margin-top:8px;padding:12px 13px 8px;background:var(--surface);border:1px solid var(--panel-line);border-radius:12px}
       .curve-head{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:600}

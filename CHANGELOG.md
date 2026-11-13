@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.43 — Graphes énergie C1+C2 / ECS
+
+- Le panneau **Graphes** de la carte synoptique remplace la barre unique du
+  compteur global (10 jours) par deux graphiques empilés C1+C2 / ECS issus des
+  capteurs `…_c1_c2_energie_consommee` et `…_ecs_energie_consommee` :
+  - consommation quotidienne sur 7 jours (jour courant mis en évidence) ;
+  - aujourd'hui heure par heure (heures à venir hachurées).
+- Totaux de période, répartition C1+C2 / ECS et infobulle détaillée par barre.
+- Options facultatives `energy_circuits_entity` / `energy_ecs_entity`.
+- Manifest **1.5.43**.
+
 ## 1.5.42 — Énergie précise intégrée et accès BSB-LAN sérialisé
 
 - Nouveaux capteurs intégrés **ECS - Énergie consommée** et
