@@ -437,6 +437,9 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 self._global_reference = float(attrs.get("energie_globale_reference_kwh"))
             except (TypeError, ValueError):
                 self._global_reference = None
+            if self._global_reference is None:
+                # Do not carry historical sessions into a counter that starts here.
+                self._energy_total = 0.0
             if not self._history and self._last is not None:
                 try:
                     self._history = [
