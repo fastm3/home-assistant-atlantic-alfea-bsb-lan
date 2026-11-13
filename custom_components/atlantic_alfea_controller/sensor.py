@@ -349,6 +349,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
     _attr_native_unit_of_measurement = "COP"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 2
+    _REFERENCE_VERSION = 1
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -440,6 +441,9 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             if self._global_reference is None:
                 # Do not carry historical sessions into a counter that starts here.
                 self._energy_total = 0.0
+            if attrs.get("reference_version") != self._REFERENCE_VERSION:
+                self._energy_total = 0.0
+                self._global_reference = None
             if not self._history and self._last is not None:
                 try:
                     self._history = [
@@ -623,6 +627,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             attrs["energie_circuits_depuis_reference_kwh"] = (
                 round(circuits_total, 3) if circuits_total is not None else None
             )
+            attrs["reference_version"] = self._REFERENCE_VERSION
             self._attr_extra_state_attributes = attrs
         else:
             attrs = dict(
@@ -641,6 +646,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             attrs["energie_circuits_depuis_reference_kwh"] = (
                 round(circuits_total, 3) if circuits_total is not None else None
             )
+            attrs["reference_version"] = self._REFERENCE_VERSION
             self._attr_extra_state_attributes = attrs
         self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
 
