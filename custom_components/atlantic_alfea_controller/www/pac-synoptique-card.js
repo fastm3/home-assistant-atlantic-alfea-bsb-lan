@@ -1392,14 +1392,10 @@ class PacSynoptiqueCard extends HTMLElement {
       .output-card.heat{--flow-color:var(--red);border-left-color:var(--red)}
       .output-card.cool{--flow-color:var(--blue);border-left-color:var(--blue)}
       .output-card.electric{--flow-color:var(--amber);border-left-color:var(--amber)}
-      .output-card.heat:after,.output-card.cool:after,.output-card.electric:after{content:'';position:absolute;left:-23px;top:50%;width:23px;height:4px;margin-top:-2px;
-        background:var(--flow-color);
-        background-image:repeating-linear-gradient(90deg,color-mix(in srgb,var(--flow-color) 18%,#fff) 0 7px,transparent 7px 11px);
-        background-size:22px 4px;box-shadow:0 0 7px var(--flow-color);filter:drop-shadow(0 0 4px var(--flow-color));
-        animation:branchFlow var(--flow-duration,1.15s) linear infinite,branchPulse var(--flow-duration,1.15s) ease-in-out infinite}
-      .output-card[aria-label="Eau chaude sanitaire"]:after{display:none!important;content:none!important;animation:none!important}
-      @keyframes branchFlow{to{background-position:22px 0}}
-      @keyframes branchPulse{0%,100%{opacity:.45}50%{opacity:1}}
+      /* La petite barre de branchement animée est supprimée pour tous les
+         émetteurs (C1, C2, ECS) : elle figurait au-dessus du tuyau principal
+         et laissait croire à une circulation alors que le circuit était idle. */
+      .output-card:after{display:none!important;content:none!important;animation:none!important}
       .out-top{display:flex;align-items:center;gap:11px}
       .out-ico{flex:0 0 36px;width:36px;height:36px;color:var(--icon);display:grid;place-items:center}
       .symbol{width:29px;height:29px;display:block}
