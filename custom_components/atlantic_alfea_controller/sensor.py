@@ -367,6 +367,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
         self._session: dict | None = None
         self._last: dict | None = None
         self._history: list[dict] = []
+        self._energy_total = 0.0
         self._attr_native_value = None
         self._attr_unique_id = f"{entry.entry_id}_ecs_cop_session"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
@@ -427,6 +428,14 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 self._history = [
                     dict(item) for item in raw_history if isinstance(item, dict)
                 ][-4:]
+            try:
+                self._energy_total = float(attrs.get("energie_totale_kwh") or 0)
+            except (TypeError, ValueError):
+                self._energy_total = 0.0
+            if self._energy_total == 0 and self._history:
+                self._energy_total = sum(
+                    float(item.get("e_elec_kwh") or 0) for item in self._history
+                )
             if not self._history and self._last is not None:
                 try:
                     self._history = [
@@ -559,6 +568,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                     "cop": result["cop"],
                 }
             )
+            self._energy_total += float(result["e_elec_kwh"] or 0)
             self._history = self._history[-4:]
         else:
             attrs["cop"] = None
@@ -593,6 +603,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             if self._last is not None:
                 attrs["derniere_session_cop"] = self._last.get("cop")
             attrs["sessions"] = list(self._history)
+            attrs["energie_totale_kwh"] = round(self._energy_total, 3)
             self._attr_extra_state_attributes = attrs
         else:
             attrs = dict(
@@ -604,6 +615,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 }
             )
             attrs["sessions"] = list(self._history)
+            attrs["energie_totale_kwh"] = round(self._energy_total, 3)
             self._attr_extra_state_attributes = attrs
         self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
 

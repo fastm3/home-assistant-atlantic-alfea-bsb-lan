@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.40 — Énergie ECS basée sur le compteur global
+
+- Les compteurs PAC 3124/3125/3126, arrondis au kWh, ne sont plus utilisés
+  pour les bilans énergétiques.
+- L'énergie ECS cumulée est calculée à partir des sessions ECS et du compteur
+  d'énergie global configuré.
+- Le capteur C1+C2 se déduit du compteur global moins l'énergie ECS.
+- Manifest **1.5.40**.
+
 ## 1.5.39 — Énergie ECS et circuits
 
 - Ajout de l'énergie électrique consommée par l'ECS (3125).
