@@ -32,6 +32,7 @@ from .ecs_cop import compute_ecs_cop
 from .helpers import clean_bsb_status, effective_season, is_protection, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
 from .runtime import AlfeaRuntimeMonitor
 from .regime_api import valid_base_url
+from .temperatures_json import temperature_value
 from .weekly_programs import PROGRAMS
 
 
@@ -747,6 +748,11 @@ async def async_setup_entry(
 
 class AlfeaProxySensor(SensorEntity):
     _attr_has_entity_name = True
+    _JSON_TEMPERATURES = {
+        "room_temp_c1": 8740,
+        "room_temp_c2": 8770,
+        "dhw_temperature": 8830,
+    }
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, desc: SensorDescription) -> None:
         self.hass = hass
@@ -765,10 +771,27 @@ class AlfeaProxySensor(SensorEntity):
 
     @property
     def native_value(self):
+        parameter = self._JSON_TEMPERATURES.get(self._desc.key)
+        if parameter is not None:
+            fresh = temperature_value(self.hass, self._entry, parameter)
+            if fresh is not None:
+                return fresh
         if self._desc.numeric:
             return state_float(self.hass, self._source)
         raw = state_value(self.hass, self._source)
         return clean_bsb_status(raw) if self._desc.clean_bsb_code else raw
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh immediately when the direct JSON temperature poll lands."""
+        await super().async_added_to_hass()
+        if self._desc.key in self._JSON_TEMPERATURES:
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass,
+                    f"{DOMAIN}_temperatures_{self._entry.entry_id}",
+                    self.async_write_ha_state,
+                )
+            )
 
     @property
     def extra_state_attributes(self) -> dict[str, str | int] | None:
