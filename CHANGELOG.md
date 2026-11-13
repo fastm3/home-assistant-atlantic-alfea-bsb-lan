@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.39 — Énergie ECS et circuits
+
+- Ajout de l'énergie électrique consommée par l'ECS (3125).
+- Ajout des énergies électriques chauffage (3124) et refroidissement (3126)
+  des circuits C1/C2.
+- Un capteur combiné C1+C2 pourra être créé à partir de ces deux compteurs.
+- Manifest **1.5.39**.
+
 ## 1.5.38 — Capteurs refroidissement et température extérieure atténuée
 
 - Ajout du statut de refroidissement C2 (10062).
