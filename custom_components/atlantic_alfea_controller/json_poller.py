@@ -49,7 +49,7 @@ async def async_start_json_polling(hass: HomeAssistant, entry: ConfigEntry):
             try:
                 payload = await client.get_jq(POLL_PARAMETERS)
             except Exception as err:  # noqa: BLE001 - keep previous entities usable
-                _LOGGER.warning("Lecture JSON BSB-LAN %s impossible : %s", POLL_PARAMETERS, err)
+                _LOGGER.warning("Lecture JSON BSB-LAN %s impossible : %r", POLL_PARAMETERS, err)
             if not active:
                 return
             temperatures[entry.entry_id] = parse_temperatures_response(payload)

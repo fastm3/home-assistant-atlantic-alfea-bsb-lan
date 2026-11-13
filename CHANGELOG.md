@@ -15,6 +15,8 @@
 - Correctif : les capteurs proxy définissaient deux `async_added_to_hass`, la
   seconde masquait l'abonnement au poll JSON ; 8740/8770/8830 se rafraîchissent
   désormais dès la réponse JSON.
+- Suppression définitive des capteurs PAC 3124/3125/3126 (recréés puis supprimés
+  à chaque démarrage) et de leur poll MQTT.
 - Manifest : `iot_class` → `local_polling`, version **1.5.42**.
 
 ## 1.5.41 — Compteurs énergie depuis une référence

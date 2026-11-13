@@ -79,7 +79,7 @@ async def async_start_fault_history(hass: HomeAssistant, entry: ConfigEntry):
                 snapshot = {"status": "Chargé", "entries": entries,
                             "updated": dt_util.now().isoformat(timespec="seconds")}
             except Exception as err:
-                _LOGGER.warning("Lecture historique défauts BSB-LAN impossible : %s", err)
+                _LOGGER.warning("Lecture historique défauts BSB-LAN impossible : %r", err)
                 snapshot = {"status": "Indisponible", "entries": [], "updated": None}
             if active:
                 cache[entry.entry_id] = snapshot
