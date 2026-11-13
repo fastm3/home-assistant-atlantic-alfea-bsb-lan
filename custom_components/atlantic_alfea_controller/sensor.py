@@ -30,6 +30,7 @@ from .const import (
 )
 from .ecs_cop import compute_ecs_cop
 from .helpers import clean_bsb_status, effective_season, is_protection, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
+from .parameters import SPEC_BY_KEY
 from .runtime import AlfeaRuntimeMonitor
 from .regime_api import valid_base_url
 from .temperatures_json import temperature_value
@@ -727,11 +728,14 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    entities: list[SensorEntity] = [
-        AlfeaProxySensor(hass, entry, desc)
-        for desc in DESCRIPTIONS
-        if entry.data.get(desc.key)
-    ]
+    entities: list[SensorEntity] = []
+    for desc in DESCRIPTIONS:
+        spec = SPEC_BY_KEY.get(desc.key)
+        source = entry.data.get(desc.key)
+        if not source and spec is not None:
+            source = source_entity(hass, entry, desc.key, spec.parameter)
+        if source:
+            entities.append(AlfeaProxySensor(hass, entry, desc, source))
     entities.extend(AlfeaCircuitSeasonStateSensor(hass, entry, circuit) for circuit in (1, 2))
     entities.append(AlfeaV3VCommandSensor(hass, entry))
     entities.extend(AlfeaWeeklyProgramSensor(hass, entry, key) for key in PROGRAMS)
@@ -764,11 +768,11 @@ class AlfeaProxySensor(SensorEntity):
         "dhw_temperature": 8830,
     }
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, desc: SensorDescription) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, desc: SensorDescription, source: str | None = None) -> None:
         self.hass = hass
         self._entry = entry
         self._desc = desc
-        self._source = entry.data[desc.key]
+        self._source = source or entry.data[desc.key]
         self._attr_name = desc.name
         self._attr_unique_id = f"{entry.entry_id}_{desc.key}"
         self._attr_icon = desc.icon
