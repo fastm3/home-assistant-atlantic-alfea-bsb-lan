@@ -368,6 +368,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
         self._last: dict | None = None
         self._history: list[dict] = []
         self._energy_total = 0.0
+        self._global_reference: float | None = None
         self._attr_native_value = None
         self._attr_unique_id = f"{entry.entry_id}_ecs_cop_session"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
@@ -432,10 +433,10 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 self._energy_total = float(attrs.get("energie_totale_kwh") or 0)
             except (TypeError, ValueError):
                 self._energy_total = 0.0
-            if self._energy_total == 0 and self._history:
-                self._energy_total = sum(
-                    float(item.get("e_elec_kwh") or 0) for item in self._history
-                )
+            try:
+                self._global_reference = float(attrs.get("energie_globale_reference_kwh"))
+            except (TypeError, ValueError):
+                self._global_reference = None
             if not self._history and self._last is not None:
                 try:
                     self._history = [
@@ -579,6 +580,15 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
         self._publish()
 
     def _publish(self) -> None:
+        current_energy = self._energy()
+        if self._global_reference is None and current_energy is not None:
+            self._global_reference = current_energy
+        ecs_total = self._energy_total
+        if self._session is not None and current_energy is not None:
+            ecs_total += max(0.0, current_energy - self._session["start_energy"])
+        circuits_total = None
+        if current_energy is not None and self._global_reference is not None:
+            circuits_total = max(0.0, current_energy - self._global_reference - ecs_total)
         if self._session is not None:
             session = self._session
             temp = self._temp()
@@ -604,6 +614,12 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 attrs["derniere_session_cop"] = self._last.get("cop")
             attrs["sessions"] = list(self._history)
             attrs["energie_totale_kwh"] = round(self._energy_total, 3)
+            attrs["energie_globale_reference_kwh"] = (
+                round(self._global_reference, 3) if self._global_reference is not None else None
+            )
+            attrs["energie_circuits_depuis_reference_kwh"] = (
+                round(circuits_total, 3) if circuits_total is not None else None
+            )
             self._attr_extra_state_attributes = attrs
         else:
             attrs = dict(
@@ -616,6 +632,12 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             )
             attrs["sessions"] = list(self._history)
             attrs["energie_totale_kwh"] = round(self._energy_total, 3)
+            attrs["energie_globale_reference_kwh"] = (
+                round(self._global_reference, 3) if self._global_reference is not None else None
+            )
+            attrs["energie_circuits_depuis_reference_kwh"] = (
+                round(circuits_total, 3) if circuits_total is not None else None
+            )
             self._attr_extra_state_attributes = attrs
         self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
 

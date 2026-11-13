@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.41 — Compteurs énergie depuis une référence
+
+- Le capteur ECS expose le cumul des sessions depuis la référence.
+- Le capteur C1+C2 expose le compteur global moins cette consommation ECS.
+- Les compteurs PAC arrondis 3124/3125/3126 ne sont plus utilisés.
+- Manifest **1.5.41**.
+
 ## 1.5.40 — Énergie ECS basée sur le compteur global
 
 - Les compteurs PAC 3124/3125/3126, arrondis au kWh, ne sont plus utilisés
