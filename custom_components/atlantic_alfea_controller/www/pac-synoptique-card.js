@@ -387,8 +387,14 @@ class PacSynoptiqueCard extends HTMLElement {
     const isCooling=action==='cooling';
     const active=isHeating||isCooling;
     const off=mode==='off'||action==='off';
+    const pump=this._b(`pump${i}`);
+    const pumpActive=pump===true && !off;
+    const flow=nvalue(this._v('flow'));
+    const targetFlow=nvalue(this._v(`heatFlowTarget${i}`)) ?? nvalue(this._v('targetFlow'));
+    const flowBelowTarget=flow!==null && targetFlow!==null && flow < targetFlow - 0.1;
+    const regulationText=`Demande circulation par régulation${flowBelowTarget?` · départ ${temp(flow)} < cible ${temp(targetFlow)}`:''}`;
     const actionText=isHeating?'Chauffe actuellement':isCooling?'Rafraîchit actuellement':off?'Arrêt':
-      (isMissing(mode)?'État indisponible':'En attente');
+      pumpActive?regulationText:(isMissing(mode)?'État indisponible':'En attente');
     const season=this._resolveMode()==='cool'?'cool':'heat';
     const regime=String(st?.attributes?.regime_consigne||this._v(`circuit${i}State`)||'');
     const reduced=/r[ée]duit|reduced|eco/i.test(regime);
@@ -397,7 +403,7 @@ class PacSynoptiqueCard extends HTMLElement {
     const pending=setpointEntity?this._pendingTemp[setpointEntity]:undefined;
     const programmed=Number.isFinite(pending)?pending:this._v(setpointKey);
     return {
-      number:i, key, mode, action, active, off, isHeating, isCooling, actionText,
+      number:i, key, mode, action, active, off, isHeating, isCooling, actionText, pumpActive, flowBelowTarget,
       nativePreset:this._nativePreset(st,off),
       presetMode:st?.attributes?.preset_mode,
       current:st?.attributes?.current_temperature,target:st?.attributes?.temperature,
@@ -1117,9 +1123,8 @@ class PacSynoptiqueCard extends HTMLElement {
     this._ensureActivity();
     this._ensureGraphs();
     const defrost=this._b('defrost');
-    const overrun=norm(this._v('pacState')).includes('overrun');
     // La liaison frigorifique extérieur/intérieur ne doit s'animer que si le
-    // compresseur tourne réellement. L'overrun ne concerne que les circulateurs.
+    // compresseur tourne réellement. Les circulateurs gardent leur propre débit.
     const exchangerRunning=compressor===true && defrost!==true;
     // Vitesse proportionnelle à la modulation : 0 % = arrêt, 100 % = rotation rapide.
     const fanPct=Math.max(0,Math.min(100,nvalue(this._v('modulation'))??0));
@@ -1128,9 +1133,10 @@ class PacSynoptiqueCard extends HTMLElement {
     // Côté gauche = échangeur froid, côté droit = échangeur chaud (inversés en froid).
     const inlinkTone=mode==='cool'?'heat':'cool';
     const outlinkTone=mode==='cool'?'cool':'heat';
-    // Pendant l'overrun, le circulateur peut encore tourner alors que hvac_action est idle.
-    const c1Flow=c1.active||(overrun&&c1.pump===true&&!c1.off);
-    const c2Flow=c2.active||(overrun&&c2.pump===true&&!c2.off);
+    // Un circulateur actif anime son tuyau, même sans demande d'ambiance :
+    // la régulation hydraulique peut maintenir la circulation.
+    const c1Flow=c1.active||(c1.pump===true&&!c1.off);
+    const c2Flow=c2.active||(c2.pump===true&&!c2.off);
     const ecsFlow=ecs.viaPac;
     const outlinkActive=c1Flow||c2Flow||ecsFlow;
     const fanAnimated=compressor===true && defrost!==true && fanPct>0;
