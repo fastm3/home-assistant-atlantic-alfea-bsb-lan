@@ -29,7 +29,7 @@ from .const import (
     MODE_HEAT,
 )
 from .ecs_cop import compute_ecs_cop
-from .helpers import clean_bsb_status, effective_season, is_protection, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
+from .helpers import clean_bsb_status, effective_season, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
 from .parameters import SPEC_BY_KEY
 from .runtime import AlfeaRuntimeMonitor
 from .regime_api import valid_base_url

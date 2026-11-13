@@ -332,8 +332,6 @@ class AlfeaCircuitClimate(ClimateEntity):
         if circuit_state is not None and status_is_blocked_or_idle(circuit_state):
             return HVACAction.IDLE
 
-        pump_parameter = 9031 if self._circuit == 1 else 8760
-        pump_source = self._source(f"circuit_pump_c{self._circuit}", pump_parameter)
         pump_on = circuit_pump_is_on(self.hass, self._entry, self._circuit)
         dhw_pump = state_is_on(self.hass, self._source("dhw_pump", 8820))
         if dhw_pump is True:
