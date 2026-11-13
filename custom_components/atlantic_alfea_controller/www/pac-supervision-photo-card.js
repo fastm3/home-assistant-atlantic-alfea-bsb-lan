@@ -228,7 +228,8 @@
         <ha-card>
           <div class="scene ${modeTone} ${m.compressorOn?'running':''}" style="background-image:url('${bg}')">
             <div class="shade"></div>
-            ${m.compressorOn?`<div class="fan-motion" style="--fan-duration:${fanDuration}s;${spotStyle('fan')}"></div>`:''}
+            ${m.compressorOn && !this._config.fan_overlay ?`<div class="fan-motion" style="--fan-duration:${fanDuration}s;${spotStyle('fan')}"></div>`:''}
+            ${this._config.fan_overlay && m.compressorOn ? `<div class="fan-rotor" style="--fan-duration:${fanDuration}s;${spotStyle('fan')}"><svg viewBox="0 0 200 200" aria-hidden="true"><defs><linearGradient id="fanBlade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4b5962"/><stop offset=".5" stop-color="#141c22"/><stop offset="1" stop-color="#71818a"/></linearGradient></defs><g fill="url(#fanBlade)"><path d="M100 100 C55 94 22 67 32 36 C43 3 82 32 100 100Z"/><path d="M100 100 C106 55 133 22 164 32 C197 43 168 82 100 100Z"/><path d="M100 100 C94 145 67 178 36 168 C3 157 32 118 100 100Z"/></g><circle cx="100" cy="100" r="16" fill="#aebbc2"/><circle cx="100" cy="100" r="10" fill="#26323a"/></svg></div><div class="fan-grille" style="${spotStyle('fan')}"></div>` : ''}
             ${m.ecsActive?`<div class="tank-glow ${m.ecsElectric?'electric':''}" style="${spotStyle('tank')}"></div>`:''}
             ${m.c1Demand?`<div class="zone-glow c1 ${m.cooling?'cold':''}" style="${spotStyle('c1')}"></div>`:''}
             ${m.c2Demand?`<div class="zone-glow c2 ${m.cooling?'cold':''}" style="${spotStyle('c2')}"></div>`:''}
@@ -423,6 +424,13 @@
         .debug-bar button.on{border-color:#3d9b7d;background:#102a22;color:#8df0c8;box-shadow:0 0 8px #3d9b7d44}
         .debug-bar button.reset{border-color:#6d4a3c;color:#d9b09c}
         .fan-motion{position:absolute;left:9.2%;top:37%;width:17%;aspect-ratio:1;border-radius:50%;z-index:2;pointer-events:none;background:conic-gradient(from 0deg,#bdefff00,#bdefff22,#bdefff00,#bdefff1a,#bdefff00);filter:blur(8px);mix-blend-mode:screen;animation:fanSpin var(--fan-duration) linear infinite;mask-image:radial-gradient(circle,#000 0 38%,transparent 70%)}
+        .fan-rotor{position:absolute;aspect-ratio:1;border-radius:50%;overflow:hidden;z-index:2;pointer-events:none;opacity:.88;animation:fanSpin var(--fan-duration) linear infinite;filter:drop-shadow(0 2px 7px #0008)}
+        .fan-rotor svg{display:block;width:100%;height:100%}
+        .fan-grille{position:absolute;aspect-ratio:1;border-radius:50%;z-index:2;pointer-events:none;opacity:.32;background:
+          repeating-linear-gradient(0deg,transparent 0 8px,rgba(214,224,230,.8) 8px 9px),
+          repeating-linear-gradient(90deg,transparent 0 8px,rgba(214,224,230,.8) 8px 9px);
+          -webkit-mask-image:radial-gradient(circle,#000 0 97%,transparent 100%);mask-image:radial-gradient(circle,#000 0 97%,transparent 100%);
+          box-shadow:inset 0 0 0 3px #8d9ba3,inset 0 0 0 5px #dbe5e9,inset 0 0 18px #0008}
         .tank-glow{position:absolute;left:63.5%;top:20%;width:17%;height:56%;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 55%,#ff7a3f55,transparent 68%);filter:blur(17px);animation:tankPulse 2.6s ease-in-out infinite}
         .tank-glow.electric{background:radial-gradient(ellipse at 50% 55%,#ffd45c66,transparent 68%)}
         .zone-glow{position:absolute;z-index:2;pointer-events:none;filter:blur(20px);opacity:.82;animation:zonePulse 2.8s ease-in-out infinite}
