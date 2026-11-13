@@ -56,6 +56,8 @@ DESCRIPTIONS = (
     SensorDescription("heat_state_c2", "C2 - Chauffage État", "mdi:radiator", numeric=False, clean_bsb_code=True, entity_category=EntityCategory.DIAGNOSTIC, enabled_default=False),
     SensorDescription("cool_state_c1", "C1 - Rafraîch. État", "mdi:snowflake", numeric=False, clean_bsb_code=True, entity_category=EntityCategory.DIAGNOSTIC, enabled_default=False),
     SensorDescription("cool_state_c2", "C2 - Rafraîch. État", "mdi:snowflake", numeric=False, clean_bsb_code=True, entity_category=EntityCategory.DIAGNOSTIC, enabled_default=False),
+    SensorDescription("cool_status_c2", "C2 - Statut refroidissement", "mdi:snowflake-alert", numeric=False, clean_bsb_code=True),
+    SensorDescription("room_temp_model_c2", "C2 - T. modèle ambiance", "mdi:thermometer-auto", SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT, "°C"),
     SensorDescription("heat_flow_target_c1", "C1 - Chauffage T. départ cible", "mdi:thermometer-chevron-up", SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT, "°C"),
     SensorDescription("heat_flow_target_c2", "C2 - Chauffage T. départ cible", "mdi:thermometer-chevron-up", SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT, "°C"),
     SensorDescription("dhw_state", "ECS - État", "mdi:water-boiler", numeric=False, clean_bsb_code=True),
@@ -122,6 +124,14 @@ DESCRIPTIONS = (
     SensorDescription(
         "outdoor_temp",
         "PAC - T. extérieure",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        unit="°C",
+    ),
+    SensorDescription(
+        "outdoor_temp_attenuated",
+        "PAC - T. extérieure atténuée",
+        "mdi:thermometer-low",
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit="°C",
