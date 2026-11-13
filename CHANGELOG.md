@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.37 — Départ par circuit et priorité ECS
+
+- Ajout de la température de départ réelle **C1 (8743)** et **C2 (8773)**
+  dans les cartes de circuit.
+- Les tuyaux C1/C2 ne sont plus animés pendant une priorité ECS, même si le
+  circulateur reste actif.
+- BSB-LAN n'expose pas la position absolue de la vanne 3/4 voies ; seules les
+  sorties d'ouverture/fermeture des vannes mélangeuses sont disponibles.
+- Manifest **1.5.37**.
+
 ## 1.5.36 — Historique PAC groupé
 
 - Les valeurs **Départ PAC**, **Retour PAC** et **Consigne départ** sont
