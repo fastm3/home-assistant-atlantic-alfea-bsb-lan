@@ -8,6 +8,8 @@
   effective, avec une petite bande morte pour éviter le clignotement.
 - Une pièce déjà à consigne reste **En attente**, même pendant la
   post-circulation.
+- Suppression de la petite barre animée de branchement devant les cartes
+  C1, C2 et ECS.
 - Manifest **1.5.33**.
 
 ## 1.5.32 — Loi d'eau, dérogation simulée et modes de circuit
