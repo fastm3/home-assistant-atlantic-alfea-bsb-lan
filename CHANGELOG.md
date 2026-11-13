@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.33 — Activité circuit corrigée
+
+- C1/C2 ne sont plus annoncés « en chauffe » ou « en froid » uniquement
+  parce que leur circulateur tourne.
+- L'activité tient compte de l'écart entre l'ambiance et la consigne
+  effective, avec une petite bande morte pour éviter le clignotement.
+- Une pièce déjà à consigne reste **En attente**, même pendant la
+  post-circulation.
+- Manifest **1.5.33**.
+
 ## 1.5.32 — Loi d'eau, dérogation simulée et modes de circuit
 
 - Nouvelle section **Loi d'eau** dans le synoptique : courbes C1/C2,

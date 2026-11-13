@@ -15,6 +15,12 @@ class PumpClimateStateTests(unittest.TestCase):
             climate,
         )
 
+    def test_pump_alone_does_not_claim_heating_at_setpoint(self):
+        climate = (ROOT / "climate.py").read_text(encoding="utf-8")
+        self.assertIn("current >= target - _DEMAND_HYSTERESIS_C", climate)
+        self.assertIn("current <= target + _DEMAND_HYSTERESIS_C", climate)
+        self.assertIn("_DEMAND_HYSTERESIS_C = 0.1", climate)
+
     def test_pumps_are_separate_and_used_for_both_seasons(self):
         climate = (ROOT / "climate.py").read_text(encoding="utf-8")
         binary = (ROOT / "binary_sensor.py").read_text(encoding="utf-8")
