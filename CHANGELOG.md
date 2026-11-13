@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.38 — Capteurs refroidissement et température extérieure atténuée
+
+- Ajout du statut de refroidissement C2 (10062).
+- Ajout de la température modèle d'ambiance C2 (8772).
+- Ajout de la température extérieure atténuée (8703).
+- Ces trois valeurs sont disponibles sous le préfixe
+  `chaufferie_atlantic_alfea_bsb_lan_`.
+- Manifest **1.5.38**.
+
 ## 1.5.37 — Départ par circuit et priorité ECS
 
 - Ajout de la température de départ réelle **C1 (8743)** et **C2 (8773)**
