@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.36 — Historique PAC groupé
+
+- Les valeurs **Départ PAC**, **Retour PAC** et **Consigne départ** sont
+  cliquables.
+- Un clic ouvre une fenêtre avec la carte historique standard Home Assistant
+  sur 24 h et les trois entités superposées.
+- Le ΔT reste affiché mais n'est pas cliquable, faute de capteur dédié.
+- Manifest **1.5.36**.
+
 ## 1.5.35 — Circulation par régulation
 
 - Quand le circulateur C1/C2 tourne sans demande d'ambiance, l'état affiche

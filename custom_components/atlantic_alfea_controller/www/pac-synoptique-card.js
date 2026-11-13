@@ -217,6 +217,7 @@ class PacSynoptiqueCard extends HTMLElement {
     this._sliderEditing=false;
     this._editor=null;
     this._history=null;
+    this._historyGroup=null;
     this._historyOpen=false;
     this._activity=null;
     this._activityLoading=false;
@@ -577,6 +578,10 @@ class PacSynoptiqueCard extends HTMLElement {
         }));
         return;
       }
+      if(action==='history-group'){
+        this._openHistoryGroup();
+        return;
+      }
       if(action==='close-history'){
         this._closeHistory();
         return;
@@ -702,12 +707,12 @@ class PacSynoptiqueCard extends HTMLElement {
       if(typeof console!=='undefined') console.warn('PAC Synoptique: commande refusée',err);
     }
   }
-  _tempLink(value,entity,label){
-    return this._valueLink(value,entity,label,html(temp(value)));
+  _tempLink(value,entity,label,group=false){
+    return this._valueLink(value,entity,label,html(temp(value)),group);
   }
-  _valueLink(value,entity,label,text){
+  _valueLink(value,entity,label,text,group=false){
     if(!entity) return `<strong>${text}</strong>`;
-    return `<strong class="temp-link" data-pac-action="history" data-entity="${html(entity)}" data-label="${html(label)}" title="Historique sur 3 h">${text}</strong>`;
+    return `<strong class="temp-link" data-pac-action="${group?'history-group':'history'}" data-entity="${html(entity)}" data-label="${html(label)}" title="Historique sur 3 h">${text}</strong>`;
   }
   _roomTempEntity(i){return this._ids?.[`roomTemp${i}`];}
   _openHistory(entity,label){
@@ -716,9 +721,43 @@ class PacSynoptiqueCard extends HTMLElement {
     this._sliderEditing=false;
     this._history={entity,label:label||entity,loading:true,points:[],error:null,
       unit:this._hass?.states?.[entity]?.attributes?.unit_of_measurement||'°C'};
+    this._historyGroup=null;
     this._historyOpen=true;
     this._render();
     this._loadHistory();
+  }
+  _openHistoryGroup(){
+    const entries=[
+      ['flow','Départ PAC'],
+      ['returnTemp','Retour PAC'],
+      ['targetFlow','Consigne départ']
+    ].map(([key,name])=>({entity:this._ids?.[key],name})).filter(item=>Boolean(item.entity));
+    if(!entries.length) return;
+    this._editor=null;
+    this._sliderEditing=false;
+    this._history=null;
+    this._historyGroup={entries};
+    this._historyOpen=true;
+    this._render();
+  }
+  async _mountHistoryGroup(){
+    const group=this._historyGroup;
+    const host=this.shadowRoot?.querySelector?.('#pac-history-group-card');
+    if(!group || !host || typeof window==='undefined' || typeof window.loadCardHelpers!=='function') return;
+    try{
+      const helpers=await window.loadCardHelpers();
+      if(this._historyGroup!==group || !this.isConnected) return;
+      const card=helpers.createCardElement({
+        type:'history-graph',
+        entities:group.entries.map(item=>({entity:item.entity,name:item.name})),
+        hours_to_show:24,
+        refresh_interval:0
+      });
+      card.hass=this._hass;
+      host.replaceChildren(card);
+    }catch(err){
+      host.textContent='Historique indisponible : '+String(err?.message||err);
+    }
   }
   async _loadHistory(){
     const current=this._history;
@@ -778,6 +817,7 @@ class PacSynoptiqueCard extends HTMLElement {
   }
   _closeHistory(){
     this._history=null;
+    this._historyGroup=null;
     this._historyOpen=false;
     this._render();
   }
@@ -1013,6 +1053,14 @@ class PacSynoptiqueCard extends HTMLElement {
   _historyValue(value,h){
     const unit=h?.unit||'°C';
     return `${decimal.format(value)} ${unit}`;
+  }
+  _historyGroupHtml(){
+    return `<div class="ctl-modal" data-pac-action="close-history">
+      <div class="ctl-modal-panel history-panel" data-pac-action="modal-panel" role="dialog" aria-modal="true" aria-label="Historique PAC">
+        <div class="ctl-modal-head"><span>Historique PAC · 24 h</span><button type="button" class="ctl-modal-close" data-pac-action="close-history" aria-label="Fermer">×</button></div>
+        <div id="pac-history-group-card" class="history-standard"></div>
+        <div class="ctl-modal-actions"><button type="button" class="ctl-btn" data-pac-action="close-history">Fermer</button></div>
+      </div></div>`;
   }
   _historySvg(h){
     const points=h.points;
@@ -2035,6 +2083,9 @@ class PacSynoptiqueCard extends HTMLElement {
       .ctl-modal-panel{width:min(360px,100%);background:var(--bg);color:var(--text);
         border:1px solid var(--panel-line);border-radius:16px;padding:16px;
         box-shadow:0 18px 50px rgba(0,0,0,.28);display:grid;gap:12px}
+      .history-panel{width:min(760px,100%)}
+      .history-standard{height:min(55vh,420px);min-height:320px;overflow:hidden}
+      .history-standard>*{height:100%}
       .ctl-modal-head{display:flex;justify-content:space-between;align-items:center;
         font-size:13px;font-weight:750;gap:10px}
       .ctl-modal-close{border:0;background:transparent;color:var(--sub);font-size:24px;line-height:1;cursor:pointer}
@@ -2090,9 +2141,9 @@ class PacSynoptiqueCard extends HTMLElement {
             </svg><span class="exch-caption">Échangeur eau<small>(intérieur)</small></span></div>
           </div></div>
           <div class="pac-metrics">
-            <div><span>Départ PAC</span>${this._tempLink(this._v('flow'),this._ids?.flow,'Départ PAC')}</div>
-            <div><span>Retour PAC</span>${this._tempLink(this._v('returnTemp'),this._ids?.returnTemp,'Retour PAC')}</div>
-            <div><span>Consigne départ</span><strong>${html(temp(this._v('targetFlow')))}</strong></div>
+            <div><span>Départ PAC</span>${this._tempLink(this._v('flow'),this._ids?.flow,'Départ PAC',true)}</div>
+            <div><span>Retour PAC</span>${this._tempLink(this._v('returnTemp'),this._ids?.returnTemp,'Retour PAC',true)}</div>
+            <div><span>Consigne départ</span>${this._tempLink(this._v('targetFlow'),this._ids?.targetFlow,'Consigne départ',true)}</div>
             <div><span>ΔT départ − retour</span><strong>${html(pacDelta)}</strong></div>
           </div><div class="pac-bottom">Températures communes aux circuits · pas de mesure séparée ${html(this._circuitName(1))} / ${html(this._circuitName(2))}</div>
         </section>
@@ -2137,10 +2188,12 @@ class PacSynoptiqueCard extends HTMLElement {
       </details>`:''}
       ${this._editor?this._editorHtml():''}
       ${this._history?this._historyHtml():''}
+      ${this._historyGroup?this._historyGroupHtml():''}
       ${this._curveHelp?this._curveHelpHtml():''}
 
     </div></ha-card>`;
     this._updateSimCountdowns();
+    if(this._historyGroup) this._mountHistoryGroup();
   }
 }
 /**
