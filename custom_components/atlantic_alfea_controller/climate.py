@@ -43,6 +43,10 @@ from .regime_api import PRESETS, REVERSE_PRESETS, RegimeAPI
 
 _LOGGER = logging.getLogger(__name__)
 _OVERRIDE_DEBOUNCE_SECONDS = 2.0
+# Une pièce déjà à consigne ne doit pas être annoncée « en chauffe » simplement
+# parce que le circulateur tourne encore. La petite bande morte évite le
+# clignotement autour de la consigne.
+_DEMAND_HYSTERESIS_C = 0.1
 
 _PROFILE_COMFORT = "comfort"
 _PROFILE_REDUCED = "reduced"
@@ -335,8 +339,18 @@ class AlfeaCircuitClimate(ClimateEntity):
         if dhw_pump is True:
             return HVACAction.IDLE
 
-        # The pump proves circulation, not instantaneous thermal power.
-        # Home Assistant's HVACAction represents circuit activity here.
+        # Le circulateur prouve la circulation, pas un besoin thermique.
+        # Une pièce au-dessus de sa consigne en chauffage (ou en dessous en
+        # froid) reste donc IDLE même si la pompe tourne encore.
+        current = self.native_current_temperature
+        target = self.native_target_temperature
+        if current is not None and target is not None:
+            if mode == MODE_HEAT and current >= target - _DEMAND_HYSTERESIS_C:
+                return HVACAction.IDLE
+            if mode == MODE_COOL and current <= target + _DEMAND_HYSTERESIS_C:
+                return HVACAction.IDLE
+
+        # There is a real thermal demand (or no room data to disprove it).
         if pump_on is True:
             return HVACAction.HEATING if mode == MODE_HEAT else HVACAction.COOLING
         if pump_on is False:
