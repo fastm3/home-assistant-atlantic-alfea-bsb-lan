@@ -41,6 +41,8 @@ const FIELDS = {
   simDuration2:    ['number','C2 - Durée dérogation'],
   heatState1:      ['sensor','8000 - Status heating circuit 1'],
   heatState2:      ['sensor','8001 - Status heating circuit 2'],
+  flowTempC1:      ['sensor','8743 - Flow temp actual value heat circuit 1'],
+  flowTempC2:      ['sensor','8773 - Flow temp actual value heat circuit 2'],
   coolState1:      ['sensor','8004 - Status cooling circuit 1'],
   coolState2:      ['sensor','8025 - Status cooling circuit 2'],
   heatFlowTarget1: ['sensor','C1 - Chauffage T. départ cible'],
@@ -398,6 +400,8 @@ class PacSynoptiqueCard extends HTMLElement {
       pumpActive?regulationText:(isMissing(mode)?'État indisponible':'En attente');
     const season=this._resolveMode()==='cool'?'cool':'heat';
     const regime=String(st?.attributes?.regime_consigne||this._v(`circuit${i}State`)||'');
+    const native=this._v(`circuit${i}State`);
+    const dhwPriority=/dhw priority|ecs priority/i.test(String(native||''));
     const reduced=/r[ée]duit|reduced|eco/i.test(regime);
     const setpointKey=`${season}${reduced?'Reduced':''}SetpointC${i}`;
     const setpointEntity=this._ids?.[setpointKey];
@@ -412,6 +416,7 @@ class PacSynoptiqueCard extends HTMLElement {
       programmed, season, setpointKey, reduced,
       regime:st?.attributes?.regime_consigne, native:this._v(`circuit${i}State`),
       program:this._v(`program${i}`), pump:this._b(`pump${i}`),
+      flowTemp:this._v(`flowTempC${i}`), dhwPriority,
       override:this._b(`override${i}`),
       targetFlow:this._v(`heatFlowTarget${i}`)
     };
@@ -1181,10 +1186,10 @@ class PacSynoptiqueCard extends HTMLElement {
     // Côté gauche = échangeur froid, côté droit = échangeur chaud (inversés en froid).
     const inlinkTone=mode==='cool'?'heat':'cool';
     const outlinkTone=mode==='cool'?'cool':'heat';
-    // Un circulateur actif anime son tuyau, même sans demande d'ambiance :
-    // la régulation hydraulique peut maintenir la circulation.
-    const c1Flow=c1.active||(c1.pump===true&&!c1.off);
-    const c2Flow=c2.active||(c2.pump===true&&!c2.off);
+    // BSB-LAN ne fournit pas la position absolue de la vanne 3/4 voies.
+    // On bloque au moins l'animation quand le circuit est en priorité ECS.
+    const c1Flow=c1.active||(c1.pump===true&&!c1.off&&!c1.dhwPriority);
+    const c2Flow=c2.active||(c2.pump===true&&!c2.off&&!c2.dhwPriority);
     const ecsFlow=ecs.viaPac;
     const outlinkActive=c1Flow||c2Flow||ecsFlow;
     const fanAnimated=compressor===true && defrost!==true && fanPct>0;
@@ -1283,6 +1288,7 @@ class PacSynoptiqueCard extends HTMLElement {
       <div class="out-foot">${chip(c.nativePreset?.label ?? (c.off?'OFF':'Régime indisponible'),c.nativePreset?.tone ?? 'dim')}
         ${chip(c.native??'État BSB-LAN indisponible','dim')}
         ${c.targetDisplay!=null?chip('Eff. '+temp(c.targetDisplay),'dim'):''}
+        ${c.flowTemp!=null?chip('Départ circuit '+temp(c.flowTemp),'dim'):''}
         ${this._config.show_pump_badges!==false && c.pump!==null?chip(c.pump?(c.off?'Post-circulation':'Circulateur actif'):'Circulateur arrêté',c.pump&&!c.off?'positive':'dim'):''}
         ${c.override===true?chip('Dérogation active','warning'):''}</div>
     </section>`;
