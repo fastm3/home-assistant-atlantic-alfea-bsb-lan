@@ -1,0 +1,11 @@
+"use strict";
+const assert=require("assert");
+const fs=require("fs"),path=require("path");
+const src=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+assert(src.includes('action===\'history-group\''),"Missing group history click");
+assert(src.includes("_historyGroupHtml"),"Missing grouped history dialog");
+assert(src.includes("type:'history-graph'"),"Missing standard history graph card");
+assert(src.includes("'Départ PAC',true"),"Départ PAC must open grouped history");
+assert(src.includes("'Retour PAC',true"),"Retour PAC must open grouped history");
+assert(src.includes("'Consigne départ',true"),"Consigne départ must open grouped history");
+console.log("PASS: three PAC values open the grouped standard history card");
