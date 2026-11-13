@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.34 — Températures rafraîchies directement
+
+- Les températures d'ambiance C1, C2 et ballon ECS sont relues toutes les
+  60 secondes via l'API JSON de BSB-LAN.
+- La publication MQTT de la sonde C2 (8770) pouvait rester figée à sa valeur
+  de démarrage ; la valeur affichée est désormais la valeur réelle du
+  régulateur.
+- La correction alimente aussi les entités climat C1/C2 et les cartes de
+  supervision.
+- Manifest **1.5.34**.
+
 ## 1.5.33 — Activité circuit corrigée
 
 - C1/C2 ne sont plus annoncés « en chauffe » ou « en froid » uniquement
