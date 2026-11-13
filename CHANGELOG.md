@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.35 — Circulation par régulation
+
+- Quand le circulateur C1/C2 tourne sans demande d'ambiance, l'état affiche
+  **Demande circulation par régulation** au lieu de « En attente ».
+- Si la température de départ est inférieure à la consigne de départ, l'écart
+  est indiqué dans l'état.
+- Les tuyaux C1/C2 sont animés dès que leur circulateur est actif, même sans
+  demande thermique de la pièce.
+- Manifest **1.5.35**.
+
 ## 1.5.34 — Températures rafraîchies directement
 
 - Les températures d'ambiance C1, C2 et ballon ECS sont relues toutes les
