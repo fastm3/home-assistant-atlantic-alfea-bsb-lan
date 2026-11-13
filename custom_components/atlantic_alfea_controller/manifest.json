@@ -15,7 +15,7 @@
       "type": "_http._tcp.local."
     }
   ],
-  "version": "1.5.36",
+  "version": "1.5.37",
   "documentation": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan#readme",
   "issue_tracker": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/issues"
 }
