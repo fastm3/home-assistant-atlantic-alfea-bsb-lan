@@ -49,7 +49,7 @@ class TestFaultHistory(unittest.TestCase):
         self.assertNotIn("/JS", source)
         self.assertNotIn("session.post(", source)
         self.assertNotIn("post_js(", source)
-        self.assertIn("client.get_jq(parameter)", source)
+        self.assertIn("client.get_jq(parameter, timeout=15)", source)
 
 
 if __name__ == "__main__":

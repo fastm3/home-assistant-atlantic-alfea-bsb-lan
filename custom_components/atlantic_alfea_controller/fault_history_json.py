@@ -70,7 +70,11 @@ async def async_start_fault_history(hass: HomeAssistant, entry: ConfigEntry):
                 values = {}
                 for parameter in range(6800, 6820):
                     # Shared client: queued behind other BSB-LAN requests.
-                    payload = await client.get_jq(parameter)
+                    # The bus can take >6 s just after startup: long timeout, one retry.
+                    try:
+                        payload = await client.get_jq(parameter, timeout=15)
+                    except TimeoutError:
+                        payload = await client.get_jq(parameter, timeout=15)
                     item = payload.get(str(parameter)) if isinstance(payload, dict) else None
                     if not isinstance(item, dict):
                         raise ValueError(f"Réponse invalide pour {parameter}")
