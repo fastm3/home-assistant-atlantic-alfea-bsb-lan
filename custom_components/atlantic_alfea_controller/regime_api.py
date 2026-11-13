@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from urllib.parse import urlparse
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from .bsb_http import get_client, valid_base_url  # noqa: F401 - re-exported
 
 _LOGGER = logging.getLogger(__name__)
 PARAMETERS = {1: 700, 2: 1000}
@@ -19,30 +19,19 @@ PRESETS = {"Auto": 1, "ECO": 2, "Confort": 3}
 REVERSE_PRESETS = {value: key for key, value in PRESETS.items()}
 
 
-def valid_base_url(value: str) -> bool:
-    """Only allow an explicitly configured HTTP(S) BSB-LAN origin."""
-    parsed = urlparse(value.strip())
-    return (parsed.scheme in ("http", "https") and bool(parsed.hostname)
-            and parsed.username is None and parsed.password is None
-            and not parsed.query and not parsed.fragment)
-
-
 class RegimeAPI:
     """Read and set native Siemens 700/1000 with confirmed readback."""
 
     def __init__(self, hass: HomeAssistant, base_url: str) -> None:
-        if not valid_base_url(base_url):
+        client = get_client(hass, base_url)
+        if client is None:
             raise ValueError("Adresse BSB-LAN invalide")
-        self._session = async_get_clientsession(hass)
-        self._base = base_url.rstrip("/")
+        self._client = client
         self._lock = asyncio.Lock()
 
     async def read(self, circuit: int) -> int | None:
         parameter = PARAMETERS[circuit]
-        async with asyncio.timeout(8):
-            async with self._session.get(f"{self._base}/JQ={parameter}") as response:
-                response.raise_for_status()
-                data = await response.json(content_type=None)
+        data = await self._client.get_jq(parameter)
         item = data.get(str(parameter))
         if not isinstance(item, dict) or item.get("error") != 0:
             return None
@@ -75,10 +64,7 @@ class RegimeAPI:
                 # BSB-LAN can briefly answer status 0 while the bus is busy
                 # just after the preceding /JQ read.
                 await asyncio.sleep(0.25 if attempt == 0 else 0.6)
-                async with asyncio.timeout(8):
-                    async with self._session.post(f"{self._base}/JS", json=payload) as response:
-                        response.raise_for_status()
-                        result = await response.json(content_type=None)
+                result = await self._client.post_js(payload)
                 # BSB-LAN /JS returns {"700": {"status": 1, "destination": 0}}.
                 outcome = result.get(str(parameter)) if isinstance(result, dict) else None
                 if isinstance(outcome, dict) and outcome.get("status") == 1:

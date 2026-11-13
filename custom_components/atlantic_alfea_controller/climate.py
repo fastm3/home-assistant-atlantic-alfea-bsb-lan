@@ -12,7 +12,6 @@ from homeassistant.components.climate.const import ClimateEntityFeature, HVACAct
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
@@ -38,6 +37,7 @@ from .helpers import (
     status_uses_reduced_setpoint,
     track_entities,
 )
+from .bsb_http import entry_client
 from .polling import async_poll_parameters
 from .regime_api import PRESETS, REVERSE_PRESETS, RegimeAPI
 
@@ -641,12 +641,10 @@ class AlfeaCircuitClimate(ClimateEntity):
             await async_set_numeric_entity(self.hass, source, value)
             await async_poll_parameters(self.hass, (parameter,))
             effective_parameter = _PARAM[self._circuit]["effective_setpoint"]
-            base = str(self._entry.options.get("bsb_base_url", "")).strip().rstrip("/")
-            if base:
+            client = entry_client(self.hass, self._entry)
+            if client is not None:
                 try:
-                    session = async_get_clientsession(self.hass)
-                    async with session.get(f"{base}/JQ={effective_parameter}") as response:
-                        await response.read()
+                    await client.get_jq(effective_parameter)
                 except Exception:  # noqa: BLE001 - the optimistic target covers this
                     pass
             for _ in range(60):

@@ -11,12 +11,11 @@ import logging
 import re
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .regime_api import valid_base_url
+from .bsb_http import get_client, valid_base_url
 
 _LOGGER = logging.getLogger(__name__)
 WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
@@ -95,11 +94,8 @@ class WeeklyProgramImporter:
     def _notify(self) -> None:
         async_dispatcher_send(self.hass, f"{DOMAIN}_weekly_programs_{self.entry_id}")
 
-    async def _read_day(self, session, parameter: str) -> list[dict[str, str]]:
-        async with asyncio.timeout(10):
-            async with session.get(f"{self.base_url}/JQ={parameter}") as response:
-                response.raise_for_status()
-                data = await response.json(content_type=None)
+    async def _read_day(self, client, parameter: str) -> list[dict[str, str]]:
+        data = await client.get_jq(parameter, timeout=10)
         item = data.get(parameter) if isinstance(data, dict) else None
         if not isinstance(item, dict) or str(item.get("error")) != "0":
             raise ValueError(f"Réponse BSB-LAN invalide pour {parameter}: {item!r}")
@@ -129,16 +125,14 @@ class WeeklyProgramImporter:
             raise ValueError("Configurer l'adresse BSB-LAN JSON dans les options.")
         errors: dict[str, str] = {}
         async with self._lock:
-            session = async_get_clientsession(self.hass)
+            client = get_client(self.hass, self.base_url)
             for key, (_name, _icon, base) in PROGRAMS.items():
                 snapshot = self.snapshots[key]
                 days: dict[str, list[dict[str, str]]] = {}
                 try:
                     for index, weekday in enumerate(WEEKDAYS):
                         parameter = parameter_for_day(key, base, index)
-                        days[weekday] = await self._read_day(session, parameter)
-                        # Avoid a burst of 35 consecutive requests on the BSB bus.
-                        await asyncio.sleep(0.2)
+                        days[weekday] = await self._read_day(client, parameter)
                 except (ValueError, asyncio.TimeoutError, OSError) as err:
                     self._record_error(key, snapshot, err, errors)
                 except Exception as err:

@@ -87,9 +87,10 @@ class TestCoolingWeeklyPrograms(unittest.TestCase):
         )
 
     def test_no_write_calls_in_importer(self):
-        self.assertIn("/JQ=", TEXT)
-        self.assertNotIn("/JS=", TEXT)
+        self.assertIn("client.get_jq(parameter", TEXT)
+        self.assertNotIn("/JS", TEXT)
         self.assertNotIn("session.post(", TEXT)
+        self.assertNotIn("post_js(", TEXT)
 
 
 if __name__ == "__main__":

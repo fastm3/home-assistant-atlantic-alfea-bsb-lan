@@ -349,7 +349,6 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
     _attr_native_unit_of_measurement = "COP"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 2
-    _REFERENCE_VERSION = 1
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -368,8 +367,6 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
         self._session: dict | None = None
         self._last: dict | None = None
         self._history: list[dict] = []
-        self._energy_total = 0.0
-        self._global_reference: float | None = None
         self._attr_native_value = None
         self._attr_unique_id = f"{entry.entry_id}_ecs_cop_session"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
@@ -430,20 +427,6 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 self._history = [
                     dict(item) for item in raw_history if isinstance(item, dict)
                 ][-4:]
-            try:
-                self._energy_total = float(attrs.get("energie_totale_kwh") or 0)
-            except (TypeError, ValueError):
-                self._energy_total = 0.0
-            try:
-                self._global_reference = float(attrs.get("energie_globale_reference_kwh"))
-            except (TypeError, ValueError):
-                self._global_reference = None
-            if self._global_reference is None:
-                # Do not carry historical sessions into a counter that starts here.
-                self._energy_total = 0.0
-            if attrs.get("reference_version") != self._REFERENCE_VERSION:
-                self._energy_total = 0.0
-                self._global_reference = None
             if not self._history and self._last is not None:
                 try:
                     self._history = [
@@ -576,7 +559,6 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                     "cop": result["cop"],
                 }
             )
-            self._energy_total += float(result["e_elec_kwh"] or 0)
             self._history = self._history[-4:]
         else:
             attrs["cop"] = None
@@ -587,15 +569,6 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
         self._publish()
 
     def _publish(self) -> None:
-        current_energy = self._energy()
-        if self._global_reference is None and current_energy is not None:
-            self._global_reference = current_energy
-        ecs_total = self._energy_total
-        if self._session is not None and current_energy is not None:
-            ecs_total += max(0.0, current_energy - self._session["start_energy"])
-        circuits_total = None
-        if current_energy is not None and self._global_reference is not None:
-            circuits_total = max(0.0, current_energy - self._global_reference - ecs_total)
         if self._session is not None:
             session = self._session
             temp = self._temp()
@@ -620,14 +593,6 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
             if self._last is not None:
                 attrs["derniere_session_cop"] = self._last.get("cop")
             attrs["sessions"] = list(self._history)
-            attrs["energie_totale_kwh"] = round(self._energy_total, 3)
-            attrs["energie_globale_reference_kwh"] = (
-                round(self._global_reference, 3) if self._global_reference is not None else None
-            )
-            attrs["energie_circuits_depuis_reference_kwh"] = (
-                round(circuits_total, 3) if circuits_total is not None else None
-            )
-            attrs["reference_version"] = self._REFERENCE_VERSION
             self._attr_extra_state_attributes = attrs
         else:
             attrs = dict(
@@ -639,15 +604,96 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
                 }
             )
             attrs["sessions"] = list(self._history)
-            attrs["energie_totale_kwh"] = round(self._energy_total, 3)
-            attrs["energie_globale_reference_kwh"] = (
-                round(self._global_reference, 3) if self._global_reference is not None else None
-            )
-            attrs["energie_circuits_depuis_reference_kwh"] = (
-                round(circuits_total, 3) if circuits_total is not None else None
-            )
-            attrs["reference_version"] = self._REFERENCE_VERSION
             self._attr_extra_state_attributes = attrs
+        self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
+
+
+class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
+    """Precise ECS / C1+C2 electrical energy split from the global meter.
+
+    Every increment of the configured global energy sensor is attributed to
+    the ECS when a DHW charge is in progress (8003 not in 51/99/100), and to
+    the heating/cooling circuits C1+C2 otherwise. The PAC counters
+    3124/3125/3126, rounded to the kWh, are deliberately not used.
+    """
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = "kWh"
+    _attr_suggested_display_precision = 3
+    _MAX_STEP_KWH = 20.0  # larger jumps are meter glitches, not consumption
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, ecs: bool) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._ecs = ecs
+        self._state_entity = str(entry.data.get("dhw_state") or "")
+        self._energy_entity = str(
+            entry.options.get("ecs_cop_energy_entity")
+            or entry.data.get("ecs_cop_energy_entity")
+            or "sensor.phase_a_diff_pac_energy"
+        )
+        self._total = 0.0
+        self._last_reading: float | None = None
+        key = "ecs" if ecs else "circuits"
+        self._attr_name = "ECS - Énergie consommée" if ecs else "C1+C2 - Énergie consommée"
+        self._attr_icon = "mdi:water-boiler" if ecs else "mdi:radiator"
+        self._attr_unique_id = f"{entry.entry_id}_energy_split_{key}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+
+    @property
+    def available(self) -> bool:
+        return bool(self._energy_entity and self._state_entity) and (
+            state_float(self.hass, self._energy_entity) is not None
+            or self._last_reading is not None
+        )
+
+    def _dhw_active(self) -> bool:
+        code = _ecs_state_code(state_value(self.hass, self._state_entity))
+        return code is not None and code not in (51, 99, 100)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None:
+            try:
+                self._total = float(last.state)
+            except (TypeError, ValueError):
+                self._total = 0.0
+            try:
+                self._last_reading = float(last.attributes.get("derniere_lecture_kwh"))
+            except (TypeError, ValueError):
+                self._last_reading = None
+        if self._last_reading is None:
+            self._last_reading = state_float(self.hass, self._energy_entity)
+        if self._energy_entity:
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass, [self._energy_entity], self._handle_energy
+                )
+            )
+        self._publish()
+
+    def _handle_energy(self, _event) -> None:
+        reading = state_float(self.hass, self._energy_entity)
+        if reading is None:
+            return
+        previous = self._last_reading
+        self._last_reading = reading
+        if previous is not None:
+            delta = reading - previous
+            if 0 < delta <= self._MAX_STEP_KWH and self._dhw_active() == self._ecs:
+                self._total += delta
+        self._publish()
+
+    def _publish(self) -> None:
+        self._attr_native_value = round(self._total, 4)
+        self._attr_extra_state_attributes = {
+            "energy_entity": self._energy_entity,
+            "derniere_lecture_kwh": self._last_reading,
+            "repartition": "ECS active (8003)" if self._ecs else "hors charge ECS",
+        }
         self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
 
 
@@ -823,6 +869,7 @@ async def async_setup_entry(
             ]
         )
     entities.append(AlfeaEcsCopSessionSensor(hass, entry))
+    entities.extend(AlfeaEnergySplitSensor(hass, entry, ecs) for ecs in (True, False))
     entities.append(AlfeaInstallationStatusSensor(hass, entry))
     async_add_entities(entities)
 
@@ -863,8 +910,9 @@ class AlfeaProxySensor(SensorEntity):
         return clean_bsb_status(raw) if self._desc.clean_bsb_code else raw
 
     async def async_added_to_hass(self) -> None:
-        """Refresh immediately when the direct JSON temperature poll lands."""
+        """Follow the MQTT source and the direct JSON temperature poll."""
         await super().async_added_to_hass()
+        self.async_on_remove(track_entities(self.hass, [self._source], self.async_write_ha_state))
         if self._desc.key in self._JSON_TEMPERATURES:
             self.async_on_remove(
                 async_dispatcher_connect(
@@ -886,9 +934,6 @@ class AlfeaProxySensor(SensorEntity):
         if raw is not None:
             attributes["etat_bsb_brut"] = raw
         return attributes or None
-
-    async def async_added_to_hass(self) -> None:
-        self.async_on_remove(track_entities(self.hass, [self._source], self.async_write_ha_state))
 
 
 class AlfeaWeeklyProgramSensor(SensorEntity):

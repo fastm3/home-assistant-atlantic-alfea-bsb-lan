@@ -48,6 +48,8 @@ class TestFaultHistory(unittest.TestCase):
         source = SOURCE.read_text(encoding="utf-8")
         self.assertNotIn("/JS", source)
         self.assertNotIn("session.post(", source)
+        self.assertNotIn("post_js(", source)
+        self.assertIn("client.get_jq(parameter)", source)
 
 
 if __name__ == "__main__":

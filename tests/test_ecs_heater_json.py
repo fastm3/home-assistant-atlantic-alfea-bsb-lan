@@ -28,9 +28,13 @@ class TestEcs8821Json(unittest.TestCase):
 
     def test_polling_never_writes_to_bsb(self):
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertIn("/JQ=8821", source)
-        self.assertNotIn("/JS", source)
-        self.assertNotIn("session.post(", source)
+        poller = (SOURCE.parent / "json_poller.py").read_text(encoding="utf-8")
+        self.assertIn("HEATER_PARAMETER = 8821", source)
+        self.assertIn("HEATER_PARAMETER", poller)
+        self.assertIn("client.get_jq(POLL_PARAMETERS)", poller)
+        for text in (source, poller):
+            self.assertNotIn("/JS", text)
+            self.assertNotIn("post_js(", text)
 
 
 if __name__ == "__main__":

@@ -7,13 +7,12 @@ from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .regime_api import valid_base_url
+from .bsb_http import entry_client
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(minutes=15)
@@ -55,13 +54,11 @@ def parse_fault_history(data: dict[str, dict]) -> list[dict[str, str]]:
 
 async def async_start_fault_history(hass: HomeAssistant, entry: ConfigEntry):
     """Start 15-minute snapshots; missing/failed reads never become 'no faults'."""
-    url = str(entry.options.get("bsb_base_url", "")).strip()
-    if not valid_base_url(url):
+    client = entry_client(hass, entry)
+    if client is None:
         return lambda: None
-    base = url.rstrip("/")
     cache = hass.data.setdefault(DOMAIN, {}).setdefault("fault_history", {})
     cache[entry.entry_id] = {"status": "Indisponible", "entries": [], "updated": None}
-    session = async_get_clientsession(hass)
     lock = asyncio.Lock()
     active = True
 
@@ -72,15 +69,12 @@ async def async_start_fault_history(hass: HomeAssistant, entry: ConfigEntry):
             try:
                 values = {}
                 for parameter in range(6800, 6820):
-                    async with asyncio.timeout(8):
-                        async with session.get(f"{base}/JQ={parameter}") as response:
-                            response.raise_for_status()
-                            payload = await response.json(content_type=None)
+                    # Shared client: queued behind other BSB-LAN requests.
+                    payload = await client.get_jq(parameter)
                     item = payload.get(str(parameter)) if isinstance(payload, dict) else None
                     if not isinstance(item, dict):
                         raise ValueError(f"Réponse invalide pour {parameter}")
                     values[str(parameter)] = item
-                    await asyncio.sleep(0.2)
                 entries = parse_fault_history(values)
                 snapshot = {"status": "Chargé", "entries": entries,
                             "updated": dt_util.now().isoformat(timespec="seconds")}

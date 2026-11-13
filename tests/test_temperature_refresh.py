@@ -11,9 +11,12 @@ class TemperatureRefreshTests(unittest.TestCase):
         source = (ROOT / "temperatures_json.py").read_text(encoding="utf-8")
         ast.parse(source)
         self.assertIn("_TEMPERATURES = (8740, 8770, 8830)", source)
-        self.assertIn("/JQ=", source)
         self.assertIn("parse_temperatures_response", source)
-        self.assertIn("_temperatures_", source)
+        poller = (ROOT / "json_poller.py").read_text(encoding="utf-8")
+        ast.parse(poller)
+        self.assertIn("POLL_PARAMETERS = (*_TEMPERATURES, HEATER_PARAMETER)", poller)
+        self.assertIn("parse_temperatures_response(payload)", poller)
+        self.assertIn("_temperatures_", poller)
 
     def test_proxy_sensor_prefers_the_direct_value(self):
         source = (ROOT / "sensor.py").read_text(encoding="utf-8")
@@ -23,7 +26,7 @@ class TemperatureRefreshTests(unittest.TestCase):
 
     def test_setup_starts_temperature_polling(self):
         source = (ROOT / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("async_start_temperature_polling", source)
+        self.assertIn("async_start_json_polling", source)
 
 
 if __name__ == "__main__":

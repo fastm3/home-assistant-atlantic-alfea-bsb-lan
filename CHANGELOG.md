@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.5.42 — Énergie précise intégrée et accès BSB-LAN sérialisé
+
+- Nouveaux capteurs intégrés **ECS - Énergie consommée** et
+  **C1+C2 - Énergie consommée** (`total_increasing`, restaurés au redémarrage) :
+  chaque incrément du compteur global configuré est affecté à l'ECS pendant une
+  charge ECS (8003), sinon aux circuits C1+C2. Les compteurs PAC arrondis
+  3124/3125/3126 ne sont pas utilisés ; les helpers template ne sont plus nécessaires.
+- Le COP de session ECS n'expose plus les attributs de cumul (`energie_totale_kwh`…).
+- Toutes les requêtes JSON BSB-LAN passent par un client partagé (`bsb_http.py`) :
+  une seule requête à la fois vers l'ESP, 0,2 s entre deux accès.
+- Les polls 60 s températures (8740/8770/8830) et résistance ECS (8821) sont
+  fusionnés en une seule requête `/JQ` (`json_poller.py`).
+- Correctif : les capteurs proxy définissaient deux `async_added_to_hass`, la
+  seconde masquait l'abonnement au poll JSON ; 8740/8770/8830 se rafraîchissent
+  désormais dès la réponse JSON.
+- Manifest : `iot_class` → `local_polling`, version **1.5.42**.
+
 ## 1.5.41 — Compteurs énergie depuis une référence
 
 - Le capteur ECS expose le cumul des sessions depuis la référence.
