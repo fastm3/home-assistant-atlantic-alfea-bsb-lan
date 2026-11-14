@@ -673,6 +673,49 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
         self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
 
 
+class AlfeaBsbLogSensor(SensorEntity):
+    """Diagnostic: BSB-LAN log list versus what the integration needs."""
+
+    _attr_has_entity_name = True
+    _attr_name = "BSB-LAN - Journalisation"
+    _attr_icon = "mdi:format-list-checks"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_bsb_log"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+
+    def _report(self) -> dict:
+        from .bsb_logging import log_report
+        from .polling import json_polled
+
+        return log_report(self.hass, self._entry, set(json_polled(self.hass, self._entry)))
+
+    @property
+    def native_value(self) -> str:
+        report = self._report()
+        if not report.get("lu"):
+            return "Non lu"
+        mode = "MQTT" if report["mqtt_actif"] else "Sans MQTT"
+        return f"{mode} · {report['intervalle_s']} s · {report['emplacements_utilises']}"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        report = self._report()
+        report.pop("lu", None)
+        return report
+
+    async def async_added_to_hass(self) -> None:
+        for signal in ("bsb_log", "temperatures"):
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass, f"{DOMAIN}_{signal}_{self._entry.entry_id}", self.async_write_ha_state
+                )
+            )
+
+
 _INSTALLATION_REQUIRED = {
     "heat_mode_c1": (700, "Mode chauffage C1"),
     "heat_setpoint_c1": (710, "Consigne chauffage C1"),
@@ -846,6 +889,7 @@ async def async_setup_entry(
         )
     entities.append(AlfeaEcsCopSessionSensor(hass, entry))
     entities.extend(AlfeaEnergySplitSensor(hass, entry, ecs) for ecs in (True, False))
+    entities.append(AlfeaBsbLogSensor(hass, entry))
     entities.append(AlfeaInstallationStatusSensor(hass, entry))
     async_add_entities(entities)
 

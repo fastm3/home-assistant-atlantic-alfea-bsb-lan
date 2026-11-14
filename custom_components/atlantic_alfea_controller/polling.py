@@ -1,4 +1,10 @@
-"""Periodic read-only BSB-LAN refresh requests."""
+"""Periodic read-only BSB-LAN refresh requests (``BSB-LAN/poll``).
+
+Each parameter the integration reads has a target period (see
+``bsb_logging.POLL_TARGETS``). A parameter is only polled here when the
+BSB-LAN MQTT log list does not already publish it often enough and when the
+JSON poller does not already read it, so the bus never reads a value twice.
+"""
 
 from __future__ import annotations
 
@@ -6,23 +12,18 @@ import asyncio
 from collections.abc import Callable
 from datetime import timedelta
 import logging
+import time
 
 from homeassistant.components.mqtt import async_publish
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 
-from .const import (
-    BSB_REFRESH_FAST_INTERVAL_SECONDS,
-    BSB_REFRESH_FAST_PARAMETERS,
-    BSB_REFRESH_ECS_INTERVAL_SECONDS,
-    BSB_REFRESH_ECS_PARAMETERS,
-    BSB_REFRESH_INITIAL_DELAY_SECONDS,
-    BSB_REFRESH_SLOW_INTERVAL_SECONDS,
-    BSB_REFRESH_SLOW_PARAMETERS,
-    CLOCK_POLL_TOPIC,
-)
+from .const import BSB_REFRESH_INITIAL_DELAY_SECONDS, CLOCK_POLL_TOPIC, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+_TICK = timedelta(seconds=30)
+_EARLY_SECONDS = 5  # a parameter due within the next few seconds is polled now
 
 
 async def async_poll_parameters(hass: HomeAssistant, parameters: tuple[int, ...]) -> None:
@@ -42,45 +43,52 @@ async def async_poll_parameters(hass: HomeAssistant, parameters: tuple[int, ...]
         await asyncio.sleep(0.15)
 
 
-def async_start_data_polling(hass: HomeAssistant) -> Callable[[], None]:
-    """Refresh dynamic diagnostics/counters independently of BSB-LAN log lists."""
+def json_polled(hass: HomeAssistant, entry: ConfigEntry) -> frozenset[int]:
+    """Parameters currently read by the JSON poller for this entry."""
+    return frozenset(hass.data.get(DOMAIN, {}).get("json_polled", {}).get(entry.entry_id, ()))
+
+
+def due_parameters(
+    plan: dict[int, int], last: dict[int, float], now: float
+) -> tuple[int, ...]:
+    """Parameters whose period has elapsed (never polled ones first)."""
+    due = [p for p, period in plan.items() if now - last.get(p, float("-inf")) >= period - _EARLY_SECONDS]
+    return tuple(sorted(due, key=lambda p: last.get(p, float("-inf"))))
+
+
+def async_start_data_polling(hass: HomeAssistant, entry: ConfigEntry) -> Callable[[], None]:
+    """Poll what the BSB-LAN log does not cover, each at its own period."""
+    from .bsb_logging import planned_parameters
+
+    last: dict[int, float] = {}
+    running = asyncio.Lock()
+
+    async def _run() -> None:
+        if running.locked():
+            return
+        async with running:
+            plan = planned_parameters(hass, entry, json_polled(hass, entry))
+            hass.data.setdefault(DOMAIN, {}).setdefault("poll_plan", {})[entry.entry_id] = plan
+            now = time.monotonic()
+            due = due_parameters(plan, last, now)
+            for parameter in due:
+                last[parameter] = now
+            if due:
+                await async_poll_parameters(hass, due)
 
     @callback
-    def _fast(_now) -> None:
-        hass.async_create_task(async_poll_parameters(hass, BSB_REFRESH_FAST_PARAMETERS))
-
-    @callback
-    def _slow(_now) -> None:
-        hass.async_create_task(async_poll_parameters(hass, BSB_REFRESH_SLOW_PARAMETERS))
-
-    @callback
-    def _ecs(_now) -> None:
-        hass.async_create_task(async_poll_parameters(hass, BSB_REFRESH_ECS_PARAMETERS))
+    def _tick(_now) -> None:
+        hass.async_create_task(_run())
 
     unsubs: list[Callable[[], None]] = [
-        async_call_later(hass, BSB_REFRESH_INITIAL_DELAY_SECONDS, _fast),
-        async_call_later(hass, BSB_REFRESH_INITIAL_DELAY_SECONDS + 10, _slow),
-        async_call_later(hass, BSB_REFRESH_INITIAL_DELAY_SECONDS + 15, _ecs),
-        async_track_time_interval(
-            hass,
-            _fast,
-            timedelta(seconds=BSB_REFRESH_FAST_INTERVAL_SECONDS),
-        ),
-        async_track_time_interval(
-            hass,
-            _slow,
-            timedelta(seconds=BSB_REFRESH_SLOW_INTERVAL_SECONDS),
-        ),
-        async_track_time_interval(
-            hass,
-            _ecs,
-            timedelta(seconds=BSB_REFRESH_ECS_INTERVAL_SECONDS),
-        ),
+        async_call_later(hass, BSB_REFRESH_INITIAL_DELAY_SECONDS, _tick),
+        async_track_time_interval(hass, _tick, _TICK),
     ]
 
     @callback
     def _unsubscribe() -> None:
         for unsub in unsubs:
             unsub()
+        hass.data.get(DOMAIN, {}).get("poll_plan", {}).pop(entry.entry_id, None)
 
     return _unsubscribe

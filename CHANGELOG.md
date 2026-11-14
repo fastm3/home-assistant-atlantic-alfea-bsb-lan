@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.5.45 — Lectures adaptées au journal BSB-LAN
+
+- Lecture de la configuration de journalisation BSB-LAN (`/JI`, lecture seule)
+  au démarrage puis toutes les 6 h.
+- Chaque paramètre a une période cible (1 min, 5 min, 15 min, 1 h) ; seuls les
+  paramètres que le journal MQTT ne publie pas assez souvent sont interrogés
+  (`BSB-LAN/poll` ou JSON). Plus de double lecture sur le bus.
+- Régimes 700/1000 lus depuis le select MQTT quand ils sont journalisés.
+- Nouveau capteur de diagnostic **BSB-LAN - Journalisation**.
+- Nouvelle recommandation : journal MQTT 60 s avec 25 paramètres
+  (`docs/BSB_LAN_JOURNALISATION.md`).
+- Manifest **1.5.45**.
+
 ## 1.5.44 — Confirmation des modes circuit plus tolérante
 
 - Off/Auto des circuits et mode global : la confirmation BSB-LAN (700/901/1000/1201)

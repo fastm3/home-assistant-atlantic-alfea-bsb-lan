@@ -28,9 +28,13 @@ def parse_heater_response(data: object) -> bool | None:
 
 
 def heater_state(hass: HomeAssistant, entry: ConfigEntry) -> bool | None:
-    """Return JSON state when configured; otherwise use the existing HA source."""
-    if json_enabled(entry):
-        return hass.data.get(DOMAIN, {}).get("ecs_heater_json", {}).get(entry.entry_id)
+    """Return the JSON state when 8821 is JSON-polled, else the MQTT source.
+
+    8821 is not JSON-polled when the BSB-LAN MQTT log already publishes it.
+    """
+    data = hass.data.get(DOMAIN, {})
+    if json_enabled(entry) and HEATER_PARAMETER in data.get("json_polled", {}).get(entry.entry_id, ()):
+        return data.get("ecs_heater_json", {}).get(entry.entry_id)
     from .helpers import source_entity, state_is_on
     return state_is_on(hass, source_entity(hass, entry, "dhw_electric_heater", 8821))
 

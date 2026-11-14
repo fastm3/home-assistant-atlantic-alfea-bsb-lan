@@ -40,6 +40,7 @@ from .helpers import (
     track_entities,
 )
 from .bsb_http import entry_client
+from .bsb_logging import FAST, is_covered
 from .polling import async_poll_parameters
 from .regime_api import PRESETS, REVERSE_PRESETS, RegimeAPI
 
@@ -212,10 +213,26 @@ class AlfeaCircuitClimate(ClimateEntity):
             return None
         if self.hvac_mode == HVACMode.OFF:
             return None
-        return REVERSE_PRESETS.get(self._regime_code)
+        live = self._regime_from_log()
+        return REVERSE_PRESETS.get(live if live is not None else self._regime_code)
+
+    def _regime_from_log(self) -> int | None:
+        """700/1000 from the MQTT select when the BSB-LAN log publishes it every minute."""
+        parameter = 700 if self._circuit == 1 else 1000
+        if not is_covered(self.hass, self._entry, parameter, FAST):
+            return None
+        raw = state_value(self.hass, self._entry.data.get(f"heat_mode_c{self._circuit}"))
+        code, _text = split_bsb_status(raw)
+        return code if code in (0, 1, 2, 3) else None
 
     async def _refresh_regime(self) -> None:
         if self._regime_api is None:
+            return
+        live = self._regime_from_log()
+        if live is not None:
+            # Already published by the BSB-LAN log: no extra bus read.
+            self._regime_code = live
+            self.async_write_ha_state()
             return
         try:
             self._regime_code = await self._regime_api.read(self._circuit)

@@ -441,33 +441,38 @@ Autres paramètres importants :
 - `8830` : température ballon ECS
 - `3113` : énergie électrique totale
 
-### Paramètres à journaliser (recommandation)
+### Journalisation BSB-LAN recommandée (V1.5.45)
 
-Pour éviter des allers-retours lors du diagnostic et profiter de toutes les
-informations de la carte, il est recommandé d'activer la journalisation
-BSB-LAN sur les paramètres suivants. Ce sont des **lectures** : ils ne
-déclenchent aucune commande sur la PAC.
+BSB-LAN publie sur MQTT jusqu'à **40 paramètres** avec **un seul intervalle**
+commun. L'intégration lit cette configuration au démarrage (`/JI`, lecture
+seule) et **n'interroge elle-même que ce que le journal ne couvre pas** : un
+paramètre n'est jamais lu deux fois sur le bus.
+
+Réglage conseillé dans BSB-LAN (*Settings → Logging*) :
+
+| Réglage | Valeur |
+|---|---|
+| Logging mode | **MQTT** (ajouter SD/UDP seulement si vous en avez besoin) |
+| Log interval | **60** secondes |
+| Parameters | la liste ci-dessous (25 paramètres) |
 
 ```text
-700, 710, 712, 901, 902, 1000, 1010, 1012, 1201, 1202, 1212,
-1600, 1610, 1612, 3113, 4761, 5061, 5070, 5072,
-8000, 8001, 8003, 8006, 8400, 8410, 8411, 8412, 8413, 8499,
-8700, 8703, 8704, 8730, 8735, 8740, 8741, 8743, 8744,
-8820, 8821
+700,901,1000,1201,1600,8000,8001,8003,8006,8400,8410,8412,8413,8700,
+8740,8741,8743,8760,8770,8771,8773,8820,8821,8830,9031
 ```
 
-Ils couvrent :
+Ce sont les valeurs utiles **chaque minute** (états, modes, températures,
+circulateurs). Consignes, compteurs et diagnostics lents sont lus par
+l'intégration elle-même (5 min, 15 min ou 1 h) et immédiatement après chaque
+écriture depuis Home Assistant. Ordre de grandeur : **≈ 28 lectures bus/min**
+avec ce réglage, contre ≈ 88 avec l'ancienne recommandation (40 paramètres
+toutes les 30 s).
 
-- **circuits C1/C2** : modes, consignes confort/réduit, limites de
-  rafraîchissement ;
-- **ECS** : mode, consignes, appoint électrique, push ECS, pompe ;
-- **PAC/compresseur** : état, départ/retour, consigne et modulation ;
-- **états et températures** : circuits, extérieur, pompes, ambiances ;
-- **énergie** : index électrique total.
-
-Selon le modèle et les options installées, certains paramètres peuvent être
-absents (`---`) ; l'intégration les ignore. Les activer tous évite de devoir
-modifier la journalisation après coup.
+Le capteur de diagnostic **« BSB-LAN - Journalisation »** affiche la
+configuration lue, les paramètres couverts, ceux interrogés par
+l'intégration, les paramètres recommandés manquants et les paramètres
+journalisés inutiles pour l'intégration. Détails :
+[docs/BSB_LAN_JOURNALISATION.md](docs/BSB_LAN_JOURNALISATION.md).
 
 ## Diagnostics de programmation (V1.5.0)
 
@@ -484,11 +489,13 @@ Ces valeurs dépendent de la disponibilité et de la publication des paramètres
 
 ## Mise à jour des données
 
-L'intégration demande périodiquement à BSB-LAN de republier certains diagnostics qui doivent rester frais :
-
-- `8411` toutes les 5 minutes ;
-- `3113`, `8450` et `8451` toutes les 15 minutes ;
-- l'horloge (`0`) une fois par heure.
+Chaque paramètre utilisé a une période cible (1 min, 5 min, 15 min ou 1 h).
+L'intégration ne demande à BSB-LAN (`BSB-LAN/poll`, ou une seule requête
+JSON `/JQ` pour 8740/8770/8830/8821) que les paramètres que le journal MQTT de
+BSB-LAN ne publie pas déjà assez souvent. Si la configuration `/JI` ne peut pas
+être lue, elle revient aux anciennes listes fixes (`8411` toutes les 5 min,
+`3113`/`8450`/`8451` toutes les 15 min, `8741`/`8771`/`8830` chaque minute).
+L'horloge (`0`) est lue une fois par heure.
 
 Ces demandes sont des lectures et ne modifient pas les réglages de la PAC.
 

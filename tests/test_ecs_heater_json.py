@@ -31,7 +31,8 @@ class TestEcs8821Json(unittest.TestCase):
         poller = (SOURCE.parent / "json_poller.py").read_text(encoding="utf-8")
         self.assertIn("HEATER_PARAMETER = 8821", source)
         self.assertIn("HEATER_PARAMETER", poller)
-        self.assertIn("client.get_jq(POLL_PARAMETERS)", poller)
+        self.assertIn("client.get_jq(wanted)", poller)
+        self.assertIn("is_covered(hass, entry, p, FAST)", poller)
         for text in (source, poller):
             self.assertNotIn("/JS", text)
             self.assertNotIn("post_js(", text)

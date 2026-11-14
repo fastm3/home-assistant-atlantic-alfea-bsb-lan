@@ -67,6 +67,13 @@ class BsbHttpClient:
         data = await self._request("GET", f"/JQ={query}", None, timeout)
         return data if isinstance(data, dict) else {}
 
+    async def get_path(self, path: str, timeout: float = _DEFAULT_TIMEOUT) -> dict:
+        """Read-only GET of a fixed BSB-LAN JSON endpoint such as /JI."""
+        if path not in ("/JI",):
+            raise ValueError(f"Endpoint BSB-LAN non autorisé : {path}")
+        data = await self._request("GET", path, None, timeout)
+        return data if isinstance(data, dict) else {}
+
     async def post_js(self, payload: dict, timeout: float = _DEFAULT_TIMEOUT) -> dict:
         """Write through /JS. Only callers with confirmed readback may use it."""
         data = await self._request("POST", "/JS", payload, timeout)
