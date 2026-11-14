@@ -1,504 +1,197 @@
-# Atlantic Alfea BSB-LAN pour Home Assistant
+# Atlantic Alféa BSB-LAN pour Home Assistant
 
-Intégration personnalisée Home Assistant pour piloter et surveiller une pompe à chaleur **Atlantic Alféa Extensa Duo** via **BSB-LAN**.
+Intégration Home Assistant pour **piloter, mesurer et comprendre** une pompe à
+chaleur **Atlantic Alféa Extensa Duo** à travers une passerelle
+[BSB-LAN](https://docs.bsb-lan.de/fr/index.html).
 
-> Dernière version publiée : **1.5.32**
+![Carte PAC Synoptique dans Home Assistant](docs/images/pac-synoptique-carte.gif)
 
-> **Fork `fastm3`** : noms de circuits configurables (`circuit_1_name` / `circuit_2_name`)
-> et commandes optionnelles dans la carte (mode PAC, Off/Auto par circuit, consignes),
-> via les entités Climate/Select de l'intégration.
+## Objectif
 
-## Fusion upstream 1.5.27
+Ce dépôt est un fork de
+[Jrmysmallstep/home-assistant-atlantic-alfea-bsb-lan](https://github.com/Jrmysmallstep/home-assistant-atlantic-alfea-bsb-lan)
+avec un objectif plus large :
 
-Cette version intègre la branche principale upstream jusqu'à **1.5.27** :
-programmes horaires natifs en lecture seule (chauffage, ECS, rafraîchissement),
-capteurs hebdomadaires, carte **`pac-programmes-card`**, diagnostics de la vanne
-Q3, historique des défauts, ECS JSON et correctif de thread safety côté backend.
+- **Contrôle complet** depuis Home Assistant : mode de la PAC, marche/arrêt et
+  régime de chaque circuit, consignes Confort/Éco chauffage et
+  rafraîchissement, dérogations natives, ECS.
+- **Suivi de la consommation** : énergie électrique répartie entre l'ECS et les
+  circuits C1+C2 à partir d'un compteur précis, COP de chaque charge ECS.
+- **Observation du fonctionnement** : loi d'eau, températures départ/retour,
+  états du régulateur, circulateurs, compresseur, défauts, programmes horaires.
 
-La carte **`pac-synoptique-card`** du fork (v2.11.0) conserve les commandes
-optionnelles, les noms de circuits configurables et l'**historique 3 h au clic**.
+La programmation horaire reste dans la PAC : l'intégration ne la remplace pas
+et la PAC reste la référence pour les régimes Confort/Réduit.
 
-Ressource Lovelace de la nouvelle carte programmes :
-`/alfea-synoptique/pac-programmes-card.js?v=1.5.32`.
+## Matériel validé
 
-## Synoptique Aérien (V1.5.22)
-
-Une nouvelle présentation **Aérien** est incluse dans la carte Lovelace,
-sans dépendance ni image externe : COMP **de face**, carter plat sans ailettes
-latérales ni logo, quatre pales SVG strictement identiques, échangeurs
-froid/chaud redessinés avec un cadre et un trait assortis. Le fond suit le
-thème Home Assistant (clair/sombre) ; les cartes, les raccordements et les
-bordures sont plus discrets.
-
-- **Conservation des 73 correspondances d'entités** et de tous les champs :
-  RDC/Étage (mode natif, état BSB brut, circulateur, température et consigne),
-  ECS, COMP, PAC, dérogations et alarmes/diagnostics.
-- Les animations sont indicatives : rotation COMP lorsque confirmé en marche,
-  pulsation légère des échangeurs, liaisons rouge/bleu selon activité
-  réelle de chauffage/rafraîchissement, ECS colorée pendant une production
-  confirmée, jauge de modulation interpolée.
-- Aucune pression frigorifique, puissance ou vanne fictive ; pas d'aller/retour
-  hydraulique inventé. **La carte est une supervision** ; les commandes sont
-  optionnelles (`show_controls`) et passent par les entités Climate de l'intégration.
-- **Classique** et **Épurée** restent disponibles comme avant.
-
-Dans l'éditeur visuel, choisir **Présentation des circuits → Aérien** ou :
-```yaml
-type: custom:pac-synoptique-card
-title: Atlantic Alféa Extensa Duo
-layout_style: aerien
-layout_orientation: auto
-theme_mode: auto
-show_diagnostics: true
-show_controls: true
-circuit_1_name: RDC
-circuit_2_name: Étage
-grid_options:
-  columns: full
-  rows: auto
-```
-Après mise à jour HACS et redémarrage Home Assistant, versionner la ressource :
-`/alfea-synoptique/pac-synoptique-card.js?v=1.5.32`.
-
-## Aperçu de la carte Lovelace
-
-![GIF animé de la carte PAC Synoptique Atlantic Alféa dans Home Assistant : unité extérieure, module hydraulique, échangeurs, circuits RDC et Étage, ECS, puissance consommée, alarmes et diagnostics](docs/images/pac-synoptique-carte.gif)
-
-*GIF animé de l'interface de la carte PAC Synoptique. Les valeurs affichées dépendent de votre installation et de l'état momentané de la PAC.*
-
-Le synoptique présente les états du compresseur, de la PAC, des circuits de chauffage/rafraîchissement et de l'ECS, avec alarmes et diagnostics repliables. Son éditeur Lovelace permet de choisir une apparence **Automatique / Claire / Sombre**, les noms des circuits et l'affichage des commandes.
-
-## Commandes depuis la carte (fork 1.5.32)
-
-La barre de commandes est optionnelle (`show_controls: true` par défaut) :
-
-- **Mode PAC** : `Off`, `Chauffage`, `Refroidissement` — via `select.atlantic_alfea_bsb_lan_mode_global`.
-- **Par circuit** : `Off` / `Auto` — via `climate.set_hvac_mode`. `Auto` reprend la saison
-  sélectionnée dans le mode PAC (chauffage ou rafraîchissement) ; il est désactivé
-  tant que le mode PAC est `Off`.
-- **Consigne circuit** : **clic sur la valeur affichée dans la carte** (« Consigne
-  chauffage » / « Consigne rafraîch. ») ouvre un panneau avec **slider** (7–35 °C en
-  chauffage, 7–30 °C en rafraîchissement, pas de 0,5 °C). Les boutons `−` / `+` restent
-  disponibles. La valeur écrite est la **consigne programmée** (710/902/1010/1202) via
-  les entités `number` de l'intégration, avec confirmation BSB. Si les paramètres
-  701/1001/10991 ne sont pas disponibles en écriture, la dérogation native ne peut pas
-  être modifiée directement : c'est la consigne programmée qui change, et la consigne
-  effective reste affichée séparément (`Eff.`).
-- **Consigne ECS** : **clic sur « Consigne confort »** ouvre un slider 40–65 °C
-  (pas de 1 °C). Écrit la consigne confort 1610 à la valeur demandée, puis la consigne
-  éco 1612 à `confort − ecs_eco_delta`.
-
-Les noms affichés se règlent avec `circuit_1_name` et `circuit_2_name`. Les entités
-restent `C1`/`C2` ; seuls les libellés changent.
-
-```yaml
-type: custom:pac-synoptique-card
-circuit_1_name: Étage
-circuit_2_name: RDC
-show_controls: true
-ecs_eco_delta: 3          # consigne éco 1612 = consigne confort 1610 − 3 °C
-```
-
-## Historique 3 h au clic
-
-Les **températures mesurées** du synoptique sont cliquables : un clic ouvre un
-graphique des **3 dernières heures**.
-
-- Air extérieur, Départ PAC, Retour PAC ;
-- Température ambiante C1 / C2 ;
-- Température ballon ECS.
-
-Les **consignes** (chauffage / rafraîchissement, consigne départ, ECS confort / éco)
-et les commandes ne sont pas cliquables.
-
-Le graphique utilise les **statistiques 5 minutes**
-(`recorder/statistics_during_period`) et, à défaut, l'historique brut ; il ajoute
-le point actuel. Fermeture par `×`, **Fermer**, clic sur le fond ou **Échap**.
-Légende **Min / Max / Actuel**.
-
-
-## Matériel de référence
-
-Cette intégration a été développée et testée sur une **Atlantic Alféa Extensa Duo** équipée d'un régulateur / carte **RVS21.831F** (**famille 211, variante 127**).
-
-D'autres modèles Atlantic Alféa ou d'autres variantes de régulateurs Siemens RVS peuvent être compatibles, mais ils ne sont pas considérés comme validés tant que les paramètres BSB-LAN correspondants n'ont pas été vérifiés.
-
-## Travail en cours — présélections Auto / ECO / Confort (branche de développement)
-
-Cette branche ajoute une implémentation **expérimentale**, non publiée, de la lecture
-et commande des régimes natifs par circuit directement depuis les thermostats
-Home Assistant. Les versions HACS publiées restent inchangées.
-
-- Paramètre 700 pour C1 et 1000 pour C2 : Auto = 1, ECO = 2, Confort = 3.
-- Mode OFF individuel inchangé : lorsqu'un circuit est arrêté, le preset n'envoie
-  aucune commande. Le mode protection (0) n'est jamais commandé par un preset.
-- Le mode global chauffage/rafraîchissement est inchangé.
-- Dans les options d'intégration, renseigner **Adresse BSB-LAN JSON**
-  (par exemple `http://192.168.1.88`). Aucun emplacement MQTT nécessaire.
-- Le statut est relu par `/JQ=700` ou `/JQ=1000` toutes les 60 secondes ;
-  les écritures passent par un POST `/JS` et sont confirmées par relecture.
-- Tant que l'adresse BSB-LAN n'est pas configurée, aucun preset n'est proposé.
-- Le basculement automatique en fonction de la présence n'est **pas encore
-  développé**. L'essai réel en chauffage puis rafraîchissement reste nécessaire.
-
-**Ne pas diffuser comme release tant que les essais et tests de régression
-n'ont pas été exécutés.**
-
-## Fonctionnalités
-
-- Mode global de la PAC : **Off / Chauffage / Refroidissement**. Une commande globale active les deux circuits dans le mode demandé ou les arrête tous les deux, avec vérification des retours d'état BSB-LAN.
-- Deux entités Climate indépendantes : **C1 - Circuit 1** et **C2 - Circuit 2**, avec commandes locales Chauffage / Refroidissement / Off.
-- Températures ambiantes et consignes effectives des circuits.
-- Prise en compte des régimes Confort / Réduit (Éco) du régulateur.
-- Réglage depuis Home Assistant des **huit consignes programmées** Confort / Éco (chauffage et rafraîchissement sur C1 et C2), sans modifier les horaires de la PAC.
-- Dérogations temporaires natives en chauffage (**Plus chaud / Plus froid**) et en rafraîchissement (**Plus froid**, sens validé), avec durée paramétrable et retour au programme interne.
-- Quatre capteurs de diagnostic supplémentaires en lecture seule : régime temporaire et programme actif pour C1 et C2.
-- Libellés raccourcis et homogènes : **C1, C2, PAC, ECS, COMP**.
-- Gestion et suivi de l'**ECS** : mode, température ballon, état de charge, pompe et appoint électrique lorsque les paramètres sont disponibles.
-- État et modulation du compresseur.
-- Températures départ, retour, consigne départ et température extérieure.
-- Compteur d'énergie totale BSB-LAN.
-- Suivi des heures et démarrages du compresseur.
-- Diagnostics : cycles courts, redémarrages rapprochés, démarrages fréquents et écart départ/consigne.
-- Lecture de l'horloge PAC, détection d'une désynchronisation et bouton de synchronisation avec Home Assistant.
-- Détection automatique des entités BSB-LAN avec possibilité de corriger l'association manuellement.
-
-## Carte Lovelace synoptique incluse (V1.5.16)
-
-**Correctif V1.5.16 — données brutes préservées :**
-les badges des circuits RDC et Étage affichent **le texte de l'entité
-« C1/C2 - État actuel »**, par exemple « Régime chauffage Confort » ou
-« Limitation de la température ambiante ». Ils ne remplacent pas ce retour
-par une estimation Éco/Confort issue des programmes 10112/10122.
-
-Les diagnostics conservent séparément les programmes horaires et l'état
-de régulation. Les commandes, la logique Climate et l'affichage portrait
-corrigé dans V1.5.15 restent inchangés.
-
-### Modifications de V1.5.15
-
-**Correctif V1.5.15 — smartphone :**
-- Mode Portrait et mode Auto en largeur étroite : remplacement des fausses
-  branches latérales par des raccordements verticaux courts COMP → PAC → sorties.
-- Les cartes RDC, Étage et ECS occupent la largeur disponible, sans conduite
-  superposée sur les cartes.
-- Affichage du régime horaire 10112/10122 (**1 = Éco, 2 = Confort**) directement
-  dans les cartes des circuits. L'état BSB (ex. « Limitation de la température
-  ambiante ») est conservé dans les diagnostics.
-- Le synoptique horizontal, les animations, les pompes, l'ECS, les alarmes et
-  les commandes de l'intégration restent inchangés.
-
-Pour forcer le portrait, ajoutez `layout_orientation: portrait` dans le YAML.
-Pour adapter automatiquement aux tailles d'écran, utilisez
-`layout_orientation: auto`.
-
-### Modifications de la V1.5.14
-
-**Correctif V1.5.14 :** les liaisons dessinées entre la PAC et les trois sorties
-RDC / Étage / ECS retrouvent leur hauteur normale en paysage. Un sélecteur CSS
-de la version précédente appliquait par erreur la hauteur réservée au mode
-portrait au raccordement de droite, même sur grand écran. Aucune modification
-des entités, des animations, des programmes ou des commandes.
-
-
-### Synoptique V2.8.0 — compact et responsive
-
-La V1.5.13 conserve les **65 correspondances d'entités** du synoptique V2.7.0,
-ainsi que les animations, les alarmes, les diagnostics, les circulateurs et
-les réglages de présentation précédents.
-
-- **Orientation automatique** : disposition horizontale sur écran large et
-  verticale lorsque la carte est étroite, même dans une petite section Lovelace.
-- **Paysage** : maintien d'un synoptique COMP → PAC → RDC / Étage / ECS
-  horizontal. Sur mobile étroit, un défilement horizontal évite les textes écrasés.
-- **Portrait** : disposition verticale optimisée pour les smartphones.
-- **Graphisme compact** : hauteurs et espaces réduits, sans retirer de valeurs.
-- **Fluidité** : animation du ventilateur par transformation CSS, pulsation des
-  échangeurs par opacité, animations de flux conservées et désactivées en
-  cas de préférence d'accessibilité pour moins de mouvements.
-- **Sans images externes** : HTML, CSS et formes SVG incorporées au code,
-  aucune requête d'image pour afficher la carte.
-- **Thèmes** : Automatique / Clair / Sombre, inchangés.
-
-Le nouvel éditeur visuel expose **Orientation de la carte** (Automatique,
-Paysage, Portrait). Les anciens dashboards sans réglage explicite bénéficient
-du mode automatique.
-
-
-Depuis la V1.5.12, l’éditeur visuel propose deux dispositions (Classique / Épurée), les raccordements en disposition horizontale, les animations facultatives et l'affichage des circulateurs. La disposition Épurée masque les raccordements en affichage vertical. Les diagnostics sont allégés sans supprimer les entités Home Assistant.
-
-```yaml
-type: custom:pac-synoptique-card
-title: Atlantic Alféa Extensa Duo
-theme_mode: auto
-layout_orientation: auto  # auto / landscape / portrait
-layout_style: clean
-show_links: true
-animate_flows: true
-show_pump_badges: true
-show_diagnostics: true
-```
-
-
-La carte **PAC Synoptique** est incluse dans l'intégration et installée par HACS, dans
-`custom_components/atlantic_alfea_controller/www/pac-synoptique-card.js`.
-Elle affiche COMP, PAC, circuits, ECS, alarmes repliables, diagnostics et animations.
-Les commandes sont optionnelles et passent par les entités Climate/Select de l'intégration.
-
-Après la mise à jour via HACS, **redémarrez Home Assistant**, puis dans
-**Paramètres → Tableaux de bord → Ressources**, ajoutez **une seule fois** la
-ressource de type **Module JavaScript** :
-
-```text
-/alfea-synoptique/pac-synoptique-card.js?v=1.5.32
-```
-
-### Éditeur visuel (nouveau en V1.5.7)
-
-Une fois le module JavaScript chargé, la carte **PAC Synoptique** apparaît dans
-le sélecteur de cartes Lovelace. Dans **Modifier la carte**, l'onglet éditeur
-visuel propose :
-
-- **Apparence** : Automatique (thème Home Assistant), Clair, Sombre.
-- **Nom du circuit 1 / du circuit 2** : libellés affichés (RDC/Étage par défaut).
-- **Afficher les commandes** : oui/non (mode PAC, Off/Auto, consignes).
-- **Afficher les diagnostics complémentaires** : oui/non.
-
-Les réglages sont enregistrés comme configuration normale du dashboard,
-sans éditer le YAML. Les commandes sont optionnelles et utilisent les entités
-Climate/Select de l'intégration. Les alarmes et leur nombre restent visibles
-et repliables quelle que soit l'option.
-
-L'onglet **Disposition** standard de Home Assistant permet d'adapter la
-largeur de la carte ; le rendu horizontal reste responsive.
-
-### Configuration YAML facultative
-
-Dans le YAML d'une carte manuelle :
-
-```yaml
-type: custom:pac-synoptique-card
-title: Atlantic Alféa Extensa Duo
-show_diagnostics: true
-show_controls: true          # commandes optionnelles
-circuit_1_name: RDC          # libellé affiché (défaut RDC)
-circuit_2_name: Étage        # libellé affiché (défaut Étage)
-grid_options:
-  columns: full
-  rows: auto
-theme_mode: auto  # auto (défaut), light, dark
-```
-
-**Thèmes :** `theme_mode: auto` reprend les couleurs du thème Home Assistant
-et suit son basculement clair/sombre. Si souhaité, `theme_mode: light` impose une
-carte claire, et `theme_mode: dark` impose le graphisme sombre d'origine.
-Cette option est purement visuelle, sans effet sur les consignes ou la régulation.
-
-**Migration depuis la carte installée manuellement :** supprimez l'ancienne
-ressource `/local/pac-synoptique-card.js?v=...` afin de ne pas charger
-deux versions de `pac-synoptique-card`. La configuration YAML ne change pas.
-
-La carte contient des commandes optionnelles (`show_controls`, vrai par défaut) qui
-appellent uniquement les entités Climate/Select de l'intégration, avec la dérogation
-native sécurisée. Les couleurs/animations restent indicatives : pas de débitmètre,
-pas de pression frigorifique ni de puissance instantanée inventés.
-Voir [la documentation synoptique](docs/SYNOPTIQUE_V155.md).
-
-## Régime Confort / Éco (affichage uniquement)
-
-Les diagnostics BSB-LAN natifs `10112` (C1) et `10122` (C2) sont
-utilisés en priorité pour afficher le programme appliqué :
-**1 = Allure Réduit / Éco**, **2 = Allure Confort**.
-En leur absence, le libellé de l'état BSB est consulté puis
-`indéterminé` est conservé si les données ne suffisent pas.
-L'état de régulation (`8000/8001`) et le régime horaire sont deux
-informations distinctes : `122 - Limitation de la température ambiante`
-ne veut **pas** dire Éco en soi.
-
-**Sécurité :** cette nouvelle lecture sert exclusivement à l'affichage.
-Les méthodes de choix de consigne et les dérogations natives existantes restent inchangées.
-
-## Dérogation native
-
-La V1.5.0 utilise les dérogations natives du régulateur pour les modifications temporaires demandées depuis les entités Climate, sans réécrire les consignes Confort / Éco ni les horaires.
-
-- **Chauffage :** dérogation vers une température **plus chaude** ou **plus froide** sur chacun des deux circuits.
-- **Rafraîchissement :** dérogation vers une température **plus froide**, selon le comportement validé en V1.3.3.
-- **Amplitude :** écart de **0,1 à 5 °C** par rapport à la consigne effective au moment de la commande.
-- **Durée :** configurée pour chaque circuit et gérée directement par le régulateur ; retour automatique à la programmation normale à l'expiration.
-- **Annulation :** bouton dédié à chaque circuit lorsque les paramètres nécessaires sont disponibles en écriture.
-
-Les paramètres personnalisés d'écart `10991` et `10993` peuvent ne pas renvoyer de valeur lisible, même après écriture : cela ne signifie pas nécessairement que la dérogation a échoué. L'état de dérogation (`701` / `1001`) et les consignes effectives (`8741` / `8771`) permettent d'en contrôler les effets.
-
-**Validation :** les dérogations chauffage et leur expiration après une heure ont été testées sur les deux circuits avec la V1.4.0-beta.5. La commutation saisonnière réelle depuis le mode global de la V1.5.0 reste à confirmer sur l'installation.
-
-## Philosophie de fonctionnement
-
-La programmation horaire reste gérée par la PAC. L'intégration ne remplace pas le programmateur du régulateur et conserve la PAC comme source de vérité pour les régimes Confort / Réduit.
-
-Le **mode global** commande les deux circuits à la fois : **Chauffage** active C1 et C2 en chauffage ; **Refroidissement** active les deux en rafraîchissement ; **Off** arrête les deux circuits. Après une commande globale, chaque circuit peut de nouveau être piloté indépendamment depuis sa carte Climate. La transition de saison est effectuée en désactivant d'abord le mode opposé, puis en activant le mode demandé, avec confirmation des états BSB-LAN. La commutation saisonnière physique doit encore être validée sur la PAC.
+Atlantic Alféa Extensa Duo, régulateur **RVS21.831F** (famille 211,
+variante 127), BSB-LAN 5.x sur ESP32. D'autres variantes Siemens RVS peuvent
+fonctionner mais ne sont pas validées.
 
 ## Prérequis
 
-- Home Assistant avec MQTT fonctionnel.
-- Une passerelle **BSB-LAN** déjà intégrée à Home Assistant.
-- Les paramètres BSB nécessaires publiés sous forme d'entités Home Assistant.
+- Home Assistant avec **MQTT** opérationnel.
+- Une passerelle **BSB-LAN** qui publie ses paramètres sur MQTT (découverte
+  automatique Home Assistant active).
+- L'**adresse HTTP de BSB-LAN** (ex. `http://192.168.1.88`) à renseigner dans les
+  options de l'intégration : elle active les lectures JSON, les régimes
+  Auto/Éco/Confort, l'historique des défauts et l'import des programmes.
 
-L'intégration détecte automatiquement les paramètres connus. Les paramètres obligatoires qui ne peuvent pas être associés sans ambiguïté sont demandés pendant la configuration.
+## Installation
 
-## Installation via HACS (dépôt personnalisé)
+### HACS (dépôt personnalisé)
 
-Ce fork s'installe comme **Custom Repository** HACS.
+1. HACS → **⋮** → **Custom repositories** → ajouter
+   `https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan`, type
+   **Integration**.
+2. Installer **Atlantic Alfea BSB-LAN**, puis **redémarrer Home Assistant**.
+3. **Paramètres → Appareils et services → Ajouter une intégration** →
+   *Atlantic Alfea BSB-LAN*. La détection associe automatiquement les entités
+   BSB-LAN ; les paramètres ambigus sont demandés.
+4. Dans les **options** de l'intégration, renseigner l'adresse BSB-LAN.
 
-1. Dans Home Assistant, ouvrez **HACS**.
-2. Ouvrez le menu **⋮** en haut à droite puis **Custom repositories**.
-3. Ajoutez l'URL du fork :
+Si l'intégration d'origine est installée par HACS, retirez d'abord son dépôt
+personnalisé : sinon HACS proposera ses mises à jour à la place de celles-ci.
 
-   `https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan`
+### Manuelle
 
-4. Sélectionnez le type **Integration**.
-5. Cliquez sur **Add**.
-6. Recherchez **Atlantic Alfea BSB-LAN** dans HACS et installez la version **1.5.32**.
-7. **Redémarrez Home Assistant** (les changements `climate.py` / `number.py` ne sont chargés qu'au redémarrage).
-8. Ouvrez **Paramètres → Appareils et services → Ajouter une intégration** puis recherchez **Atlantic Alfea BSB-LAN**.
-9. Ajoutez la ressource Lovelace de type **Module JavaScript** :
+Copier `custom_components/atlantic_alfea_controller/` dans le dossier
+`custom_components` de Home Assistant, redémarrer, puis ajouter l'intégration.
 
-   `/alfea-synoptique/pac-synoptique-card.js?v=1.5.32`
+### Cartes Lovelace
 
-10. Faites un **hard refresh** (`Ctrl+Shift+R`) puis ajoutez la carte **PAC Synoptique**.
+Les deux cartes sont servies par l'intégration. Ajouter une fois chaque
+ressource (**Paramètres → Tableaux de bord → Ressources**, type *Module
+JavaScript*) :
 
-HACS installera l'intégration dans `custom_components/atlantic_alfea_controller/`.
+```text
+/alfea-synoptique/pac-synoptique-card.js?v=<version>
+/alfea-synoptique/pac-programmes-card.js?v=<version>
+```
 
-> Si l'intégration d'origine (`Jrmysmallstep`) est déjà installée via HACS, retirez son
-> dépôt personnalisé avant d'installer le fork : sinon HACS continuera à proposer les
-> mises à jour du dépôt d'origine et écrasera la carte modifiée.
+Changer `?v=` à chaque mise à jour pour forcer le rechargement par les
+navigateurs. Détails : [docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md).
 
-## Documentation BSB-LAN
+## Configuration de BSB-LAN
 
-La documentation officielle BSB-LAN est la référence principale pour l'installation, la configuration de la passerelle et la compréhension des paramètres du bus :
+BSB-LAN publie sur MQTT jusqu'à 40 paramètres avec un intervalle commun.
+L'intégration lit cette configuration (`/JI`, lecture seule) et n'interroge
+elle-même que ce qui n'est pas déjà publié assez souvent : aucun paramètre
+n'est lu deux fois sur le bus.
 
-- **Documentation BSB-LAN en français :** https://docs.bsb-lan.de/fr/index.html
-
-Les numéros de paramètres et leur disponibilité peuvent varier selon le régulateur, le firmware et la configuration de l'installation. En cas de doute, vérifiez toujours le paramètre concerné dans la documentation BSB-LAN et directement sur votre régulateur.
-
-## Installation manuelle
-
-Si vous ne souhaitez pas utiliser HACS :
-
-1. Copiez le dossier :
-
-   `custom_components/atlantic_alfea_controller/`
-
-   dans le dossier `custom_components` de votre configuration Home Assistant.
-
-2. Vous devez obtenir :
-
-   `/config/custom_components/atlantic_alfea_controller/manifest.json`
-
-3. Redémarrez Home Assistant.
-4. Ouvrez **Paramètres → Appareils et services → Ajouter une intégration**.
-5. Recherchez **Atlantic Alfea BSB-LAN**.
-6. Laissez la détection automatique associer les paramètres BSB-LAN, puis vérifiez les éventuels paramètres non détectés.
-
-## Principaux paramètres BSB-LAN
-
-| Fonction | Circuit 1 | Circuit 2 |
-|---|---:|---:|
-| Mode chauffage | 700 | 1000 |
-| Consigne chauffage Confort | 710 | 1010 |
-| Consigne chauffage Réduit | 712 | 1012 |
-| Mode rafraîchissement | 901 | 1201 |
-| Consigne rafraîchissement Confort | 902 | 1202 |
-| Consigne rafraîchissement Réduit | 903 | 1203 |
-| Température ambiante | 8740 | 8770 |
-| Consigne ambiante effective | 8741 | 8771 |
-| État chauffage | 8000 | 8001 |
-| État rafraîchissement | 8004 | 8025 |
-| État dérogation | 701 | 1001 |
-| Durée dérogation (paramètre personnalisé) | 10990 | 10992 |
-| Écart dérogation (paramètre personnalisé) | 10991 | 10993 |
-| Régime temporaire (diagnostic) | 10110 | 10120 |
-| Programme horaire actif (diagnostic) | 10112 | 10122 |
-
-Autres paramètres importants :
-
-- `0` : date et heure de la PAC
-- `1600` : mode ECS
-- `1610` : consigne nominale ECS
-- `1612` : consigne réduite ECS
-- `8003` : état ECS
-- `8006` : état général générateur/PAC
-- `8400` : état compresseur
-- `8410` : température retour PAC
-- `8411` : consigne départ PAC
-- `8412` : température départ PAC
-- `8413` : modulation compresseur
-- `8450` : heures compresseur
-- `8451` : nombre de démarrages compresseur
-- `8700` : température extérieure
-- `8820` : pompe ECS
-- `8821` : appoint électrique ECS
-- `8830` : température ballon ECS
-- `3113` : énergie électrique totale
-
-### Journalisation BSB-LAN recommandée (V1.5.45)
-
-BSB-LAN publie sur MQTT jusqu'à **40 paramètres** avec **un seul intervalle**
-commun. L'intégration lit cette configuration au démarrage (`/JI`, lecture
-seule) et **n'interroge elle-même que ce que le journal ne couvre pas** : un
-paramètre n'est jamais lu deux fois sur le bus.
-
-Réglage conseillé dans BSB-LAN (*Settings → Logging*) :
-
-| Réglage | Valeur |
-|---|---|
-| Logging mode | **MQTT** (ajouter SD/UDP seulement si vous en avez besoin) |
-| Log interval | **60** secondes |
-| Parameters | la liste ci-dessous (25 paramètres) |
+Réglage recommandé (*Settings → Logging*) : **MQTT**, **60 s**, et ces
+25 paramètres :
 
 ```text
 700,901,1000,1201,1600,8000,8001,8003,8006,8400,8410,8412,8413,8700,
 8740,8741,8743,8760,8770,8771,8773,8820,8821,8830,9031
 ```
 
-Ce sont les valeurs utiles **chaque minute** (états, modes, températures,
-circulateurs). Consignes, compteurs et diagnostics lents sont lus par
-l'intégration elle-même (5 min, 15 min ou 1 h) et immédiatement après chaque
-écriture depuis Home Assistant. Ordre de grandeur : **≈ 28 lectures bus/min**
-avec ce réglage, contre ≈ 88 avec l'ancienne recommandation (40 paramètres
-toutes les 30 s).
-
-Le capteur de diagnostic **« BSB-LAN - Journalisation »** affiche la
-configuration lue, les paramètres couverts, ceux interrogés par
-l'intégration, les paramètres recommandés manquants et les paramètres
-journalisés inutiles pour l'intégration. Détails :
+Le capteur **BSB-LAN - Journalisation** indique ce qui est couvert, ce que
+l'intégration lit en plus et ce qui manque. Explications et charge du bus :
 [docs/BSB_LAN_JOURNALISATION.md](docs/BSB_LAN_JOURNALISATION.md).
 
-## Diagnostics de programmation (V1.5.0)
+## Pilotage
 
-Quatre nouveaux capteurs **en lecture seule** complètent la surveillance des circuits :
+Toutes les commandes passent par des entités Home Assistant et sont
+**confirmées par relecture BSB-LAN** ; une commande non confirmée est signalée
+comme erreur.
 
-| Entité affichée | Paramètre BSB-LAN | Information |
-|---|---:|---|
-| C1 - Régime temporaire | `10110` | Régime temporaire du circuit 1 |
-| C2 - Régime temporaire | `10120` | Régime temporaire du circuit 2 |
-| C1 - Programme actif | `10112` | Allure actuellement appliquée (Confort / Réduit) |
-| C2 - Programme actif | `10122` | Allure actuellement appliquée (Confort / Réduit) |
+| Fonction | Entité | Paramètres BSB |
+|---|---|---|
+| Mode de la PAC : Off / Chauffage / Refroidissement | `select` *Mode global* | 700, 901, 1000, 1201 |
+| Circuit Off / Auto (saison du mode global) | `climate` *C1 - Circuit 1*, *C2 - Circuit 2* | 700/901, 1000/1201 |
+| Régime Auto / Éco / Confort du circuit | préréglage du `climate` (adresse BSB-LAN requise) | 700, 1000 |
+| Consignes Confort / Éco, chauffage et rafraîchissement | 8 entités `number` | 710, 712, 902, 903, 1010, 1012, 1202, 1203 |
+| Dérogation temporaire native | consigne du `climate` + durée `number` + bouton *Annuler dérogation* | 701/1001, 10990–10993 |
+| ECS : mode et consignes | `water_heater` *Eau chaude sanitaire* | 1600, 1610, 1612 |
+| Forçage d'un cycle ECS | bouton *Forçage cycle ECS* | — |
+| Horloge de la PAC | bouton *Horloge PAC - Synchroniser* | 0 |
 
-Ces valeurs dépendent de la disponibilité et de la publication des paramètres par BSB-LAN. Les capteurs ne changent jamais les programmes horaires.
+Garde-fous :
 
-## Mise à jour des données
+- le mode global coupe d'abord la saison opposée, puis active la saison
+  demandée ; un circuit ne peut pas passer dans la saison opposée à celle du
+  mode global ;
+- un circuit à l'arrêt ne reçoit aucune commande de régime ;
+- la confirmation BSB-LAN attend jusqu'à 30 s et redemande la valeur si le
+  retour MQTT tarde ;
+- dérogation : écart de 0,1 à 5 °C par rapport à la consigne effective ; en
+  rafraîchissement, seulement vers plus froid. La durée est gérée par le
+  régulateur, qui revient seul au programme.
 
-Chaque paramètre utilisé a une période cible (1 min, 5 min, 15 min ou 1 h).
-L'intégration ne demande à BSB-LAN (`BSB-LAN/poll`, ou une seule requête
-JSON `/JQ` pour 8740/8770/8830/8821) que les paramètres que le journal MQTT de
-BSB-LAN ne publie pas déjà assez souvent. Si la configuration `/JI` ne peut pas
-être lue, elle revient aux anciennes listes fixes (`8411` toutes les 5 min,
-`3113`/`8450`/`8451` toutes les 15 min, `8741`/`8771`/`8830` chaque minute).
-L'horloge (`0`) est lue une fois par heure.
+## Énergie
 
-Ces demandes sont des lectures et ne modifient pas les réglages de la PAC.
+| Capteur | Contenu |
+|---|---|
+| *ECS - Énergie consommée* | énergie électrique consommée pendant les charges ECS |
+| *C1+C2 - Énergie consommée* | énergie électrique consommée hors charge ECS |
+| *ECS - COP session* | COP de la dernière charge ECS (historique des 4 dernières en attributs) |
+| *PAC - Énergie totale* | index 3113 de la PAC (arrondi au kWh) |
 
-## Avertissement
+Les deux capteurs d'énergie se partagent chaque incrément d'un **compteur
+électrique global précis** (compteur de la ligne PAC) : à l'ECS pendant une
+charge ECS (état 8003), aux circuits sinon. Ils sont `total_increasing` et
+utilisables dans le tableau de bord Énergie. Les compteurs internes de la PAC
+3124/3125/3126, arrondis au kWh, ne sont pas utilisés.
 
-Projet communautaire non officiel, sans affiliation avec Atlantic ou le projet BSB-LAN. Les comportements de certains paramètres peuvent varier selon les variantes du régulateur. Le changement de saison et le nouveau mode global nécessitent encore une validation complète sur l'installation réelle ; les tests automatiques ne remplacent pas les essais sur la PAC.
+## Observation
+
+- **Carte PAC Synoptique** : compresseur, PAC, circuits, ECS, circulateurs,
+  température de départ par circuit, alarmes, diagnostics ; historique au clic
+  sur les températures ; panneaux **Graphes** (consommation ECS / C1+C2 sur
+  7 jours et par heure) et **Loi d'eau** (courbes 720/1020 et point de
+  fonctionnement) ; commandes optionnelles.
+- **Carte Programmes PAC** : programmes horaires natifs chauffage, ECS et
+  rafraîchissement, importés à la demande (lecture seule).
+- **Diagnostics** : cycles courts, démarrages fréquents, écart départ/consigne,
+  horloge désynchronisée, historique des 10 derniers défauts, état de
+  l'installation, journalisation BSB-LAN.
+
+## Entités principales
+
+| Domaine | Entités |
+|---|---|
+| `climate` | C1 - Circuit 1, C2 - Circuit 2 |
+| `water_heater` | Eau chaude sanitaire |
+| `select` | Mode global |
+| `number` | consignes Confort/Éco chauffage et rafraîchissement C1/C2, durées de dérogation |
+| `button` | Annuler dérogation C1/C2, Forçage cycle ECS, Horloge PAC - Synchroniser, Programmes natifs - Actualiser |
+| `binary_sensor` | circulateurs C1/C2, dérogations C1/C2, alarme horloge |
+| `sensor` | états PAC/circuits/ECS, températures, énergie, COP ECS, programmes natifs, historique des défauts, horloge, journalisation BSB-LAN, état de l'installation |
+
+## Lectures et fréquences
+
+Chaque paramètre a une période cible : 1 min (états, modes, températures),
+5 min (diagnostics), 15 min (consignes, compteurs), 1 h (constantes). Un
+paramètre déjà publié assez souvent par le journal MQTT de BSB-LAN n'est pas
+relu ; les autres sont demandés par `BSB-LAN/poll` ou, pour 8740/8770/8830/8821,
+par une requête JSON par minute. Après une écriture depuis Home Assistant, le
+paramètre est relu immédiatement. Toutes les requêtes HTTP vers BSB-LAN passent
+par une file unique : jamais deux à la fois. Ce sont uniquement des lectures,
+sauf les commandes listées dans *Pilotage*.
+
+## Limites connues
+
+- La position des vannes 3/4 voies n'est pas disponible : BSB-LAN n'expose que
+  les commandes d'ouverture/fermeture des vannes mélangeuses.
+- Pas de compteur d'énergie séparé C1 / C2 : seulement C1+C2.
+- Le compteur global utilisé pour la répartition d'énergie n'est pas encore
+  réglable dans les options : il est lu dans la configuration
+  (`ecs_cop_energy_entity`).
+- Une consigne modifiée sur le panneau de la PAC apparaît dans Home Assistant
+  après au plus 15 min (sauf si elle est journalisée par BSB-LAN).
+- Les paramètres disponibles dépendent du régulateur et de son firmware ; un
+  paramètre absent (`---`) est ignoré.
+
+## Plus d'informations
+
+- [CHANGELOG.md](CHANGELOG.md) : historique des versions.
+- [docs/BSB_LAN_JOURNALISATION.md](docs/BSB_LAN_JOURNALISATION.md) : réglage de
+  BSB-LAN et lectures de l'intégration.
+- [docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md) : options des cartes.
+- [Documentation BSB-LAN](https://docs.bsb-lan.de/fr/index.html).
+
+Projet communautaire non officiel, sans lien avec Atlantic ni avec le projet
+BSB-LAN.
