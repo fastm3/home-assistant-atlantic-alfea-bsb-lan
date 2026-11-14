@@ -49,7 +49,8 @@ fonctionner mais ne sont pas validées.
 3. **Paramètres → Appareils et services → Ajouter une intégration** →
    *Atlantic Alfea BSB-LAN*. La détection associe automatiquement les entités
    BSB-LAN ; les paramètres ambigus sont demandés.
-4. Dans les **options** de l'intégration, renseigner l'adresse BSB-LAN.
+4. Dans les **options** de l'intégration, renseigner l'adresse BSB-LAN et le
+   **compteur d'énergie global** de la PAC (capteur `kWh` de la ligne PAC).
 
 Si l'intégration d'origine est installée par HACS, retirez d'abord son dépôt
 personnalisé : sinon HACS proposera ses mises à jour à la place de celles-ci.
@@ -130,8 +131,8 @@ Garde-fous :
 | *ECS - COP session* | COP de la dernière charge ECS (historique des 4 dernières en attributs) |
 | *PAC - Énergie totale* | index 3113 de la PAC (arrondi au kWh) |
 
-Les deux capteurs d'énergie se partagent chaque incrément d'un **compteur
-électrique global précis** (compteur de la ligne PAC) : à l'ECS pendant une
+Les deux capteurs d'énergie se partagent chaque incrément du **compteur
+électrique global** choisi dans les options (compteur précis de la ligne PAC) : à l'ECS pendant une
 charge ECS (état 8003), aux circuits sinon. Ils sont `total_increasing` et
 utilisables dans le tableau de bord Énergie. Les compteurs internes de la PAC
 3124/3125/3126, arrondis au kWh, ne sont pas utilisés.
@@ -177,9 +178,8 @@ sauf les commandes listées dans *Pilotage*.
 - La position des vannes 3/4 voies n'est pas disponible : BSB-LAN n'expose que
   les commandes d'ouverture/fermeture des vannes mélangeuses.
 - Pas de compteur d'énergie séparé C1 / C2 : seulement C1+C2.
-- Le compteur global utilisé pour la répartition d'énergie n'est pas encore
-  réglable dans les options : il est lu dans la configuration
-  (`ecs_cop_energy_entity`).
+- Sans compteur d'énergie global dans les options, les capteurs ECS / C1+C2 et
+  le COP ECS restent indisponibles.
 - Une consigne modifiée sur le panneau de la PAC apparaît dans Home Assistant
   après au plus 15 min (sauf si elle est journalisée par BSB-LAN).
 - Les paramètres disponibles dépendent du régulateur et de son firmware ; un

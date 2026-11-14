@@ -36,9 +36,11 @@
   "options": {
     "step": {
       "init": {
-        "title": "Seuils de surveillance",
-        "description": "Le paramètre BSB 2842 est prioritaire pour la détection des cycles courts. La valeur ci-dessous sert uniquement de secours. Le dégivrage normal et une charge ECS ne déclenchent pas l’alarme d’écart départ/consigne.",
+        "title": "Options Atlantic Alfea BSB-LAN",
+        "description": "Adresse BSB-LAN : active les lectures JSON, les régimes Auto/Éco/Confort, l'historique des défauts et l'import des programmes. Compteur d'énergie global : compteur électrique précis de la ligne PAC, réparti entre l'ECS et les circuits C1+C2 (laisser vide pour désactiver ces capteurs). Le paramètre BSB 2842 est prioritaire pour la détection des cycles courts. La valeur ci-dessous sert uniquement de secours. Le dégivrage normal et une charge ECS ne déclenchent pas l’alarme d’écart départ/consigne.",
         "data": {
+          "bsb_base_url": "Adresse BSB-LAN (ex. http://192.168.1.88)",
+          "ecs_cop_energy_entity": "Compteur d'énergie global de la PAC (kWh)",
           "q3_diverter_confirmed": "Q3 est une vanne 3 voies ECS (5731 = 2) — configuration vérifiée sur ma PAC, sans publier 5731",
           "short_cycle_minutes": "Cycle court — seuil de secours si 2842 est indisponible (minutes)",
           "frequent_starts_per_hour": "Démarrages fréquents — seuil par heure",

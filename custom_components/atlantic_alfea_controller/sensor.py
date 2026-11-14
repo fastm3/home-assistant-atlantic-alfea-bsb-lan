@@ -29,7 +29,7 @@ from .const import (
     MODE_HEAT,
 )
 from .ecs_cop import compute_ecs_cop
-from .helpers import clean_bsb_status, effective_season, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
+from .helpers import clean_bsb_status, effective_season, energy_entity, source_entity, split_bsb_status, state_float, state_is_on, state_value, track_entities
 from .parameters import SPEC_BY_KEY
 from .runtime import AlfeaRuntimeMonitor
 from .regime_api import valid_base_url
@@ -331,11 +331,7 @@ class AlfeaEcsCopSessionSensor(SensorEntity, RestoreEntity):
         self._entry = entry
         self._state_entity = str(entry.data.get("dhw_state") or "")
         self._temp_entity = str(entry.data.get("dhw_temperature") or "")
-        self._energy_entity = str(
-            entry.options.get("ecs_cop_energy_entity")
-            or entry.data.get("ecs_cop_energy_entity")
-            or "sensor.phase_a_diff_pac_energy"
-        )
+        self._energy_entity = energy_entity(hass, entry)
         try:
             self._volume = float(entry.options.get("ecs_cop_volume_l", 190))
         except (TypeError, ValueError):
@@ -605,11 +601,7 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
         self._entry = entry
         self._ecs = ecs
         self._state_entity = str(entry.data.get("dhw_state") or "")
-        self._energy_entity = str(
-            entry.options.get("ecs_cop_energy_entity")
-            or entry.data.get("ecs_cop_energy_entity")
-            or "sensor.phase_a_diff_pac_energy"
-        )
+        self._energy_entity = energy_entity(hass, entry)
         self._total = 0.0
         self._last_reading: float | None = None
         key = "ecs" if ecs else "circuits"

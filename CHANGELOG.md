@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.46 — Compteur d'énergie dans les options, documentation
+
+- Nouvelle option **Compteur d'énergie global de la PAC** : capteur `kWh` utilisé
+  pour la répartition ECS / C1+C2 et le COP ECS. Vide = capteurs désactivés.
+  L'ancien défaut implicite n'est conservé que s'il existe et qu'aucune option
+  n'a été enregistrée.
+- Libellés français des options (adresse BSB-LAN, compteur d'énergie).
+- README recentré sur l'état actuel et les objectifs du fork ; options des cartes
+  dans `docs/CARTE_SYNOPTIQUE.md` ; anciennes notes de version supprimées
+  (historique conservé ici).
+- Suppression des workflows de publication obsolètes ; CI renommée
+  (`ci-integration.yml`, `ci-synoptique.yml`).
+- Manifest **1.5.46**.
+
 ## 1.5.45 — Lectures adaptées au journal BSB-LAN
 
 - Lecture de la configuration de journalisation BSB-LAN (`/JI`, lecture seule)

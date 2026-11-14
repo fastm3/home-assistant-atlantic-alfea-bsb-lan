@@ -14,6 +14,7 @@ from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig,
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import (
+    CONF_ENERGY_ENTITY,
     CONF_FLOW_GAP_DEGREES,
     CONF_FLOW_GAP_DURATION_MINUTES,
     CONF_FREQUENT_STARTS_PER_HOUR,
@@ -26,6 +27,7 @@ from .const import (
     DOMAIN,
 )
 from .discovery import DiscoveryResult, discover_candidates, discover_mapping
+from .helpers import energy_entity
 from .parameters import PARAMETER_SPECS, SPEC_BY_KEY, ParameterSpec
 
 CONF_CONFIRM_MANUAL = "manual_configuration"
@@ -331,11 +333,19 @@ class AtlanticAlfeaOptionsFlow(OptionsFlowWithReload):
             address = user_input.get("bsb_base_url", "").strip()
             if address and not valid_base_url(address):
                 return self.async_show_form(step_id="init", errors={"base": "invalid_url"})
+            # Keep an explicit empty value: it means "no global meter".
+            user_input[CONF_ENERGY_ENTITY] = user_input.get(CONF_ENERGY_ENTITY) or ""
             return self.async_create_entry(data=user_input)
 
         schema = vol.Schema(
             {
                 vol.Optional("bsb_base_url", default=self.config_entry.options.get("bsb_base_url", "")): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
+                vol.Optional(
+                    CONF_ENERGY_ENTITY,
+                    description={"suggested_value": energy_entity(self.hass, self.config_entry) or None},
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor", device_class="energy")
+                ),
                 vol.Required(
                     CONF_Q3_DIVERTER_CONFIRMED,
                     default=self.config_entry.options.get(CONF_Q3_DIVERTER_CONFIRMED, False),

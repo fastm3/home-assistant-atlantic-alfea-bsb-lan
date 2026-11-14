@@ -55,6 +55,10 @@ CONF_PAC_STATE: Final = "pac_state"
 CONF_COMPRESSOR_STATE: Final = "compressor_state"
 CONF_COMPRESSOR_MODULATION: Final = "compressor_modulation"
 CONF_ENERGY_TOTAL: Final = "energy_total"
+# Global electrical energy meter of the heat pump line (option).
+CONF_ENERGY_ENTITY: Final = "ecs_cop_energy_entity"
+# Former implicit default, kept only when that entity exists (upgrade path).
+LEGACY_ENERGY_ENTITY: Final = "sensor.phase_a_diff_pac_energy"
 CONF_FLOW_TEMP: Final = "flow_temp"
 CONF_RETURN_TEMP: Final = "return_temp"
 CONF_TARGET_FLOW_TEMP: Final = "target_flow_temp"

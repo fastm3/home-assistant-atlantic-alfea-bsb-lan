@@ -196,6 +196,22 @@ def effective_season(hass: HomeAssistant, entry: ConfigEntry) -> str:
     return {"Chauffage": MODE_HEAT, "Refroidissement": MODE_COOL}.get(saved, MODE_OFF)
 
 
+def energy_entity(hass: HomeAssistant, entry: ConfigEntry) -> str:
+    """Configured global energy meter, or "" when none is configured.
+
+    Older installations relied on an implicit default; it is still used when
+    nothing is configured and that entity exists.
+    """
+    from .const import CONF_ENERGY_ENTITY, LEGACY_ENERGY_ENTITY
+
+    if CONF_ENERGY_ENTITY in entry.options:
+        return str(entry.options.get(CONF_ENERGY_ENTITY) or "")
+    configured = entry.data.get(CONF_ENERGY_ENTITY)
+    if configured:
+        return str(configured)
+    return LEGACY_ENERGY_ENTITY if hass.states.get(LEGACY_ENERGY_ENTITY) is not None else ""
+
+
 async def async_select_option(hass: HomeAssistant, entity_id: str, option: str) -> None:
     """Set an option on a Home Assistant select entity."""
     await hass.services.async_call(
