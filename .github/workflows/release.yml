@@ -1,0 +1,58 @@
+name: Atlantic Alféa — release
+# Pousser un tag vX.Y.Z crée la release GitHub suivie par HACS / le Marketplace.
+# Le tag doit correspondre à la version du manifest et à une section du CHANGELOG.
+on:
+  push:
+    tags: ['v*.*.*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Tag = version du manifest
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          version = json.loads(Path("custom_components/atlantic_alfea_controller/manifest.json").read_text())["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          assert tag == f"v{version}", f"tag {tag} != manifest v{version}"
+          print(f"version {version}")
+          PY
+      - name: Tests Python
+        run: |
+          python -m compileall -q custom_components/atlantic_alfea_controller tests
+          python -m unittest discover -s tests -p 'test_*.py'
+      - name: Tests JavaScript
+        run: |
+          node --check custom_components/atlantic_alfea_controller/www/pac-synoptique-card.js
+          node --check custom_components/atlantic_alfea_controller/www/pac-programmes-card.js
+          for test in tests/*.js; do echo "$test"; node "$test"; done
+      - name: Notes de version depuis le CHANGELOG
+        run: |
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          match = re.search(rf"^## {re.escape(version)}\b.*?$(.*?)(?=^## |\Z)", text, re.S | re.M)
+          assert match, f"section ## {version} absente du CHANGELOG"
+          title = match.group(0).splitlines()[0].removeprefix("## ").strip()
+          Path("notes.md").write_text(match.group(1).strip() + "\n", encoding="utf-8")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"RELEASE_TITLE=v{title}\n")
+          PY
+      - name: Créer la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$RELEASE_TITLE" \
+            --notes-file notes.md \
+            --verify-tag \
+            --latest

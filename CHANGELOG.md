@@ -12,6 +12,9 @@
   (historique conservé ici).
 - Suppression des workflows de publication obsolètes ; CI renommée
   (`ci-integration.yml`, `ci-synoptique.yml`).
+- Nouveau workflow `release.yml` : pousser un tag `vX.Y.Z` crée la release
+  GitHub (suivie par HACS / le Marketplace) après vérification de la version
+  et des tests.
 - Manifest **1.5.46**.
 
 ## 1.5.45 — Lectures adaptées au journal BSB-LAN
