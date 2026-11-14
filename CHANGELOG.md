@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.44 — Confirmation des modes circuit plus tolérante
+
+- Off/Auto des circuits et mode global : la confirmation BSB-LAN (700/901/1000/1201)
+  attend désormais 30 s au lieu de 10 s. Si le retour MQTT tarde, l'intégration
+  redemande la publication du paramètre (poll MQTT en lecture seule) au bout de
+  4 s puis toutes les 6 s. Corrige l'erreur « Le régulateur n'a pas confirmé
+  1 - Automatique… après 10 secondes » alors que la commande avait bien abouti (~12 s).
+- Manifest **1.5.44**.
+
 ## 1.5.43 — Graphes énergie C1+C2 / ECS
 
 - Le panneau **Graphes** de la carte synoptique remplace la barre unique du

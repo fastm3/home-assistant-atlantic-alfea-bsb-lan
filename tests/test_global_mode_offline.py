@@ -56,7 +56,15 @@ class Tests(unittest.TestCase):
             if hass.confirm:
                 hass.values[key] = option
 
+        async def write_confirmed(hass, entry, key, option):
+            """Mock of helpers.async_write_circuit_mode_confirmed."""
+            await write(hass, key, option)
+            value = hass.values.get(key)
+            return value is not None and is_protection(value) == (option == BSB_PROTECTION)
+
         namespace = {
+            "async_write_circuit_mode_confirmed": write_confirmed,
+            "MODE_CONFIRM_TIMEOUT_SECONDS": 30.0,
             "asyncio": SimpleNamespace(Lock=asyncio.Lock, sleep=fast_sleep),
             "HomeAssistantError": HomeAssistantError,
             "_OPTION_TO_MODE": OPTIONS,

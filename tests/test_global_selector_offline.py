@@ -20,7 +20,12 @@ def derive(h1,c1,h2,c2):
 async def write(hass,entity_id,option):
     hass.writes.append((entity_id,option))
     hass.values[entity_id]=option
+async def write_confirmed(hass,entry,entity_id,option):
+    """Mock of helpers.async_write_circuit_mode_confirmed."""
+    await write(hass,entity_id,option)
+    return is_protection(hass.values[entity_id])==(option=="0 - Mode protection")
 namespace = dict(
+    async_write_circuit_mode_confirmed=write_confirmed, MODE_CONFIRM_TIMEOUT_SECONDS=30.0,
     HomeAssistantError=HAError, MODE_HEAT="heat", MODE_COOL="cool", MODE_OFF="off",
     BSB_PROTECTION="0 - Mode protection",BSB_AUTO="1 - Automatique",
     _OPTION_TO_MODE={"Off":"off","Chauffage":"heat","Refroidissement":"cool"},

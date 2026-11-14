@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 import re
+import time
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -202,6 +204,55 @@ async def async_select_option(hass: HomeAssistant, entity_id: str, option: str) 
         {"entity_id": entity_id, "option": option},
         blocking=True,
     )
+
+
+CIRCUIT_MODE_PARAMETERS = {
+    "heat_mode_c1": 700,
+    "cool_mode_c1": 901,
+    "heat_mode_c2": 1000,
+    "cool_mode_c2": 1201,
+}
+MODE_CONFIRM_TIMEOUT_SECONDS = 30.0
+
+
+async def async_write_circuit_mode_confirmed(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    entity_id: str,
+    option: str,
+    timeout: float = MODE_CONFIRM_TIMEOUT_SECONDS,
+) -> bool:
+    """Write a 700/901/1000/1201 option and wait for the BSB-LAN MQTT feedback.
+
+    BSB-LAN can take more than 10 s to republish when the bus is busy. If the
+    feedback is still missing after a few seconds, ask BSB-LAN to republish the
+    parameter (read-only MQTT poll) instead of failing early.
+    Returns True when confirmed, False on timeout.
+    """
+    from .polling import async_poll_parameters
+
+    parameter = next(
+        (CIRCUIT_MODE_PARAMETERS[key] for key, value in entry.data.items()
+         if value == entity_id and key in CIRCUIT_MODE_PARAMETERS),
+        None,
+    )
+    expected_protection = option == BSB_PROTECTION
+
+    def confirmed() -> bool:
+        value = state_value(hass, entity_id)
+        return value is not None and is_protection(value) == expected_protection
+
+    await async_select_option(hass, entity_id, option)
+    started = time.monotonic()
+    next_poll = started + 4.0
+    while time.monotonic() - started < timeout:
+        if confirmed():
+            return True
+        if parameter is not None and time.monotonic() >= next_poll:
+            await async_poll_parameters(hass, (parameter,))
+            next_poll = time.monotonic() + 6.0
+        await asyncio.sleep(0.5)
+    return confirmed()
 
 
 async def async_set_numeric_entity(hass: HomeAssistant, entity_id: str, value: float) -> None:

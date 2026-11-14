@@ -45,7 +45,13 @@ async def write(hass, eid, option):
     hass.writes.append((eid, option))
     hass.values[eid] = option
 
+async def write_confirmed(hass, entry, eid, option):
+    """Mock of helpers.async_write_circuit_mode_confirmed."""
+    await write(hass, eid, option)
+    return protected(hass.values.get(eid, "")) == (option == "0 - Mode protection")
+
 namespace = {
+    "async_write_circuit_mode_confirmed": write_confirmed,
     "HVACMode": HVAC, "HomeAssistantError": HAError,
     "MODE_HEAT": "heat", "MODE_COOL":"cool", "MODE_OFF":"off",
     "BSB_AUTO":"1 - Automatique", "BSB_PROTECTION":"0 - Mode protection",
@@ -53,6 +59,7 @@ namespace = {
     "state_value":lambda hass,eid:hass.values.get(eid),
     "is_protection":protected, "derive_global_mode":derive,
     "async_select_option":write,
+    "MODE_CONFIRM_TIMEOUT_SECONDS": 30.0,
     "er":SimpleNamespace(async_get=lambda hass:SimpleNamespace(
         async_get_entity_id=lambda *args:"select.global")),
 }

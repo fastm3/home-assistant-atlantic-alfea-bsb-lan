@@ -13,7 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import BSB_AUTO, BSB_PROTECTION, DOMAIN, MODE_COOL, MODE_HEAT, MODE_OFF, SELECT_OPTIONS
-from .helpers import async_select_option, derive_global_mode, is_enabled, is_protection, state_value, track_entities
+from .helpers import MODE_CONFIRM_TIMEOUT_SECONDS, async_write_circuit_mode_confirmed, derive_global_mode, is_enabled, is_protection, state_value, track_entities
 
 _OPTION_TO_MODE = {"Off": MODE_OFF, "Chauffage": MODE_HEAT, "Refroidissement": MODE_COOL}
 _MODE_TO_OPTION = {value: key for key, value in _OPTION_TO_MODE.items()}
@@ -79,15 +79,11 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
 
     async def _write_verified(self, entity_id: str, option: str) -> None:
         """Write one mode and wait for source state feedback before continuing."""
-        await async_select_option(self.hass, entity_id, option)
-        expected_protection = option == BSB_PROTECTION
-        for _ in range(20):
-            value = state_value(self.hass, entity_id)
-            if value is not None and is_protection(value) == expected_protection:
-                return
-            await asyncio.sleep(0.5)
+        if await async_write_circuit_mode_confirmed(self.hass, self._entry, entity_id, option):
+            return
         raise HomeAssistantError(
-            f"BSB-LAN n'a pas confirmé {option} sur {entity_id} dans les 10 secondes. "
+            f"BSB-LAN n'a pas confirmé {option} sur {entity_id} dans les "
+            f"{MODE_CONFIRM_TIMEOUT_SECONDS:.0f} secondes. "
             "Commande interrompue, vérifier les états réels des circuits."
         )
 

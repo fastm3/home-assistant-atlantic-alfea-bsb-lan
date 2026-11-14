@@ -20,7 +20,9 @@ from homeassistant.helpers.event import async_track_time_interval
 
 from .const import BSB_AUTO, BSB_PROTECTION, DOMAIN, MODE_COOL, MODE_HEAT, MODE_OFF, TEMPERATURE_STEP
 from .helpers import (
+    MODE_CONFIRM_TIMEOUT_SECONDS,
     async_select_option,
+    async_write_circuit_mode_confirmed,
     async_set_numeric_entity,
     derive_global_mode,
     circuit_pump_is_on,
@@ -249,16 +251,12 @@ class AlfeaCircuitClimate(ClimateEntity):
         return [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
 
     async def _write_circuit_mode_verified(self, entity_id: str, option: str) -> None:
-        """Send the known V1.3.3 BSB option and wait for feedback."""
-        await async_select_option(self.hass, entity_id, option)
-        for _ in range(20):
-            current = state_value(self.hass, entity_id)
-            if current is not None and is_protection(current) == (option == BSB_PROTECTION):
-                return
-            await asyncio.sleep(0.5)
-        raise HomeAssistantError(
-            f"Le régulateur n'a pas confirmé {option} sur {entity_id} après 10 secondes."
-        )
+        """Send the known V1.3.3 BSB option and wait for feedback (up to 30 s)."""
+        if not await async_write_circuit_mode_confirmed(self.hass, self._entry, entity_id, option):
+            raise HomeAssistantError(
+                f"Le régulateur n'a pas confirmé {option} sur {entity_id} après "
+                f"{MODE_CONFIRM_TIMEOUT_SECONDS:.0f} secondes."
+            )
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Act on this circuit only, using the validated BSB protection/auto values."""
