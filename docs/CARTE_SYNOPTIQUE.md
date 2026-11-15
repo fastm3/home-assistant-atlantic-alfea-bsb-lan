@@ -112,6 +112,14 @@ radiateurs), sinon départ maximal (741 / 1041 : ≤ 40 °C plancher). La raison
 dans les attributs du capteur. Dans l'éditeur de la carte, section **Installation**,
 « Automatique » affiche ce qui a été détecté ; chaque valeur peut être corrigée.
 
+**Détection fausse ?** Corrigez-la dans la carte, puis aidez à l'améliorer : Paramètres →
+Appareils et services → Atlantic Alfea BSB-LAN → ⋮ → **Télécharger les diagnostics**, et
+joignez le fichier à un ticket « Détection de l'installation incorrecte ». Il contient la
+lecture brute des paramètres (nom, valeur, libellé), la détection retenue avec sa raison et
+sa confiance, et l'adresse de BSB-LAN masquée. Le journal de Home Assistant note chaque
+détection (« Configuration de l'installation : … ») et avertit quand elle est incertaine
+(choix fait sur le seul départ maximal, ou paramètre illisible).
+
 ### Options
 
 L'éditeur visuel n'affiche que l'essentiel : appareil, puissance et énergie,

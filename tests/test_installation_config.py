@@ -48,16 +48,24 @@ class InstallationConfigTest(unittest.TestCase):
         self.assertEqual(layout["circuit_2_emetteur"], "plancher")
         self.assertTrue(layout["ecs_presente"])
         self.assertEqual(ic.summary(layout), "C1 radiateur · C2 plancher · ECS")
+        self.assertEqual(ic.uncertain(layout), [])
+        self.assertEqual(layout["brut"]["5731"]["value"], "2")
+        self.assertIn("C2: plancher (rafraîchissement actif", ic.details(layout))
 
     def test_cooling_means_floor_even_with_high_tmax(self):
         self.assertEqual(ic.classify_emitter(2, 1.2, 55)[0], "plancher")
 
     def test_slope_then_tmax(self):
-        self.assertEqual(ic.classify_emitter(0, 0.3, 55)[0], "plancher")
-        self.assertEqual(ic.classify_emitter(0, 1.1, 35)[0], "radiateur")
-        self.assertEqual(ic.classify_emitter(0, 0.7, 38)[0], "plancher")
-        self.assertEqual(ic.classify_emitter(0, 0.7, 55)[0], "radiateur")
-        self.assertEqual(ic.classify_emitter(None, None, None)[0], None)
+        self.assertEqual(ic.classify_emitter(0, 0.3, 55)[::2], ("plancher", "haute"))
+        self.assertEqual(ic.classify_emitter(0, 1.1, 35)[::2], ("radiateur", "haute"))
+        self.assertEqual(ic.classify_emitter(0, 0.7, 38)[::2], ("plancher", "moyenne"))
+        self.assertEqual(ic.classify_emitter(0, 0.7, 55)[::2], ("radiateur", "moyenne"))
+        self.assertEqual(ic.classify_emitter(None, None, None)[::2], (None, "inconnue"))
+
+    def test_uncertain_parts_are_reported(self):
+        layout = ic.parse_installation(answer(p5716=0, p1020=0.7, p1041=38))
+        self.assertEqual(layout["circuit_2_confiance"], "moyenne")
+        self.assertEqual(ic.uncertain(layout), ["circuit 2"])
 
     def test_single_circuit_without_dhw(self):
         layout = ic.parse_installation(answer(p5715=0, p5716=0, p5731=0, p720=0.35))
@@ -68,7 +76,9 @@ class InstallationConfigTest(unittest.TestCase):
 
     def test_errors_are_unknown(self):
         data = answer(); data["5731"] = {"error": 7, "value": "---"}
-        self.assertIsNone(ic.parse_installation(data)["ecs_presente"])
+        layout = ic.parse_installation(data)
+        self.assertIsNone(layout["ecs_presente"])
+        self.assertIn("ECS", ic.uncertain(layout))
         self.assertIsNone(ic.parse_installation({}))
         self.assertIsNone(ic.parse_installation("x"))
 

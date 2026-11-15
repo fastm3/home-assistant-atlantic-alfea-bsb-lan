@@ -1,0 +1,58 @@
+name: Détection de l'installation incorrecte
+description: La carte affiche un ballon, des radiateurs ou un plancher qui ne correspondent pas à votre installation.
+title: "[Détection] "
+labels: ["détection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci ! Ces informations servent à corriger la détection automatique pour tout le monde.
+        En attendant, la carte peut être réglée à la main : éditeur de la carte, section **Installation**.
+  - type: dropdown
+    id: c1
+    attributes:
+      label: Circuit 1 — en réalité
+      options: ["Radiateurs", "Plancher chauffant", "Ventilo-convecteurs", "Absent", "Autre (préciser plus bas)"]
+    validations:
+      required: true
+  - type: dropdown
+    id: c2
+    attributes:
+      label: Circuit 2 — en réalité
+      options: ["Radiateurs", "Plancher chauffant", "Ventilo-convecteurs", "Absent", "Autre (préciser plus bas)"]
+    validations:
+      required: true
+  - type: dropdown
+    id: ecs
+    attributes:
+      label: Ballon d'eau chaude (ECS) piloté par la PAC
+      options: ["Oui", "Non"]
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics de l'intégration
+      description: |
+        Paramètres → Appareils et services → **Atlantic Alfea BSB-LAN** → menu **⋮** →
+        **Télécharger les diagnostics**, puis glissez le fichier JSON ici. L'adresse de BSB-LAN y
+        est masquée. Le fichier contient la lecture des paramètres 5710, 5711, 5715, 5716, 5731,
+        720, 1020, 741 et 1041 et la raison de chaque choix.
+    validations:
+      required: true
+  - type: textarea
+    id: journal
+    attributes:
+      label: Ligne du journal (facultatif)
+      description: Paramètres → Système → Journaux, filtrer sur « Configuration de l'installation ».
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version de l'intégration
+      placeholder: "2.3.0"
+  - type: textarea
+    id: remarques
+    attributes:
+      label: Précisions
+      description: Modèle de PAC, particularités (circuit mélangé, vanne, ballon tampon…).

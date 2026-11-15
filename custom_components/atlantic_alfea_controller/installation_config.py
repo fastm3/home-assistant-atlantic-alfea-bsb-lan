@@ -57,20 +57,25 @@ def _number(data: dict, parameter: int) -> float | None:
         return None
 
 
-def classify_emitter(cooling: float | None, slope: float | None, tmax: float | None) -> tuple[str | None, str]:
-    """Guess the emitter of a heating circuit; return (type, reason)."""
+HIGH: Final = "haute"
+MEDIUM: Final = "moyenne"
+UNKNOWN: Final = "inconnue"
+
+
+def classify_emitter(cooling: float | None, slope: float | None, tmax: float | None) -> tuple[str | None, str, str]:
+    """Guess the emitter of a heating circuit; return (type, reason, confidence)."""
     if cooling is not None and cooling != 0:
-        return FLOOR, "rafraîchissement actif sur le circuit"
+        return FLOOR, "rafraîchissement actif sur le circuit", HIGH
     if slope is not None:
         if slope <= SLOPE_FLOOR_MAX:
-            return FLOOR, f"pente de loi d'eau faible ({slope:g})"
+            return FLOOR, f"pente de loi d'eau faible ({slope:g})", HIGH
         if slope >= SLOPE_RADIATOR_MIN:
-            return RADIATOR, f"pente de loi d'eau forte ({slope:g})"
+            return RADIATOR, f"pente de loi d'eau forte ({slope:g})", HIGH
     if tmax is not None:
         if tmax <= TMAX_FLOOR_MAX:
-            return FLOOR, f"départ maximal bas ({tmax:g} °C)"
-        return RADIATOR, f"départ maximal élevé ({tmax:g} °C)"
-    return None, "réglages du circuit illisibles"
+            return FLOOR, f"départ maximal bas ({tmax:g} °C)", MEDIUM
+        return RADIATOR, f"départ maximal élevé ({tmax:g} °C)", MEDIUM
+    return None, "réglages du circuit illisibles", UNKNOWN
 
 
 def parse_installation(data: object) -> dict | None:
@@ -85,17 +90,28 @@ def parse_installation(data: object) -> dict | None:
         present = values[p_on]
         result[f"circuit_{n}_present"] = None if present is None else present != 0
         if present == 0:
-            emitter, reason = None, "circuit désactivé (%s = 0)" % p_on
+            emitter, reason, confidence = None, "circuit désactivé (%s = 0)" % p_on, HIGH
+        elif present is None:
+            emitter, reason, confidence = None, "présence du circuit illisible (%s)" % p_on, UNKNOWN
         else:
-            emitter, reason = classify_emitter(values[p_cool], values[p_slope], values[p_tmax])
+            emitter, reason, confidence = classify_emitter(values[p_cool], values[p_slope], values[p_tmax])
         result[f"circuit_{n}_emetteur"] = emitter
         result[f"circuit_{n}_raison"] = reason
+        result[f"circuit_{n}_confiance"] = confidence
         result[f"circuit_{n}_pente"] = values[p_slope]
         result[f"circuit_{n}_t_depart_max"] = values[p_tmax]
         result[f"circuit_{n}_rafraichissement"] = None if values[p_cool] is None else values[p_cool] != 0
     q3 = values[5731]
     result["ecs_presente"] = None if q3 is None else q3 != 0
+    result["ecs_confiance"] = UNKNOWN if q3 is None else HIGH
     result["parametres"] = {str(p): v for p, v in values.items()}
+    # réponse brute du régulateur (nom, valeur, libellé) : à joindre pour corriger la détection
+    brut = {}
+    for p in CONFIG_PARAMETERS:
+        item = data.get(str(p))
+        if isinstance(item, dict):
+            brut[str(p)] = {k: item.get(k) for k in ("name", "value", "desc", "unit", "error")}
+    result["brut"] = brut
     result["lu_le"] = dt_util.now().isoformat(timespec="seconds")
     return result
 
@@ -114,6 +130,37 @@ def summary(layout: dict | None) -> str:
     elif layout.get("ecs_presente") is False:
         parts.append("sans ECS")
     return " · ".join(parts) or "Aucun circuit"
+
+
+def uncertain(layout: dict) -> list[str]:
+    """Parts of the layout that were not detected with high confidence."""
+    out = [f"circuit {n}" for n in (1, 2) if layout.get(f"circuit_{n}_confiance") != HIGH]
+    if layout.get("ecs_confiance") != HIGH:
+        out.append("ECS")
+    return out
+
+
+def details(layout: dict) -> str:
+    """One line per element, for the log."""
+    parts = []
+    for n in (1, 2):
+        parts.append(
+            f"C{n}: {layout.get(f'circuit_{n}_emetteur') or 'absent'} ({layout.get(f'circuit_{n}_raison')}, "
+            f"confiance {layout.get(f'circuit_{n}_confiance')} ; pente={layout.get(f'circuit_{n}_pente')}, "
+            f"départ max={layout.get(f'circuit_{n}_t_depart_max')}, "
+            f"rafraîchissement={layout.get(f'circuit_{n}_rafraichissement')})"
+        )
+    q3 = (layout.get("brut") or {}).get("5731") or {}
+    ecs = layout.get("ecs_presente")
+    parts.append(f"ECS: {'oui' if ecs else 'non' if ecs is False else '?'} (5731 = {q3.get('value')} {q3.get('desc') or ''})")
+    return " | ".join(parts)
+
+
+DIAGNOSTICS_HINT: Final = (
+    "Si elle est fausse : Paramètres > Appareils et services > Atlantic Alfea BSB-LAN > ⋮ > "
+    "Télécharger les diagnostics, puis joindre le fichier à un ticket GitHub (le type d'émetteur "
+    "peut être corrigé dans la carte en attendant)."
+)
 
 
 def installation_layout(hass: HomeAssistant, entry: ConfigEntry) -> dict | None:
@@ -140,7 +187,13 @@ async def async_start_installation_watch(hass: HomeAssistant, entry: ConfigEntry
         previous = store.get(entry.entry_id)
         store[entry.entry_id] = layout
         if previous is None or summary(previous) != summary(layout):
-            _LOGGER.info("Configuration de l'installation : %s", summary(layout))
+            _LOGGER.info("Configuration de l'installation : %s — %s", summary(layout), details(layout))
+            doubt = uncertain(layout)
+            if doubt:
+                _LOGGER.warning(
+                    "Détection de l'installation incertaine pour %s : %s. %s",
+                    ", ".join(doubt), details(layout), DIAGNOSTICS_HINT,
+                )
         async_dispatcher_send(hass, f"{DOMAIN}_installation_{entry.entry_id}")
 
     first = hass.async_create_task(refresh())
