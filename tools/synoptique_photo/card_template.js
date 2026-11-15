@@ -304,6 +304,36 @@ class PacSynoptiquePhotoCard extends HTMLElement {
 
   // signature de ce qui impose de reconstruire la carte (noms des circuits, configuration dessinée)
   _sig() { return this._cname(1) + "|" + this._cname(2) + "|" + [this._L?.ecs, this._L?.rad, this._L?.floor].join(","); }
+  // énergie du jour : variation du compteur depuis minuit (statistiques de HA), suivie en direct
+  // entre deux relectures (10 min) ; total du compteur en infobulle ; sans statistiques : total
+  _energyToday() {
+    const el = this._root.getElementById("x_en"), k = this._root.getElementById("x_enk");
+    const s = this._s("energy"), unit = s?.attributes?.unit_of_measurement || "kWh", cur = parseFloat(s?.state);
+    if (!el) return;
+    const fmt = (v) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${unit}`;
+    el.title = isNaN(cur) ? "" : `Compteur total : ${fmt(cur)}`;
+    const day = new Date().toDateString(), st = this._enDay;
+    const fresh = st && st.id === this._e.energy && st.day === day;
+    if (fresh && isFinite(st.change) && isFinite(st.ref) && !isNaN(cur)) {
+      k.textContent = "Énergie du jour";
+      el.textContent = fmt(Math.max(0, st.change + (cur - st.ref)));
+    } else {
+      k.textContent = "Énergie"; el.textContent = isNaN(cur) ? "—" : fmt(cur);   // statistiques indisponibles : total
+    }
+    const due = !fresh || Date.now() - st.at > 600000;
+    if (!due || this._enBusy || !this._e.energy || isNaN(cur) || !this._hass?.callWS) return;
+    this._enBusy = true;
+    const id = this._e.energy;
+    this._hass.callWS({ type: "recorder/statistic_during_period", statistic_id: id, calendar: { period: "day" }, types: ["change"] })
+      .then((r) => {
+        if (r && typeof r.change === "number") {
+          this._enDay = { id, day, change: r.change, ref: parseFloat(this._s("energy")?.state), at: Date.now() };
+          this._energyToday();
+        }
+      })
+      .catch(() => { this._enDay = { id, day, change: NaN, ref: NaN, at: Date.now() }; })
+      .finally(() => { this._enBusy = false; });
+  }
   // ---------- helpers ----------
   _s(key) { const id = this._e[key]; return id && this._hass.states[id]; }
   _v(key) { const s = this._s(key); return s ? s.state : undefined; }
@@ -728,7 +758,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       <div class="row"><span class="k">Consigne départ</span><span class="v" id="x_cons"></span></div>
       <div class="row"><span class="k">ΔT</span><span class="v" id="x_dt"></span></div>
       <div class="row"><span class="k">Puissance élec.</span><span class="v" id="x_pw"></span></div>
-      <div class="row"><span class="k">Énergie</span><span class="v" id="x_en"></span></div>
+      <div class="row"><span class="k" id="x_enk">Énergie du jour</span><span class="v" id="x_en"></span></div>
       <div class="chips" id="x_chips"></div></div>
     <div class="card" id="k_c1" data-more="${L.rad || "c1"}_climate" style="--x:${P_.c1[0]}%;--y:${P_.c1[1]}%;--w:${P_.c1[2]}%;--accent:#ff5a2a${L.rad ? "" : ";display:none"}">
       <h3><i></i>Circuit ${cn(L.rad)} · <span>${this._cname(cn(L.rad))}</span></h3>
@@ -926,7 +956,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const prim = this._v("c1_pump") === undefined ? "" : `<span class="chip ${this._on("c1_pump") ? "on" : ""}" title="Relais QX1 : circuit direct C1 ou charge ECS selon la V3V">Pompe primaire ${this._on("c1_pump") ? "ON" : "OFF"}${this._on("c1_pump") ? (ecsMode ? " · ECS" : OVERRUN.test(this._v("pac_etat") || "") || c1Overrun ? " · post-circulation" : " · chauffage") : ""}</span>`;
     $("x_chips").innerHTML = `<span class="chip ${/chauff/i.test(this._v("mode") || "") ? "hot" : ""}">${this._v("mode") || "—"}</span><span class="chip">${this._v("pac_etat") || "—"}</span>${prim}`;
     $("x_pw").textContent = isNaN(pw) ? "—" : `${Math.round(pw).toLocaleString("fr-FR")} W`;
-    $("x_en").textContent = this._num("energy", 1, this._s("energy")?.attributes?.unit_of_measurement || "kWh");
+    this._energyToday();
     for (const [z, n] of [["c1", L.rad], ["c2", L.floor]]) {   // z : panneau (zone du dessin), n : circuit
       if (!n) continue;
       $(`${z}_t`).textContent = this._attr(`${n}_climate`, "current_temperature");

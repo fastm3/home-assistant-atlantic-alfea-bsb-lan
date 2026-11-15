@@ -137,7 +137,7 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 |---|---|---|---|
 | `device` | appareil | détection auto | appareil PAC de l'intégration |
 | `power_entity` | entity_id (W) | — | puissance électrique de la PAC (entête, panneau PAC, onglet Commandes) |
-| `energy_entity` | entity_id (kWh) | options de l'intégration | énergie électrique de la PAC |
+| `energy_entity` | entity_id (kWh) | options de l'intégration | compteur d'énergie électrique de la PAC : le panneau PAC affiche l'énergie du jour (statistiques de HA, depuis minuit), le total en infobulle |
 | `title`, `subtitle` | texte | Alfea Duo, Pompe à chaleur Air/Eau | entête |
 | `circuit_1_name`, `circuit_2_name` | texte | options de l'intégration | libellés des circuits |
 | `image_set` | `auto`, `jour`, `nuit` | `auto` | décor ; `auto` suit le soleil |
