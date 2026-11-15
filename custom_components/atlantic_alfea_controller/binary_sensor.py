@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .clock import clock_offset_seconds, clock_source_ids, clock_source_is_fresh
+from .clock import CLOCK_REFUSED_HINT, clock_offset_seconds, clock_source_ids, clock_source_is_fresh, clock_write_state
 from .const import CLOCK_DESYNC_THRESHOLD_SECONDS, DOMAIN
 from .helpers import circuit_pump_is_on, source_entity, split_bsb_status, state_is_on, state_value, track_entities
 from .runtime import AlfeaRuntimeMonitor
@@ -366,11 +366,16 @@ class AlfeaClockDesyncBinarySensor(BinarySensorEntity):
         offset = clock_offset_seconds(self.hass, self._entry)
         if offset is None:
             return None
-        return {
+        attributes = {
             "decalage_secondes": offset,
             "seuil_secondes": CLOCK_DESYNC_THRESHOLD_SECONDS,
             "lecture_bsb_recente": clock_source_is_fresh(self.hass, self._entry),
         }
+        write = clock_write_state(self.hass, self._entry) or {}
+        if write.get("resultat", "").startswith(("refusé", "non appliqué")):
+            attributes["reglage_par_bsb_lan"] = write["resultat"]
+            attributes["conseil"] = CLOCK_REFUSED_HINT
+        return attributes
 
     @callback
     def _handle_clock_interval(self, _now) -> None:

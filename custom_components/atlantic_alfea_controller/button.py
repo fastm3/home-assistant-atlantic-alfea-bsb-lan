@@ -15,7 +15,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .clock import async_sync_pac_clock, clock_is_writable, clock_source_ids
+from .clock import async_sync_pac_clock, clock_is_writable, clock_source_ids, clock_write_state
 from .const import DOMAIN
 from .helpers import async_select_option, source_entity, track_entities
 from .polling import async_poll_parameters
@@ -151,16 +151,19 @@ class AlfeaSyncClockButton(ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Return whether the clock parameter is writable."""
+        """Return whether a write of the clock parameter can be attempted."""
         return clock_is_writable(self.hass, self._entry)
 
     @property
     def extra_state_attributes(self) -> dict[str, str] | None:
-        """Expose the last manual synchronization result."""
+        """Expose the last synchronization attempt (method, outcome)."""
         attributes: dict[str, str] = {}
         if self._last_sync is not None:
             attributes["derniere_synchronisation"] = self._last_sync.isoformat()
-        if self._last_result is not None:
+        state = clock_write_state(self.hass, self._entry)
+        if state:
+            attributes.update({k: str(v) for k, v in state.items()})
+        elif self._last_result is not None:
             attributes["resultat"] = self._last_result
         return attributes or None
 
@@ -179,7 +182,7 @@ class AlfeaSyncClockButton(ButtonEntity):
                 f"La synchronisation de l’horloge PAC a échoué : {err}"
             ) from err
 
-        self._last_result = "commande envoyée"
+        self._last_result = (clock_write_state(self.hass, self._entry) or {}).get("resultat", "commande envoyée")
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:

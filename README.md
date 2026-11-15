@@ -146,7 +146,7 @@ comme erreur.
 | Dérogation temporaire native | consigne du `climate` + durée `number` + bouton *Annuler dérogation* | 701/1001, 10990–10993 |
 | ECS : mode et consignes | `water_heater` *Eau chaude sanitaire* | 1600, 1610, 1612 |
 | Forçage d'un cycle ECS | bouton *Forçage cycle ECS* | — |
-| Horloge de la PAC | bouton *Horloge PAC - Synchroniser* | 0 |
+| Horloge de la PAC | bouton *Horloge PAC - Synchroniser* (entité texte BSB-LAN, sinon HTTP `/JS` avec relecture ; certains régulateurs refusent ce réglage : le bouton l'indique, régler alors l'heure sur la PAC) | 0 |
 | Programmes horaires chauffage C1/C2 et ECS | service `set_weekly_program`, mode édition de la carte Programmes | 501–507, 521–527, 561–567 |
 
 Garde-fous :
