@@ -114,7 +114,7 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `show_controls` | booléen | `false` | onglet Commandes |
 | `logo_url` | URL | — | logo posé sur la façade du groupe extérieur (en haut à droite), fusion « multiply » : un fond blanc disparaît. Aucun logo n'est fourni avec l'intégration (marques déposées) : déposer le vôtre dans `/config/www/` |
 | `logo_box` | `[x, y, largeur]` | `[428, 688, 72]` | position et taille du logo, en pixels de l'image 2048×1152 |
-| `logo_box_double` | `[x, y, largeur]` | `logo_box` décalé | position du logo en groupe double (aussi `box_double` dans `logos`) |
+| `logo_box_double` | `[x, y, largeur]` | `logo_box` décalé et réduit (×0,85) | position du logo en groupe double (aussi `box_double` dans `logos`) |
 | `logos` | liste `{name, url, box}` | — | logos au choix ; l'éditeur propose alors un menu « Logo » |
 | `logo` | nom | `aucun` | logo choisi dans `logos` (`aucun` = pas de logo) |
 | `debug` | booléen | `false` | barre de test : forcer chaque calque, dégivrage, modulation, météo et moment |

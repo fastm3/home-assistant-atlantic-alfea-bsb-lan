@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.2.0 — Groupe extérieur double, logos, modes relus aussitôt
+
+### Carte PAC Synoptique photo (2.2.0)
+
+- **Groupe extérieur double** en option (`outdoor_unit: double`) : deux blocs
+  identiques empilés, deux ventilateurs animés (légèrement décalés), calque
+  lumineux des deux grilles, neige sur le bloc du haut. Disponible pour les
+  8 décors (jour/nuit × normal, neige, pluie, brouillard). Le panneau
+  « Unité extérieure » remonte au-dessus du groupe.
+- **Logo sur le groupe extérieur** : `logo_url` (+ `logo_box`), ou une liste
+  `logos` (`name`, `url`, `box`, `box_double` facultatif) avec un menu
+  « Logo » dans l'éditeur pour choisir. Le logo est une image HTML calée en
+  haut, quel que soit son format (SVG allongé compris). En groupe double, il
+  passe sur le bloc du haut, réduit pour tenir dans le panneau lisse. Aucun
+  logo de marque n'est fourni : héberger le fichier soi-même (`/local/...`).
+
+### Intégration
+
+- **Consigne et état relus aussitôt après un changement de mode** (C1, C2,
+  mode global, ECS) : relecture des consignes effectives et de l'état du
+  circuit à 2 s puis 6 s, au lieu d'attendre le cycle normal.
+- **Mode ECS confirmé** comme les circuits : attente de la confirmation,
+  renvoi par HTTP `/JS` si besoin, erreur affichée si la valeur n'est pas
+  appliquée.
+- Manifest **2.2.0**.
+
 ## 2.1.1 — Chaleur du radiateur plus visible
 
 ### Carte PAC Synoptique photo (2.1.1)
