@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.2.1 — Historique au clic, éditeur du logo, chaleur du radiateur
+
+### Carte PAC Synoptique photo (2.2.1)
+
+- **Clic sur un panneau = popup d'historique** de toutes ses entités (carte
+  Historique de HA) : unité extérieure (T. extérieure, modulation,
+  compresseur, dégivrage), PAC (départ, retour, consigne, puissance, pompe
+  primaire, état, mode), circuits (thermostat, départ, circulateur, état),
+  ECS (ballon, confort, chauffe-eau, pompe, appoint, état). Boutons 6 h / 24 h
+  / 48 h / 7 j, accès à la fiche de l'entité, fermeture par Échap. Options
+  `panel_click` (`history` ou `more-info`, l'ancien comportement) et
+  `history_hours`.
+- **Éditeur : section « Logo du groupe extérieur »** : menu toujours présent
+  (Aucun, logos de la liste, « URL personnalisée… » → `logo: personnalisé` +
+  `logo_url`), liste `logos` modifiable sans YAML (nom, URL, position x / y /
+  largeur facultatives). Les anciennes configurations (`logo_url` seul)
+  restent valables.
+- **Volutes du radiateur** nettement plus visibles (plus nombreuses, plus
+  épaisses), intensité minimale même départ froid ; masques de l'air chaud
+  fondus sur tous les bords (plus de rectangle au-dessus du radiateur).
+  Forçage debug du circuit 1 : volutes visibles même PAC arrêtée.
+- Manifest **2.2.1**.
+
 ## 2.2.0 — Groupe extérieur double, logos, modes relus aussitôt
 
 ### Carte PAC Synoptique photo (2.2.0)
