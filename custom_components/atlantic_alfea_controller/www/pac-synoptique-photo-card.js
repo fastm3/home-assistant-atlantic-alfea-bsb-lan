@@ -2594,7 +2594,8 @@ const HEATER = [975, 730, 790];       // tige de la résistance : x, haut, bas
 const PUMPS = { pompe_primaire: [1018, 393, 15], pompe_c2: [1018, 447, 15] };  // circulateurs du module : x, y, rayon
 // groupe extérieur double (deux blocs empilés) : hélices, décalage du logo, panneau remonté
 const FANS_DOUBLE = [[303, 562, 96], [303, 784, 96]];
-const LOGO_DOUBLE_SHIFT = [-1, -210];  // hors de l'arrondi du coin haut droit du bloc du haut
+const LOGO_DOUBLE_SHIFT = [-2, -208];  // hors de l'arrondi du coin haut droit du bloc du haut
+const LOGO_DOUBLE_SCALE = 0.85;        // panneau lisse plus étroit sur le bloc du haut : logo réduit
 const EXT_DOUBLE_POS = [3, 9, 16];
 const LOGO_BOX = [428, 688, 72];  // logo du groupe extérieur : x, y, largeur (pixels image), zone lisse en haut à droite
 const NO_LOGO = "aucun";
@@ -2608,7 +2609,7 @@ function logoFor(c) {
     const b = Array.isArray(box) && box.length === 3 ? box : LOGO_BOX;
     if (!dbl) return b;
     if (Array.isArray(boxDouble) && boxDouble.length === 3) return boxDouble;
-    return [b[0] + LOGO_DOUBLE_SHIFT[0], b[1] + LOGO_DOUBLE_SHIFT[1], b[2]];
+    return [b[0] + LOGO_DOUBLE_SHIFT[0], b[1] + LOGO_DOUBLE_SHIFT[1], Math.round(b[2] * LOGO_DOUBLE_SCALE)];
   };
   if (pick) return { url: pick.url, box: place(pick.box, pick.box_double) };
   if (c.logo === NO_LOGO && list.length) return null;
