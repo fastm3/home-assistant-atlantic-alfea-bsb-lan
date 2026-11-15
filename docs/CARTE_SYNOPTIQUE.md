@@ -111,6 +111,8 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `weather_anim` | booléen | `true` | animations météo |
 | `show_alarms`, `show_diagnostics`, `show_graphs`, `show_curve` | booléen | `true` | onglets |
 | `show_controls` | booléen | `false` | onglet Commandes |
+| `logo_url` | URL | — | logo posé sur la façade du groupe extérieur (en haut à droite), fusion « multiply » : un fond blanc disparaît. Aucun logo n'est fourni avec l'intégration (marques déposées) : déposer le vôtre dans `/config/www/` |
+| `logo_box` | `[x, y, largeur]` | `[428, 688, 72]` | position et taille du logo, en pixels de l'image 2048×1152 |
 | `debug` | booléen | `false` | barre de test : forcer chaque calque, dégivrage, modulation, météo et moment |
 | `image_path` | URL | `/alfea-synoptique/pac_synoptique/` | dossier des images |
 | `positions` | objet | — | positions des panneaux `{ext, pac, c1, c2, ecs: [x %, y %, largeur %]}` |

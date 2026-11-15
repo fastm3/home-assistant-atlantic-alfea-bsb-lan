@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.1.1";
+const VERSION = "2.1.2";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -57,6 +57,7 @@ const RADIATOR = [1607, 599, 1852, 734]; // x0,y0,x1,y1 pixels image
 const TANK = [920, 546, 1020, 792];   // intérieur de la cuve ECS x0,y0,x1,y1 (pixels image)
 const HEATER = [975, 730, 790];       // tige de la résistance : x, haut, bas
 const PUMPS = { pompe_primaire: [1018, 393, 15], pompe_c2: [1018, 447, 15] };  // circulateurs du module : x, y, rayon
+const LOGO_BOX = [428, 688, 72];  // logo du groupe extérieur : x, y, largeur (pixels image), zone lisse en haut à droite
 const FAN = [310, 797, 106]; // centre x, y et rayon de l'helice du groupe exterieur (pixels image)
 // zone paysage (jardin + ciel, hors maison et toit) : les effets météo y sont limités
 const OUTDOOR = "0,0 575,0 575,95 700,235 700,935 640,950 640,1152 0,1152";
@@ -77,7 +78,7 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 // ---------- éditeur visuel ----------
 const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", circuit_1_name: "", circuit_2_name: "",
   image_path: "/alfea-synoptique/pac_synoptique/", image_set: "auto", debug: false,
-  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true,
+  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "",
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
@@ -99,6 +100,7 @@ const EDITOR_SCHEMA = [
         { name: "show_controls", selector: { boolean: {} } }] }] },
   { type: "expandable", name: "", flatten: true, title: "Avancé", icon: "mdi:tune", schema: [
       { name: "debug", selector: { boolean: {} } },
+      { name: "logo_url", selector: { text: {} } },
       { name: "image_path", selector: { text: {} } },
       { name: "positions", selector: { object: {} } }] },
 ];
@@ -107,6 +109,7 @@ const LABELS = {
   power_entity: "Puissance électrique PAC (W)",
   energy_entity: "Énergie électrique PAC (kWh ; vide = compteur des options de l'intégration)",
   title: "Titre", subtitle: "Sous-titre", circuit_1_name: "Nom du circuit 1 (vide = nom défini dans l'intégration)", circuit_2_name: "Nom du circuit 2 (vide = nom défini dans l'intégration)",
+  logo_url: "Logo sur le groupe extérieur (URL d'une image, ex. /local/mon_logo.png ; fond blanc accepté)",
   image_set: "Jeu d'images", debug: "Boutons de test (debug)", image_path: "Chemin des images",
   show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Graphes",
   show_curve: "Loi d'eau", show_controls: "Commandes (mode, consignes)",
@@ -453,6 +456,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .dbg button { background:#222a36; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:4px 8px; cursor:pointer; }
   .dbg button.on { background:#2d6a4f; }
   .dbg label { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--mut); }
+  .logo { mix-blend-mode:multiply; opacity:.92; }
   /* circulateurs du module : anneau + roue qui tourne */
   .pump { opacity:0; transition:opacity 1s ease; } .pump.on { opacity:1; }
   .pring { fill:none; stroke:#5fd0ff; stroke-width:3; filter:drop-shadow(0 0 4px #5fd0ff); }
@@ -509,6 +513,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     <img id="baseImg" src="${this._img("base", wx0.variant)}" alt="">
     ${LAYERS.map((l) => `<img class="layer ${l}" data-layer="${l}" src="${this._img("calque_" + l)}" alt="">`).join("")}
     <svg class="fx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${fan}${heat}${flows}</svg>
+    ${c.logo_url ? `<svg class="fx logo" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none"><image href="${String(c.logo_url).replace(/"/g, "&quot;")}" x="${(c.logo_box || LOGO_BOX)[0]}" y="${(c.logo_box || LOGO_BOX)[1]}" width="${(c.logo_box || LOGO_BOX)[2]}" height="${(c.logo_box || LOGO_BOX)[2]}" preserveAspectRatio="xMidYMin meet"/></svg>` : ""}
     <svg class="fx tankfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${tank}</svg>
     <svg class="fx wxfx" id="wxfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none"></svg>
     <div class="wx" id="wx" hidden><ha-icon id="wx_i"></ha-icon><div><b id="wx_t"></b><span id="wx_l"></span><small id="wx_d"></small></div></div>
