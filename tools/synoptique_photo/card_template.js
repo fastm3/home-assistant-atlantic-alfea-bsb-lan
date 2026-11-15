@@ -58,6 +58,15 @@ const TANK = [920, 546, 1020, 792];   // intérieur de la cuve ECS x0,y0,x1,y1 (
 const HEATER = [975, 730, 790];       // tige de la résistance : x, haut, bas
 const PUMPS = { pompe_primaire: [1018, 393, 15], pompe_c2: [1018, 447, 15] };  // circulateurs du module : x, y, rayon
 const LOGO_BOX = [428, 688, 72];  // logo du groupe extérieur : x, y, largeur (pixels image), zone lisse en haut à droite
+const NO_LOGO = "aucun";
+// logo effectif : entrée choisie dans `logos` (liste fournie par l'utilisateur), sinon logo_url / logo_box
+function logoFor(c) {
+  const list = Array.isArray(c.logos) ? c.logos.filter((l) => l && l.url) : [];
+  const pick = c.logo && c.logo !== NO_LOGO ? list.find((l) => l.name === c.logo) : null;
+  if (pick) return { url: pick.url, box: Array.isArray(pick.box) && pick.box.length === 3 ? pick.box : LOGO_BOX };
+  if (c.logo === NO_LOGO && list.length) return null;
+  return c.logo_url ? { url: c.logo_url, box: c.logo_box || LOGO_BOX } : null;
+}
 const FAN = [310, 797, 106]; // centre x, y et rayon de l'helice du groupe exterieur (pixels image)
 // zone paysage (jardin + ciel, hors maison et toit) : les effets météo y sont limités
 const OUTDOOR = "0,0 575,0 575,95 700,235 700,935 640,950 640,1152 0,1152";
@@ -78,7 +87,7 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 // ---------- éditeur visuel ----------
 const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", circuit_1_name: "", circuit_2_name: "",
   image_path: "/alfea-synoptique/pac_synoptique/", image_set: "auto", debug: false,
-  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "",
+  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO,
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
@@ -109,7 +118,8 @@ const LABELS = {
   power_entity: "Puissance électrique PAC (W)",
   energy_entity: "Énergie électrique PAC (kWh ; vide = compteur des options de l'intégration)",
   title: "Titre", subtitle: "Sous-titre", circuit_1_name: "Nom du circuit 1 (vide = nom défini dans l'intégration)", circuit_2_name: "Nom du circuit 2 (vide = nom défini dans l'intégration)",
-  logo_url: "Logo sur le groupe extérieur (URL d'une image, ex. /local/mon_logo.png ; fond blanc accepté)",
+  logo: "Logo sur le groupe extérieur",
+  logo_url: "Logo : URL d'une image si aucun n'est choisi dans la liste (ex. /local/mon_logo.png ; fond blanc accepté)",
   image_set: "Jeu d'images", debug: "Boutons de test (debug)", image_path: "Chemin des images",
   show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Graphes",
   show_curve: "Loi d'eau", show_controls: "Commandes (mode, consignes)",
@@ -145,7 +155,9 @@ class PacSynoptiquePhotoCardEditor extends HTMLElement {
       this.appendChild(this._form);
     }
     this._form.hass = this._hass;
-    this._form.schema = EDITOR_SCHEMA;
+    const logos = Array.isArray(this._config.logos) ? this._config.logos.filter((l) => l && l.name && l.url) : [];
+    this._form.schema = !logos.length ? EDITOR_SCHEMA : EDITOR_SCHEMA.flatMap((s) => s.name === "image_set" ? [s, { name: "logo",
+      selector: { select: { mode: "dropdown", options: [{ value: NO_LOGO, label: "Aucun" }, ...logos.map((l) => ({ value: l.name, label: l.name }))] } } }] : [s]);
     this._form.data = { ...DEFAULTS, ...this._config };
   }
 }
@@ -513,8 +525,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     <img id="baseImg" src="${this._img("base", wx0.variant)}" alt="">
     ${LAYERS.map((l) => `<img class="layer ${l}" data-layer="${l}" src="${this._img("calque_" + l)}" alt="">`).join("")}
     <svg class="fx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${fan}${heat}${flows}</svg>
-    ${c.logo_url ? (() => { const [lx, ly, lw] = c.logo_box || LOGO_BOX;  // image HTML : haut calé, hauteur selon le format du logo
-      return `<img class="logo" alt="" src="${String(c.logo_url).replace(/"/g, "&quot;")}" style="left:${(lx / FLOWS.width * 100).toFixed(3)}%;top:${(ly / FLOWS.height * 100).toFixed(3)}%;width:${(lw / FLOWS.width * 100).toFixed(3)}%">`; })() : ""}
+    ${logoFor(c) ? (() => { const lg = logoFor(c), [lx, ly, lw] = lg.box;  // image HTML : haut calé, hauteur selon le format du logo
+      return `<img class="logo" alt="" src="${String(lg.url).replace(/"/g, "&quot;")}" style="left:${(lx / FLOWS.width * 100).toFixed(3)}%;top:${(ly / FLOWS.height * 100).toFixed(3)}%;width:${(lw / FLOWS.width * 100).toFixed(3)}%">`; })() : ""}
     <svg class="fx tankfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${tank}</svg>
     <svg class="fx wxfx" id="wxfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none"></svg>
     <div class="wx" id="wx" hidden><ha-icon id="wx_i"></ha-icon><div><b id="wx_t"></b><span id="wx_l"></span><small id="wx_d"></small></div></div>

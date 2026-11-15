@@ -113,6 +113,8 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `show_controls` | booléen | `false` | onglet Commandes |
 | `logo_url` | URL | — | logo posé sur la façade du groupe extérieur (en haut à droite), fusion « multiply » : un fond blanc disparaît. Aucun logo n'est fourni avec l'intégration (marques déposées) : déposer le vôtre dans `/config/www/` |
 | `logo_box` | `[x, y, largeur]` | `[428, 688, 72]` | position et taille du logo, en pixels de l'image 2048×1152 |
+| `logos` | liste `{name, url, box}` | — | logos au choix ; l'éditeur propose alors un menu « Logo » |
+| `logo` | nom | `aucun` | logo choisi dans `logos` (`aucun` = pas de logo) |
 | `debug` | booléen | `false` | barre de test : forcer chaque calque, dégivrage, modulation, météo et moment |
 | `image_path` | URL | `/alfea-synoptique/pac_synoptique/` | dossier des images |
 | `positions` | objet | — | positions des panneaux `{ext, pac, c1, c2, ecs: [x %, y %, largeur %]}` |
@@ -127,6 +129,18 @@ show_controls: true
 grid_options:
   columns: full
   rows: auto
+```
+
+Logo au choix (fichiers fournis par vous ; la carte n'en contient aucun) :
+
+```yaml
+logo: Mon logo
+logos:
+  - name: Mon logo
+    url: /local/mon_logo.png
+  - name: Logo carré à marges
+    url: /local/logo_carre.jpg
+    box: [414, 658, 102]
 ```
 
 Correspondance avec l'ancienne carte : `circuit_*_name`, `show_controls`,
