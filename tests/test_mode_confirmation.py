@@ -9,10 +9,11 @@ import unittest
 SOURCE = Path(__file__).resolve().parents[1] / "custom_components/atlantic_alfea_controller/helpers.py"
 TREE = ast.parse(SOURCE.read_text(encoding="utf-8"))
 NODES = [n for n in TREE.body if (
-    isinstance(n, ast.AsyncFunctionDef) and n.name in ("async_write_circuit_mode_confirmed", "_async_http_mode_fallback")
+    isinstance(n, ast.AsyncFunctionDef) and n.name in (
+        "async_write_circuit_mode_confirmed", "_async_http_mode_fallback", "_async_refresh_after_mode")
 ) or (isinstance(n, ast.Assign) and any(getattr(t, "id", "") in (
-    "CIRCUIT_MODE_PARAMETERS", "MODE_CONFIRM_TIMEOUT_SECONDS", "MODE_HTTP_FALLBACK_SECONDS", "_BSB_STATUS_RE")
-    for t in n.targets))]
+    "CIRCUIT_MODE_PARAMETERS", "MODE_CONFIRM_TIMEOUT_SECONDS", "MODE_HTTP_FALLBACK_SECONDS", "_BSB_STATUS_RE",
+    "MODE_FOLLOWUP_PARAMETERS", "MODE_FOLLOWUP_DELAYS") for t in n.targets))]
 PROTECTION = "0 - Mode protection"
 
 
@@ -72,10 +73,18 @@ def build(clock, hass):
 
 
 def make_hass(confirm_on_poll, http_configured=False, js_status=1, js_raises=False, mqtt_ok_at=None):
-    return SimpleNamespace(values={"select.c2": PROTECTION}, writes=[], polls=[], js=[],
+    hass = SimpleNamespace(values={"select.c2": PROTECTION}, writes=[], polls=[], js=[], tasks=[],
                            confirm_on_poll=confirm_on_poll, entity="select.c2",
                            target="1 - Automatique", http_configured=http_configured,
                            js_status=js_status, js_raises=js_raises)
+    def create_task(coro):  # tâches de fond : gardées si le test les exécute, sinon fermées
+        if getattr(hass, "keep_tasks", False):
+            hass.tasks.append(coro)
+        else:
+            hass.tasks.append(coro.__qualname__)
+            coro.close()
+    hass.async_create_task = create_task
+    return hass
 
 
 ENTRY = SimpleNamespace(data={"heat_mode_c2": "select.c2"})
@@ -133,6 +142,29 @@ class ModeConfirmationTests(unittest.TestCase):
         self.assertTrue(asyncio.run(func(hass, ENTRY, "select.c2", "1 - Automatique")))
         self.assertEqual(hass.js, [])
         self.assertLess(clock.now, 10.0)
+
+    def test_confirmed_mode_refreshes_setpoint_and_status(self):
+        """Après Auto sur C2, 8771 (consigne effective) et 8001 (état) sont relus tout de suite."""
+        clock, hass = Clock(), make_hass(confirm_on_poll=True)
+        hass.keep_tasks = True
+        func = build(clock, hass)
+
+        async def scenario():
+            self.assertTrue(await func(hass, ENTRY, "select.c2", "1 - Automatique"))
+            self.assertEqual(len(hass.tasks), 1)  # la commande n'attend pas la relance
+            before = clock.now
+            await hass.tasks[0]
+            return clock.now - before
+
+        waited = asyncio.run(scenario())
+        self.assertEqual(hass.polls[-2:], [(8771, 8001), (8771, 8001)])
+        self.assertAlmostEqual(waited, 8.0)
+
+    def test_unconfirmed_mode_does_not_refresh(self):
+        clock, hass = Clock(), make_hass(confirm_on_poll=False)
+        func = build(clock, hass)
+        self.assertFalse(asyncio.run(func(hass, ENTRY, "select.c2", "1 - Automatique")))
+        self.assertEqual(hass.tasks, [])
 
     def test_no_feedback_times_out_after_30s(self):
         clock, hass = Clock(), make_hass(confirm_on_poll=False)

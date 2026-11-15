@@ -234,6 +234,23 @@ MODE_CONFIRM_TIMEOUT_SECONDS = 30.0
 # Sans confirmation MQTT après ce délai, la même valeur est renvoyée par HTTP /JS (si l'adresse
 # BSB-LAN est configurée) : observé le 2026-11-15, BSB-LAN a reçu la commande MQTT sans l'appliquer.
 MODE_HTTP_FALLBACK_SECONDS = 10.0
+# Après un changement de mode confirmé, la consigne effective (8741/8771) et l'état du circuit
+# (8000/8001) ne sont republiés par le journal BSB-LAN qu'à la minute suivante : la consigne
+# affichée restait celle de l'ancien mode (ex. 8 °C de protection). On les redemande tout de suite.
+MODE_FOLLOWUP_PARAMETERS = {700: (8741, 8000), 901: (8741, 8000), 1000: (8771, 8001), 1201: (8771, 8001)}
+MODE_FOLLOWUP_DELAYS = (2.0, 6.0)  # le régulateur recalcule sa consigne en quelques secondes
+
+
+async def _async_refresh_after_mode(hass: HomeAssistant, parameter: int) -> None:
+    """Re-poll the effective setpoint and circuit status shortly after a mode change."""
+    from .polling import async_poll_parameters
+
+    follow = MODE_FOLLOWUP_PARAMETERS.get(parameter)
+    if not follow:
+        return
+    for delay in MODE_FOLLOWUP_DELAYS:
+        await asyncio.sleep(delay)
+        await async_poll_parameters(hass, follow)
 
 
 async def _async_http_mode_fallback(hass: HomeAssistant, entry: ConfigEntry, parameter: int, option: str) -> bool | None:
@@ -306,6 +323,8 @@ async def async_write_circuit_mode_confirmed(
         if confirmed():
             if http_sent:
                 _LOGGER.info("BSB %s : « %s » confirmé après renvoi HTTP", parameter, option)
+            if parameter is not None:
+                hass.async_create_task(_async_refresh_after_mode(hass, parameter))
             return True
         if (parameter is not None and not fallback_done
                 and time.monotonic() - started >= MODE_HTTP_FALLBACK_SECONDS):
@@ -322,6 +341,8 @@ async def async_write_circuit_mode_confirmed(
         _LOGGER.error("BSB %s : « %s » non confirmé après %.0f s (MQTT%s)",
                       parameter, option, timeout, " puis HTTP" if http_sent else " seul")
         return False
+    if parameter is not None:
+        hass.async_create_task(_async_refresh_after_mode(hass, parameter))
     return True
 
 
