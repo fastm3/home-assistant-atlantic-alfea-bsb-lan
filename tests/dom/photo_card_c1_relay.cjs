@@ -37,5 +37,13 @@ delete ren[`binary_sensor.${X}_c1_circulateur`]; ren[`binary_sensor.${X}_pompe_p
 const ent2 = Object.fromEntries(Object.keys(ren).map((id) => [id, { entity_id: id, device_id: D, platform: "atlantic_alfea_controller" }]));
 card.hass = { states: ren, entities: ent2 };
 ok(on("c1"), "entity_id …_pompe_primaire_qx1 reconnu comme pompe du circuit 1");
+// post-circulation (« Overrun active ») : circuits à l'arrêt, pompes encore en marche, compresseur arrêté
+const ov = { ...base, [`binary_sensor.${X}_comp_etat`]: S("off"), [`binary_sensor.${X}_ecs_pompe`]: S("off"), [`sensor.${X}_v3v_commande`]: S("Chauffage"),
+  [`climate.${X}_c2_circuit_2`]: S("off"), [`sensor.${X}_c1_etat_actuel`]: S("Overrun active"), [`sensor.${X}_c2_etat_actuel`]: S("Overrun active"), [`sensor.${X}_pac_etat`]: S("Overrun active") };
+const ent3 = Object.fromEntries(Object.keys(ov).map((id) => [id, { entity_id: id, device_id: D, platform: "atlantic_alfea_controller" }]));
+card.hass = { states: ov, entities: ent3 };
+ok($("#c1_chips").textContent.includes("Post-circulation") && $("#c2_chips").textContent.includes("Post-circulation"), "post-circulation : puce identique sur les deux circuits (" + $("#c1_chips").textContent + ")");
+ok($("#x_chips").textContent.includes("Pompe primaire ON · post-circulation"), "panneau PAC : " + $("#x_chips").textContent);
+ok(on("c1") && !on("c1_radiateur"), "post-circulation C1 : flux animé, pas de volutes de chauffe");
 console.log("\nCircuit 1 / relais QX1 OK.");
 process.exit(0);

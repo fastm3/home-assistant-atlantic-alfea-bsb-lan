@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.2.1";
+const VERSION = "2.2.2";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -779,9 +779,14 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     // charge ECS. Il ne compte que si le circuit est en service et que la V3V n'est pas sur l'ECS.
     const c1Off = this._v("c1_climate") === "off";
     const c1Active = this._on("c1_pump") && !c1Off && !ecsMode;
+    // post-circulation (BSB « Overrun active ») : compresseur arrêté, la pompe tourne encore quelques minutes
+    // pour évacuer la chaleur ; sur C1 (circuit direct) l'eau passe bien dans les radiateurs
+    const OVERRUN = /overrun|post.?circ|nachlauf|marche à vide/i;
+    const overrun = (n) => OVERRUN.test(this._v(`${n}_etat`) || "");
+    const c1Overrun = this._on("c1_pump") && !ecsMode && !c1Active && overrun("c1");
     const st = {
       frigo: comp || defrost, ventilateur: comp || defrost, module: comp || this._on("c1_pump"),
-      c1: c1Active, c1_radiateur: c1Active, c2: this._on("c2_pump"),
+      c1: c1Active || c1Overrun, c1_radiateur: c1Active, c2: this._on("c2_pump"),
       pompe_primaire: this._on("c1_pump"), pompe_c2: this._on("c2_pump"),
       ecs_serpentin: ecsMode, ecs_resistance: this._on("ecs_appoint"),
     };
@@ -829,7 +834,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     $("x_dep").textContent = this._num("depart"); $("x_ret").textContent = this._num("retour");
     $("x_cons").textContent = this._num("depart_cible");
     $("x_dt").textContent = isNaN(dep) || isNaN(ret) ? "—" : `${(dep - ret).toLocaleString("fr-FR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} °C`;
-    const prim = this._v("c1_pump") === undefined ? "" : `<span class="chip ${this._on("c1_pump") ? "on" : ""}" title="Relais QX1 : circuit direct C1 ou charge ECS selon la V3V">Pompe primaire ${this._on("c1_pump") ? "ON" : "OFF"}${this._on("c1_pump") ? (ecsMode ? " · ECS" : " · chauffage") : ""}</span>`;
+    const prim = this._v("c1_pump") === undefined ? "" : `<span class="chip ${this._on("c1_pump") ? "on" : ""}" title="Relais QX1 : circuit direct C1 ou charge ECS selon la V3V">Pompe primaire ${this._on("c1_pump") ? "ON" : "OFF"}${this._on("c1_pump") ? (ecsMode ? " · ECS" : OVERRUN.test(this._v("pac_etat") || "") || c1Overrun ? " · post-circulation" : " · chauffage") : ""}</span>`;
     $("x_chips").innerHTML = `<span class="chip ${/chauff/i.test(this._v("mode") || "") ? "hot" : ""}">${this._v("mode") || "—"}</span><span class="chip">${this._v("pac_etat") || "—"}</span>${prim}`;
     $("x_pw").textContent = isNaN(pw) ? "—" : `${Math.round(pw).toLocaleString("fr-FR")} W`;
     $("x_en").textContent = this._num("energy", 1, this._s("energy")?.attributes?.unit_of_measurement || "kWh");
@@ -844,7 +849,9 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       if (n === "c1") $("c1_fk").textContent = direct ? "Départ (= départ PAC)" : "Départ circuit";
       const cl = this._v(`${n}_climate`);
       const pumpRaw = this._on(`${n}_pump`), pumpActive = n === "c1" ? c1Active : pumpRaw;
-      const pumpChip = pumpActive ? `<span class="chip on">Circulateur en marche</span>`
+      const pumpChip = pumpRaw && !ecsMode && overrun(n) && !(n === "c1" && c1Active)
+        ? `<span class="chip on" title="Compresseur arrêté : la pompe tourne encore quelques minutes pour évacuer la chaleur">Post-circulation</span>`
+        : pumpActive ? `<span class="chip on">Circulateur en marche</span>`
         : pumpRaw ? `<span class="chip" title="Pompe primaire active mais circuit ${ecsMode ? "court-circuité par la charge ECS" : "à l'arrêt"}">Pompe primaire${ecsMode ? " (charge ECS)" : ""}</span>`
         : `<span class="chip">Circulateur arrêté</span>`;
       $(`${n}_chips`).innerHTML = `<span class="chip ${cl === "heat" ? "hot" : ""}">${cl === "heat" ? "Chauffe" : cl === "off" ? "OFF" : (cl || "—")}</span>` +
