@@ -2893,10 +2893,10 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     // effet chaleur au-dessus du radiateur C1 : air qui ondule (distorsion) + voile chaud + effluves
     // qui montent ; intensité selon la température de départ (--hk, réglée dans _update)
     const [rx0, ry0, rx1, ry1] = RADIATOR, hz = 330, rw = rx1 - rx0, HR = rng(31);
-    const ribbons = Array.from({ length: 7 }, (_, i) => {
-      const x = rx0 + rw * (0.1 + 0.8 * (i + HR() * 0.6) / 7), a = 10 + HR() * 12, s = HR() < 0.5 ? 1 : -1, d = 3.6 + HR() * 2.2;
+    const ribbons = Array.from({ length: 9 }, (_, i) => {
+      const x = rx0 + rw * (0.08 + 0.84 * (i + HR() * 0.6) / 9), a = 10 + HR() * 12, s = HR() < 0.5 ? 1 : -1, d = 3.6 + HR() * 2.2;
       return `<path class="rib" d="M${x.toFixed(0)},${ry0 - 12} C${(x - s * a).toFixed(0)},${ry0 - 55} ${(x + s * a).toFixed(0)},${ry0 - 105} ${x.toFixed(0)},${ry0 - 150} S${(x - s * a * 0.8).toFixed(0)},${ry0 - 215} ${(x + s * 4).toFixed(0)},${ry0 - 250}"
-        style="--d:${d.toFixed(2)}s;--dl:${(-HR() * d).toFixed(2)}s;stroke-width:${(5 + HR() * 4).toFixed(1)}"/>`;
+        style="--d:${d.toFixed(2)}s;--dl:${(-HR() * d).toFixed(2)}s;stroke-width:${(8 + HR() * 6).toFixed(1)}"/>`;
     }).join("");
     // ventilateur du groupe exterieur : pales qui tournent (vitesse = modulation) + filets de vent
     const fanParts = this._fans().map(([fx, fy, fr], i) => {
@@ -2927,13 +2927,13 @@ class PacSynoptiquePhotoCard extends HTMLElement {
           <feTurbulence type="fractalNoise" baseFrequency="0.012 0.05" numOctaves="2" seed="7" result="n">
             <animate attributeName="baseFrequency" dur="1.6s" values="0.012 0.050;0.016 0.068;0.012 0.050" repeatCount="indefinite"/></feTurbulence>
           <feDisplacementMap id="hazeDisp" in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G"/></filter>
-        <radialGradient id="hazeGrad" cx=".5" cy="1" r=".5" fx=".5" fy="1"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-        <mask id="hazeMask" maskUnits="userSpaceOnUse"><rect x="${rx0 - 40}" y="${ry0 - hz}" width="${rw + 80}" height="${hz - 16}" fill="url(#hazeGrad)"/></mask>
-        <linearGradient id="veilGrad" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff9a50" stop-opacity=".26"/><stop offset=".55" stop-color="#ffb070" stop-opacity=".1"/><stop offset="1" stop-color="#ffc090" stop-opacity="0"/></linearGradient>
+        <radialGradient id="hazeGrad" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        <mask id="hazeMask" maskUnits="userSpaceOnUse"><rect x="${rx0 - 40}" y="${ry0 - hz}" width="${rw + 80}" height="${hz - 30}" fill="url(#hazeGrad)"/></mask>
+        <linearGradient id="veilGrad" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff9a50" stop-opacity=".42"/><stop offset=".55" stop-color="#ffb070" stop-opacity=".16"/><stop offset="1" stop-color="#ffc090" stop-opacity="0"/></linearGradient>
         <linearGradient id="ribGrad" gradientUnits="userSpaceOnUse" x1="0" y1="${ry0}" x2="0" y2="${ry0 - 255}">
-          <stop offset="0" stop-color="#ff9a4a" stop-opacity=".42"/><stop offset=".45" stop-color="#ffb877" stop-opacity=".26"/><stop offset="1" stop-color="#ffd0a0" stop-opacity="0"/></linearGradient>
-        <filter id="ribBlur" x="-60%" y="-10%" width="220%" height="120%"><feGaussianBlur stdDeviation="2.6"/></filter>
-        <radialGradient id="veilFade" cx=".5" cy="1" r=".5" fx=".5" fy="1"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+          <stop offset="0" stop-color="#ff8a3a" stop-opacity=".85"/><stop offset=".45" stop-color="#ffa85e" stop-opacity=".5"/><stop offset="1" stop-color="#ffd0a0" stop-opacity="0"/></linearGradient>
+        <filter id="ribBlur" x="-60%" y="-10%" width="220%" height="120%"><feGaussianBlur stdDeviation="3.2"/></filter>
+        <radialGradient id="veilFade" cx=".5" cy=".78" r=".55" fx=".5" fy=".85"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
         <mask id="veilMask" maskUnits="userSpaceOnUse"><rect x="${rx0 - 70}" y="${ry0 - hz}" width="${rw + 140}" height="${hz - 8}" fill="url(#veilFade)"/></mask>
       </defs>
       <g class="heat" data-layer="c1_radiateur">
@@ -2997,12 +2997,12 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .layer.c1_radiateur.on { animation:breath 4.5s ease-in-out infinite; }
   .heat { opacity:0; transition:opacity 1.5s ease; } .heat.on { opacity:1; }
   .veil { opacity:0; } .heat.on .veil { animation:veil 4s ease-in-out infinite; }
-  @keyframes veil { 0%,100% { opacity:calc(.7 * var(--hk, 1)) } 50% { opacity:var(--hk, 1) } }
+  @keyframes veil { 0%,100% { opacity:calc(.3 + .5 * var(--hk, 1)) } 50% { opacity:calc(.4 + .6 * var(--hk, 1)) } }
   .rib { fill:none; stroke:url(#ribGrad); stroke-linecap:round; filter:url(#ribBlur); opacity:0; mix-blend-mode:normal;
          transform-box:fill-box; transform-origin:50% 100%; }
   .heat.on .rib { animation:rib var(--d) ease-in-out var(--dl) infinite; }
   @keyframes rib { 0% { opacity:0; transform:translateY(30px) scaleX(.5) }
-                   22% { opacity:calc(.8 * var(--hk, 1)) } 70% { opacity:calc(.45 * var(--hk, 1)) }
+                   22% { opacity:calc(.35 + .65 * var(--hk, 1)) } 70% { opacity:calc(.2 + .45 * var(--hk, 1)) }
                    100% { opacity:0; transform:translateY(-110px) scaleX(1.9) } }
   @keyframes wisp { 0% { opacity:0; transform:translateY(0) } 25% { opacity:.55 } 100% { opacity:0; transform:translateY(-70px) } }
   .layer.ventilateur.defrost { filter:saturate(0) brightness(1.6); }
