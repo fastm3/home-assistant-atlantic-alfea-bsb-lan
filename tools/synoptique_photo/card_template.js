@@ -59,7 +59,7 @@ const HEATER = [975, 730, 790];       // tige de la résistance : x, haut, bas
 const PUMPS = { pompe_primaire: [1018, 393, 15], pompe_c2: [1018, 447, 15] };  // circulateurs du module : x, y, rayon
 // groupe extérieur double (deux blocs empilés) : hélices, décalage du logo, panneau remonté
 const FANS_DOUBLE = [[303, 562, 96], [303, 784, 96]];
-const LOGO_DOUBLE_SHIFT = [3, -210];
+const LOGO_DOUBLE_SHIFT = [-1, -210];  // hors de l'arrondi du coin haut droit du bloc du haut
 const EXT_DOUBLE_POS = [3, 9, 16];
 const LOGO_BOX = [428, 688, 72];  // logo du groupe extérieur : x, y, largeur (pixels image), zone lisse en haut à droite
 const NO_LOGO = "aucun";
