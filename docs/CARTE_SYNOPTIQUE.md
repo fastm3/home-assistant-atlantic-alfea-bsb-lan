@@ -112,11 +112,11 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `weather_anim` | booléen | `true` | animations météo |
 | `show_alarms`, `show_diagnostics`, `show_graphs`, `show_curve` | booléen | `true` | onglets |
 | `show_controls` | booléen | `false` | onglet Commandes |
-| `logo_url` | URL | — | logo posé sur la façade du groupe extérieur (en haut à droite), fusion « multiply » : un fond blanc disparaît. Aucun logo n'est fourni avec l'intégration (marques déposées) : déposer le vôtre dans `/config/www/` |
+| `logo_url` | URL | — | URL libre, utilisée avec `logo: personnalisé` (ou seule, sans liste) : logo posé sur la façade du groupe extérieur (en haut à droite), fusion « multiply » : un fond blanc disparaît. Aucun logo n'est fourni avec l'intégration (marques déposées) : déposer le vôtre dans `/config/www/` |
 | `logo_box` | `[x, y, largeur]` | `[428, 688, 72]` | position et taille du logo, en pixels de l'image 2048×1152 |
 | `logo_box_double` | `[x, y, largeur]` | `logo_box` décalé et réduit (×0,85) | position du logo en groupe double (aussi `box_double` dans `logos`) |
-| `logos` | liste `{name, url, box}` | — | logos au choix ; l'éditeur propose alors un menu « Logo » |
-| `logo` | nom | `aucun` | logo choisi dans `logos` (`aucun` = pas de logo) |
+| `logos` | liste `{name, url, box}` | — | logos proposés dans le menu ; éditable dans l'éditeur visuel (section « Logo du groupe extérieur » : nom, URL, position x / y / largeur facultatives) |
+| `logo` | nom, `aucun`, `personnalisé` | `aucun` | logo affiché : un nom de `logos`, `aucun`, ou `personnalisé` pour utiliser `logo_url` |
 | `debug` | booléen | `false` | barre de test : forcer chaque calque, dégivrage, modulation, météo et moment |
 | `image_path` | URL | `/alfea-synoptique/pac_synoptique/` | dossier des images |
 | `positions` | objet | — | positions des panneaux `{ext, pac, c1, c2, ecs: [x %, y %, largeur %]}` |

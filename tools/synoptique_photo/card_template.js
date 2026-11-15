@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.2.0";
+const VERSION = "2.2.1";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -64,6 +64,7 @@ const LOGO_DOUBLE_SCALE = 0.85;        // panneau lisse plus étroit sur le bloc
 const EXT_DOUBLE_POS = [3, 9, 16];
 const LOGO_BOX = [428, 688, 72];  // logo du groupe extérieur : x, y, largeur (pixels image), zone lisse en haut à droite
 const NO_LOGO = "aucun";
+const CUSTOM_LOGO = "personnalisé";  // choix « URL personnalisée » : logo_url
 // logo effectif : entrée choisie dans `logos` (liste fournie par l'utilisateur), sinon logo_url / logo_box
 function logoFor(c) {
   const list = Array.isArray(c.logos) ? c.logos.filter((l) => l && l.url) : [];
@@ -77,8 +78,9 @@ function logoFor(c) {
     return [b[0] + LOGO_DOUBLE_SHIFT[0], b[1] + LOGO_DOUBLE_SHIFT[1], Math.round(b[2] * LOGO_DOUBLE_SCALE)];
   };
   if (pick) return { url: pick.url, box: place(pick.box, pick.box_double) };
-  if (c.logo === NO_LOGO && list.length) return null;
-  return c.logo_url ? { url: c.logo_url, box: place(c.logo_box, c.logo_box_double) } : null;
+  // URL libre : choix « URL personnalisée », ou sans liste ni choix (anciennes configurations)
+  const free = c.logo === CUSTOM_LOGO || (!list.length && (!c.logo || c.logo === NO_LOGO));
+  return free && c.logo_url ? { url: c.logo_url, box: place(c.logo_box, c.logo_box_double) } : null;
 }
 const FAN = [310, 797, 106]; // centre x, y et rayon de l'helice du groupe exterieur (pixels image)
 // zone paysage (jardin + ciel, hors maison et toit) : les effets météo y sont limités
@@ -111,6 +113,7 @@ const EDITOR_SCHEMA = [
   { type: "grid", name: "", schema: [{ name: "circuit_1_name", selector: { text: {} } }, { name: "circuit_2_name", selector: { text: {} } }] },
   { name: "image_set", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique (soleil)" }, { value: "jour", label: "Jour" }, { value: "nuit", label: "Nuit" }] } } },
   { name: "outdoor_unit", selector: { select: { mode: "dropdown", options: [{ value: "simple", label: "Simple (1 ventilateur)" }, { value: "double", label: "Double (2 blocs, 2 ventilateurs)" }] } } },
+  { type: "expandable", name: "", flatten: true, title: "Logo du groupe extérieur", icon: "mdi:image-outline", schema: [] },
   { type: "expandable", name: "", flatten: true, title: "Météo", icon: "mdi:weather-partly-snowy-rainy", schema: [
       { name: "weather_entity", selector: { entity: { domain: "weather" } } },
       { type: "grid", name: "", schema: [
@@ -123,7 +126,6 @@ const EDITOR_SCHEMA = [
         { name: "show_controls", selector: { boolean: {} } }] }] },
   { type: "expandable", name: "", flatten: true, title: "Avancé", icon: "mdi:tune", schema: [
       { name: "debug", selector: { boolean: {} } },
-      { name: "logo_url", selector: { text: {} } },
       { name: "image_path", selector: { text: {} } },
       { name: "positions", selector: { object: {} } }] },
 ];
@@ -133,8 +135,9 @@ const LABELS = {
   energy_entity: "Énergie électrique PAC (kWh ; vide = compteur des options de l'intégration)",
   title: "Titre", subtitle: "Sous-titre", circuit_1_name: "Nom du circuit 1 (vide = nom défini dans l'intégration)", circuit_2_name: "Nom du circuit 2 (vide = nom défini dans l'intégration)",
   outdoor_unit: "Groupe extérieur",
-  logo: "Logo sur le groupe extérieur",
-  logo_url: "Logo : URL d'une image si aucun n'est choisi dans la liste (ex. /local/mon_logo.png ; fond blanc accepté)",
+  logo: "Logo affiché",
+  logo_url: "URL de l'image (ex. /local/pac_logos/mon_logo.svg ; un fond blanc disparaît)",
+  logos: "Logos proposés dans le menu",
   image_set: "Jeu d'images", debug: "Boutons de test (debug)", image_path: "Chemin des images",
   show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Graphes",
   show_curve: "Loi d'eau", show_controls: "Commandes (mode, consignes)",
@@ -164,16 +167,42 @@ class PacSynoptiquePhotoCardEditor extends HTMLElement {
         if (!v.energy_entity) delete v.energy_entity;
         if (!v.power_entity) delete v.power_entity;
         if (v.positions && !Object.keys(v.positions).length) delete v.positions;
+        if (v.logo !== CUSTOM_LOGO) delete v.logo_url;  // l'URL libre ne sert qu'au choix « URL personnalisée »
+        if (Array.isArray(v.logos)) {  // lignes de l'éditeur (x, y, largeur) -> box ; box_double conservé
+          const old = Array.isArray(this._config.logos) ? this._config.logos : [];
+          v.logos = v.logos.filter((l) => l && (l.name || l.url)).map((l) => {
+            const prev = old.find((o) => o && o.name === l.name) || {};
+            const e = { name: String(l.name || "").trim(), url: String(l.url || "").trim() };
+            if ([l.x, l.y, l.largeur].every((n) => Number.isFinite(+n) && n !== "" && n != null)) e.box = [+l.x, +l.y, +l.largeur];
+            if (prev.box_double) e.box_double = prev.box_double;
+            return e;
+          });
+          if (!v.logos.length) delete v.logos;
+        }
         this._config = { type: this._config.type, ...v };
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
       });
       this.appendChild(this._form);
     }
     this._form.hass = this._hass;
-    const logos = Array.isArray(this._config.logos) ? this._config.logos.filter((l) => l && l.name && l.url) : [];
-    this._form.schema = !logos.length ? EDITOR_SCHEMA : EDITOR_SCHEMA.flatMap((s) => s.name === "image_set" ? [s, { name: "logo",
-      selector: { select: { mode: "dropdown", options: [{ value: NO_LOGO, label: "Aucun" }, ...logos.map((l) => ({ value: l.name, label: l.name }))] } } }] : [s]);
-    this._form.data = { ...DEFAULTS, ...this._config };
+    const all = Array.isArray(this._config.logos) ? this._config.logos.filter((l) => l) : [];
+    const logos = all.filter((l) => l.name && l.url);
+    // logo affiché : « URL personnalisée » si une URL libre est réglée sans choix explicite (anciennes configurations)
+    let logo = this._config.logo || NO_LOGO;
+    if (logo === NO_LOGO && this._config.logo_url && !logos.length) logo = CUSTOM_LOGO;
+    const num = (label) => ({ label, selector: { number: { mode: "box", min: 0, max: 2048, step: 1 } } });
+    const logoSection = [
+      { name: "logo", selector: { select: { mode: "dropdown", options: [{ value: NO_LOGO, label: "Aucun" },
+        ...logos.map((l) => ({ value: l.name, label: l.name })), { value: CUSTOM_LOGO, label: "URL personnalisée…" }] } } },
+      ...(logo === CUSTOM_LOGO ? [{ name: "logo_url", selector: { text: {} } }] : []),
+      { name: "logos", selector: { object: { multiple: true, label_field: "name", description_field: "url", fields: {
+        name: { label: "Nom (affiché dans le menu)", required: true, selector: { text: {} } },
+        url: { label: "URL de l'image (ex. /local/pac_logos/logo.svg)", required: true, selector: { text: {} } },
+        x: num("Position x (pixels de l'image, facultatif)"), y: num("Position y (facultatif)"), largeur: num("Largeur (facultatif)") } } } },
+    ];
+    this._form.schema = EDITOR_SCHEMA.map((s) => s.title === "Logo du groupe extérieur" ? { ...s, schema: logoSection } : s);
+    this._form.data = { ...DEFAULTS, ...this._config, logo,
+      logos: all.map((l) => ({ name: l.name || "", url: l.url || "", ...(Array.isArray(l.box) && l.box.length === 3 ? { x: l.box[0], y: l.box[1], largeur: l.box[2] } : {}) })) };
   }
 }
 if (!customElements.get("pac-synoptique-photo-card-editor")) customElements.define("pac-synoptique-photo-card-editor", PacSynoptiquePhotoCardEditor);
