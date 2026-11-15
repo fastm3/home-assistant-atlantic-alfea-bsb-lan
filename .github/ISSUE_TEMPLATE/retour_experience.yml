@@ -1,0 +1,56 @@
+name: Retour d'expérience
+description: Vous utilisez l'intégration ? Dites-nous sur quel matériel et ce qui marche (ou pas).
+title: "[Retour] "
+labels: ["retour d'expérience"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre quelques minutes ! Chaque installation décrite aide à valider
+        d'autres PAC et régulateurs que l'Alféa Extensa Duo de référence.
+  - type: input
+    id: pac
+    attributes:
+      label: Pompe à chaleur
+      description: Modèle et puissance, si connus.
+      placeholder: "Atlantic Alféa Extensa Duo AI 8 kW"
+    validations:
+      required: true
+  - type: input
+    id: regulateur
+    attributes:
+      label: Régulateur
+      description: Référence Siemens et famille/variante (visibles dans BSB-LAN → /JI ou paramètre 6225/6226).
+      placeholder: "RVS21.831F, famille 211, variante 127"
+  - type: input
+    id: bsblan
+    attributes:
+      label: Version de BSB-LAN et matériel
+      placeholder: "5.0.49, ESP32"
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Circuits et ECS
+      multiple: true
+      options:
+        - Circuit 1 (direct / radiateurs)
+        - Circuit 2 (mélangé / plancher)
+        - Ballon ECS intégré
+        - Appoint électrique
+        - Rafraîchissement
+  - type: input
+    id: version
+    attributes:
+      label: Version de l'intégration
+      placeholder: "2.1.1"
+    validations:
+      required: true
+  - type: textarea
+    id: ce_qui_marche
+    attributes:
+      label: Ce qui fonctionne bien
+  - type: textarea
+    id: a_ameliorer
+    attributes:
+      label: Ce qui manque ou fonctionne mal
+      description: Une capture de la carte ou un extrait du journal aide beaucoup.

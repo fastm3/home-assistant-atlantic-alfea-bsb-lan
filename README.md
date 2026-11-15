@@ -267,6 +267,21 @@ sauf les commandes listées dans *Pilotage* (dont l'écriture des programmes).
 - Les paramètres disponibles dépendent du régulateur et de son firmware ; un
   paramètre absent (`---`) est ignoré.
 
+## Retour d'expérience bienvenu
+
+L'intégration est validée sur une seule installation (Alféa Extensa Duo,
+RVS21.831F). Si vous l'utilisez, même brièvement, un retour aide à l'étendre à
+d'autres PAC et régulateurs :
+
+- **[Partager votre installation](https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/issues/new?template=retour_experience.yml)** :
+  modèle de PAC, régulateur, version de BSB-LAN, ce qui marche et ce qui manque ;
+- **[Signaler un problème](https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/issues/new?template=bug.yml)**
+  avec un extrait du journal ;
+- une ⭐ sur le dépôt indique simplement que le projet vous intéresse.
+
+Activer **Paramètres → Système → Analytics → Intégrations personnalisées**
+dans Home Assistant permet aussi de savoir combien d'installations existent.
+
 ## Plus d'informations
 
 - [CHANGELOG.md](CHANGELOG.md) : historique des versions.

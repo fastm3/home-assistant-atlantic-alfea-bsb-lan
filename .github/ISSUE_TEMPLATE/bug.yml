@@ -1,0 +1,43 @@
+name: Signaler un problème
+description: Une commande échoue, une valeur est fausse, une carte s'affiche mal.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Que se passe-t-il ?
+      description: Ce que vous faites, ce que vous attendiez, ce qui se produit.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version de l'intégration
+      placeholder: "2.1.1"
+    validations:
+      required: true
+  - type: input
+    id: ha
+    attributes:
+      label: Version de Home Assistant
+      placeholder: "2026.11.0"
+  - type: input
+    id: materiel
+    attributes:
+      label: PAC, régulateur et version de BSB-LAN
+      placeholder: "Alféa Extensa Duo, RVS21.831F, BSB-LAN 5.0.49"
+  - type: textarea
+    id: journal
+    attributes:
+      label: Extrait du journal
+      description: |
+        Paramètres → Système → Journaux, filtrer sur « atlantic_alfea ». Pour une commande de
+        mode, les lignes « BSB 700/1000 … » indiquent si le renvoi HTTP a eu lieu.
+        Masquez les adresses IP si vous le souhaitez.
+      render: text
+  - type: textarea
+    id: captures
+    attributes:
+      label: Captures
+      description: Carte concernée, attributs de l'entité (Outils de développement → États).
