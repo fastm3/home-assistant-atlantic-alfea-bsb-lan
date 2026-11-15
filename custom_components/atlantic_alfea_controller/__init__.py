@@ -26,6 +26,7 @@ from .discovery import discover_mapping
 from .runtime import AlfeaRuntimeMonitor
 from .polling import async_start_data_polling
 from .bsb_logging import async_start_log_watch
+from .installation_config import async_start_installation_watch
 from .mqtt_ecs import async_setup_ecs_discovery
 from .weekly_programs import (
     WEEKDAYS,
@@ -309,6 +310,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await monitor.async_start()
     entry.async_on_unload(async_start_clock_polling(hass))
     entry.async_on_unload(await async_start_log_watch(hass, entry))
+    entry.async_on_unload(await async_start_installation_watch(hass, entry))
     entry.async_on_unload(async_start_data_polling(hass, entry))
     entry.async_on_unload(await async_setup_ecs_discovery(hass, entry))
 

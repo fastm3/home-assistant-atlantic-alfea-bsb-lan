@@ -666,6 +666,40 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
         self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
 
 
+class AlfeaInstallationConfigSensor(SensorEntity):
+    """Diagnostic: circuits, emitters and DHW detected from the BSB configuration."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Installation - Configuration"
+    _attr_icon = "mdi:home-thermometer-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_installation_config"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+
+    @property
+    def native_value(self) -> str:
+        from .installation_config import installation_layout, summary
+
+        return summary(installation_layout(self.hass, self._entry))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        from .installation_config import installation_layout
+
+        return dict(installation_layout(self.hass, self._entry) or {})
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, f"{DOMAIN}_installation_{self._entry.entry_id}", self.async_write_ha_state
+            )
+        )
+
+
 class AlfeaBsbLogSensor(SensorEntity):
     """Diagnostic: BSB-LAN log list versus what the integration needs."""
 
@@ -883,6 +917,7 @@ async def async_setup_entry(
     entities.append(AlfeaEcsCopSessionSensor(hass, entry))
     entities.extend(AlfeaEnergySplitSensor(hass, entry, ecs) for ecs in (True, False))
     entities.append(AlfeaBsbLogSensor(hass, entry))
+    entities.append(AlfeaInstallationConfigSensor(hass, entry))
     entities.append(AlfeaInstallationStatusSensor(hass, entry))
     async_add_entities(entities)
 
