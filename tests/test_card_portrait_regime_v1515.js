@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("assert");
 const fs=require("fs"),vm=require("vm"),path=require("path");
-const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js"),"utf8");
 class ElementStub{
   constructor(){this.dataset={};this.events=[]}
   attachShadow(){
@@ -18,9 +18,9 @@ vm.runInNewContext(source,{
   window:{customCards:[],matchMedia:()=>({matches:false})},
   Intl,Date,JSON,Object,String,Number,Array,Math,Set,Boolean
 });
-assert(registered["pac-synoptique-card"]);
+assert(registered["pac-photo-tabs"]);
 for(const orientation of ["auto","portrait","landscape"]){
-  const instance=new registered["pac-synoptique-card"]();
+  const instance=new registered["pac-photo-tabs"]();
   instance.setConfig({layout_orientation:orientation,entities:{
     circuit1:"climate.rdc",circuit2:"climate.etage",
     program1:"sensor.prog1",program2:"sensor.prog2",

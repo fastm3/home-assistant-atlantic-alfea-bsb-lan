@@ -3,7 +3,7 @@ const assert=require("assert");
 const fs=require("fs"),vm=require("vm"),path=require("path");
 const code=fs.readFileSync(
   path.join(__dirname,"..","custom_components","atlantic_alfea_controller",
-    "www","pac-synoptique-card.js"),"utf8"
+    "www","pac-synoptique-photo-card.js"),"utf8"
 );
 class FakeEvent {
   constructor(type,init){this.type=type;Object.assign(this,init);}
@@ -34,8 +34,8 @@ const globals={
   Date,JSON,Object,Intl,Number,String,Array,Math,Set,Boolean
 };
 vm.runInNewContext(code,globals);
-const Card=custom["pac-synoptique-card"];
-const Editor=custom["pac-synoptique-card-editor"];
+const Card=custom["pac-photo-tabs"];
+const Editor=custom["pac-photo-tabs-editor"];
 assert(Card&&Editor,"Visual editor registration missing");
 assert.strictEqual(Card.getStubConfig().theme_mode,"auto");
 assert(!("type" in Card.getStubConfig()),"Stub config should not contain type");

@@ -1,7 +1,9 @@
 "use strict";
 const assert=require("assert");
 const fs=require("fs"),vm=require("vm"),path=require("path");
-const src=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+const src=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js"),"utf8");
+// 2.0.0 : le moteur (ex pac-synoptique-card) est embarqué avant la carte photo, qui utilise des images par conception
+const ENGINE=src.slice(0,src.indexOf("/* pac-synoptique-photo-card"));
 class EventStub{
  constructor(type,opt){this.type=type;Object.assign(this,opt);}
 }
@@ -22,16 +24,16 @@ const ctx={
  Date,JSON,Object,Intl,Number,String,Array,Math,Set,Boolean
 };
 vm.runInNewContext(src,ctx);
-const Card=regs["pac-synoptique-card"],Editor=regs["pac-synoptique-card-editor"];
+const Card=regs["pac-photo-tabs"],Editor=regs["pac-photo-tabs-editor"];
 assert(Card&&Editor,"card and editor must register");
 const originalMap=src.match(/const FIELDS = \{([\s\S]*?)\n\};/);
 assert(originalMap,"field mapping missing");
 const mapped=(originalMap[1].match(/^\s+[A-Za-z_][\w]*\s*:/gm)||[]);
 assert.equal(mapped.length,97,"97 entity mappings must remain");
 assert(src.includes("ALERTS.filter"),"alarm monitoring unchanged");
-assert(!/<img\b/i.test(src),"external images prohibited");
-assert(!/<image\b/i.test(src),"external SVG image prohibited");
-assert(!/https?:\/\/[^\s]/.test(src),"asset URL prohibited");
+assert(!/<img\b/i.test(ENGINE),"external images prohibited");
+assert(!/<image\b/i.test(ENGINE),"external SVG image prohibited");
+assert(!/https?:\/\/[^\s]/.test(ENGINE),"asset URL prohibited");
 assert(src.includes(".fan-shell.running .blades{animation:spin"),"fan animation retained");
 assert(src.includes(".exchanger.running .exch-col svg{animation:exchangerPulse"),"exchanger animation retained");
 assert(src.includes(".linksvg path.live{stroke:"),"flow animation retained");

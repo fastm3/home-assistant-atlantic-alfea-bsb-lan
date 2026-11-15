@@ -18,12 +18,10 @@ jobs:
         run: python -m compileall -q custom_components/atlantic_alfea_controller tests
       - name: Tests Python de l'intégration
         run: python -m unittest discover -s tests -p 'test_*.py' -v
-      - name: Vérification syntaxe du synoptique
-        run: node --check custom_components/atlantic_alfea_controller/www/pac-synoptique-card.js
-      - name: Test thèmes Auto/Clair/Sombre
-        run: node tests/test_card_theme.js
-      - name: Test éditeur Lovelace
-        run: node tests/test_card_visual_editor.js
+      - name: Vérification syntaxe des cartes
+        run: |
+          node --check custom_components/atlantic_alfea_controller/www/pac-synoptique-photo-card.js
+          node --check custom_components/atlantic_alfea_controller/www/pac-programmes-card.js
       - name: Contrôle de version
         run: |
           python - <<'PY'

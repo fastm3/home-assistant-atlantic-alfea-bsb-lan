@@ -1,7 +1,7 @@
 "use strict";
 /* V1.5.23 — noms de circuits configurables + commandes Climate/Select. */
 const fs=require("fs"),vm=require("vm"),path=require("path"),assert=require("assert");
-const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js"),"utf8");
 class E {
   constructor(){this.dataset={};this.shadowRoot={innerHTML:"",querySelector:()=>null,addEventListener:()=>{}};}
   attachShadow(){return this.shadowRoot;}
@@ -29,7 +29,7 @@ const states={
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},
   window:{customCards:[],matchMedia:()=>({matches:false})},Date,JSON,Object,Intl,Number,String,Array,Math,Set,console,setTimeout,clearTimeout};
 vm.runInNewContext(source,context);
-const Card=custom["pac-synoptique-card"];
+const Card=custom["pac-photo-tabs"];
 assert(Card,"carte non enregistrée");
 
 const card=new Card();

@@ -1,8 +1,10 @@
 "use strict";
 const assert=require("assert");
 const fs=require("fs"),vm=require("vm"),path=require("path");
-const filename=path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js");
+const filename=path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js");
 const src=fs.readFileSync(filename,"utf8");
+// 2.0.0 : le moteur (ex pac-synoptique-card) est embarqué avant la carte photo, qui utilise des images par conception
+const ENGINE=src.slice(0,src.indexOf("/* pac-synoptique-photo-card"));
 // V1.5.13 regression: CSS ':host(portrait) .inlink, .outlink{height:38px}'
 // applied its unprefixed second selector to EVERY .outlink, including landscape.
 for (const mode of ["portrait","auto"]){
@@ -28,5 +30,5 @@ assert(src.includes("data-orientation=\"landscape\""),"Landscape mode missing");
 const keys=src.match(/const FIELDS = \{([\s\S]*?)\n\};/);
 assert(keys,"FIELDS map missing");
 assert.equal((keys[1].match(/^\s+[A-Za-z_][\w]*\s*:/gm)||[]).length,97);
-assert(!/<img\b/i.test(src),"Images must remain inlined CSS/SVG");
+assert(!/<img\b/i.test(ENGINE),"Images must remain inlined CSS/SVG");
 console.log("PASS: landscape hydraulic connectors remain full-height and CSS scope is isolated");

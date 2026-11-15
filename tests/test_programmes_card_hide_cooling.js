@@ -8,8 +8,8 @@ class E {
 }
 const custom={};
 const states={
-  "sensor.p_chauffage_c1":{state:"Chargé",attributes:{friendly_name:"Chauffage RDC",jours:{lundi:[{debut:"06:00",fin:"22:00"}]}}},
-  "sensor.p_chauffage_c2":{state:"Chargé",attributes:{friendly_name:"Chauffage étage",jours:{lundi:[{debut:"06:00",fin:"22:00"}]}}},
+  "sensor.p_chauffage_c1":{state:"Chargé",attributes:{friendly_name:"Chauffage RDC",nom_circuit:"RDC",jours:{lundi:[{debut:"06:00",fin:"22:00"}]}}},
+  "sensor.p_chauffage_c2":{state:"Chargé",attributes:{friendly_name:"Chauffage étage",nom_circuit:"étage",jours:{lundi:[{debut:"06:00",fin:"22:00"}]}}},
   "sensor.p_ecs":{state:"Chargé",attributes:{friendly_name:"ECS",jours:{lundi:[{debut:"10:00",fin:"17:30"}]}}},
   "sensor.p_cool_c1":{state:"Non disponible",attributes:{friendly_name:"Rafraîchissement RDC"}},
   "sensor.p_cool_c2":{state:"Erreur",attributes:{friendly_name:"Rafraîchissement étage"}}
@@ -29,5 +29,7 @@ assert(html.includes("Chauffage RDC"),"onglet chauffage absent");
 assert(html.includes("Eau chaude sanitaire"),"onglet ECS absent");
 assert(!html.includes('data-tab="rafraichissement_c1"'),"onglet rafraîchissement RDC non masqué");
 assert(!html.includes('data-tab="rafraichissement_c2"'),"onglet rafraîchissement étage non masqué");
-assert(html.includes("Onglets masqués"),"mention des onglets masqués absente");
+// 2.0.0 : message distinct selon la cause (programme absent sur la PAC / capteur en erreur)
+assert(html.includes("aucun programme horaire dédié sur cette PAC"),"mention « programme absent » manquante");
+assert(html.includes("lecture impossible"),"mention « capteur en erreur » manquante");
 console.log("PASS: onglets rafraîchissement masqués si capteur en erreur");

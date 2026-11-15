@@ -1,7 +1,8 @@
-"""Read-only import of the PAC's native weekly TIMEPROG schedules.
+"""Import and validated write of the PAC's native weekly TIMEPROG schedules.
 
 BSB-LAN JSON /JQ queries do not consume any of the 40 MQTT log slots.
-No schedule is ever written or simulated by Home Assistant.
+Writes (heating C1/C2 and DHW only) go through /JS one day at a time, each one
+confirmed by a fresh /JQ readback; a mismatch restores the previous value.
 """
 from __future__ import annotations
 
@@ -22,11 +23,11 @@ WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanc
 # Heating/ECS: Monday is the base, following days use .1 through .6.
 # Cooling: custom BSB-LAN parameters 11000-11006 / 11010-11016 are consecutive.
 PROGRAMS = {
-    "chauffage_c1": ("Chauffage RDC", "mdi:calendar-clock", "501"),
-    "chauffage_c2": ("Chauffage étage", "mdi:calendar-clock", "521"),
+    "chauffage_c1": ("Chauffage C1", "mdi:calendar-clock", "501"),
+    "chauffage_c2": ("Chauffage C2", "mdi:calendar-clock", "521"),
     "ecs": ("Eau chaude sanitaire", "mdi:calendar-clock", "561"),
-    "rafraichissement_c1": ("Rafraîchissement RDC", "mdi:snowflake-clock", "11000"),
-    "rafraichissement_c2": ("Rafraîchissement étage", "mdi:snowflake-clock", "11010"),
+    "rafraichissement_c1": ("Rafraîchissement C1", "mdi:snowflake-clock", "11000"),
+    "rafraichissement_c2": ("Rafraîchissement C2", "mdi:snowflake-clock", "11010"),
 }
 _SLOT_RE = re.compile(r"(\d{2}:\d{2}|##:##)-(\d{2}:\d{2}|##:##)")
 
@@ -145,3 +146,119 @@ class WeeklyProgramImporter:
                     snapshot.error = None
                 self._notify()
         return errors
+
+
+# ---------------------------------------------------------------------------
+# Écriture des programmes (service set_weekly_program)
+# ---------------------------------------------------------------------------
+WRITABLE_PROGRAMS = ("chauffage_c1", "chauffage_c2", "ecs")
+_CLOCK_RE = re.compile(r"^([01]\d|2[0-4]):([0-5]\d)$")
+TIMEPROG_STEP_MINUTES = 10
+
+
+def _clock_minutes(clock: str, *, is_end: bool) -> int:
+    match = _CLOCK_RE.fullmatch(str(clock).strip())
+    if match is None:
+        raise ValueError(f"Heure invalide (HH:MM attendu) : {clock!r}")
+    hour, minute = int(match.group(1)), int(match.group(2))
+    if hour == 24 and (minute != 0 or not is_end):
+        raise ValueError(f"24:00 n'est autorisé qu'en fin de plage : {clock!r}")
+    if minute % TIMEPROG_STEP_MINUTES:
+        raise ValueError(f"Pas de {TIMEPROG_STEP_MINUTES} min requis : {clock!r}")
+    return hour * 60 + minute
+
+
+def normalize_slots(slots) -> list[dict[str, str]]:
+    """Validate up to three ordered, non-overlapping slots; return canonical form."""
+    if not isinstance(slots, (list, tuple)):
+        raise ValueError("Liste de plages attendue")
+    if len(slots) > 3:
+        raise ValueError("Trois plages au maximum par jour (limite du régulateur)")
+    result: list[dict[str, str]] = []
+    previous_end = -1
+    for slot in slots:
+        if not isinstance(slot, dict):
+            raise ValueError(f"Plage invalide : {slot!r}")
+        start = str(slot.get("debut", "")).strip()
+        end = str(slot.get("fin", "")).strip()
+        start_min = _clock_minutes(start, is_end=False)
+        end_min = _clock_minutes(end, is_end=True)
+        if start_min >= end_min:
+            raise ValueError(f"Plage inversée ou vide : {start}-{end}")
+        if start_min < previous_end:
+            raise ValueError(f"Plages chevauchantes ou non ordonnées : {start}-{end}")
+        previous_end = end_min
+        result.append({"debut": f"{start_min // 60:02d}:{start_min % 60:02d}",
+                       "fin": f"{end_min // 60:02d}:{end_min % 60:02d}"})
+    return result
+
+
+def format_timeprog_write(slots: list[dict[str, str]]) -> str:
+    """BSB-LAN write syntax: plages séparées par « _ », plages libres en xx:xx-xx:xx."""
+    parts = [f"{slot['debut']}-{slot['fin']}" for slot in slots]
+    parts += ["xx:xx-xx:xx"] * (3 - len(parts))
+    return "_".join(parts)
+
+
+async def _post_with_ack(client, parameter: str, value: str) -> None:
+    payload = {"parameter": int(parameter), "value": value, "type": 1, "destination": 0}
+    result = outcome = None
+    for attempt in range(3):
+        await asyncio.sleep(0.25 if attempt == 0 else 0.6)
+        result = await client.post_js(payload)
+        outcome = result.get(str(parameter)) if isinstance(result, dict) else None
+        if isinstance(outcome, dict) and outcome.get("status") == 1:
+            return
+    raise ValueError(f"BSB-LAN n'a pas acquitté l'écriture de {parameter} : {result!r}")
+
+
+async def async_write_program_days(importer: "WeeklyProgramImporter", key: str,
+                                   days: dict[str, list[dict[str, str]]]) -> dict[str, str]:
+    """Write several days of one program; stop at the first unconfirmed write."""
+    if key not in WRITABLE_PROGRAMS:
+        raise ValueError(f"Programme non modifiable : {key}")
+    if not importer.configured:
+        raise ValueError("Configurer l'adresse BSB-LAN JSON dans les options.")
+    for day in days:
+        if day not in WEEKDAYS:
+            raise ValueError(f"Jour invalide : {day!r}")
+    wanted = {day: normalize_slots(slots) for day, slots in days.items()}
+    _name, _icon, base = PROGRAMS[key]
+    results: dict[str, str] = {}
+    async with importer._lock:
+        client = get_client(importer.hass, importer.base_url)
+        snapshot = importer.snapshots[key]
+        for day, slots in wanted.items():
+            parameter = parameter_for_day(key, base, WEEKDAYS.index(day))
+            before = await importer._read_day(client, parameter)
+            if before == slots:
+                results[day] = "inchangé"
+                continue
+            await _post_with_ack(client, parameter, format_timeprog_write(slots))
+            confirmed = None
+            for _ in range(5):
+                await asyncio.sleep(0.5)
+                confirmed = await importer._read_day(client, parameter)
+                if confirmed == slots:
+                    break
+            if confirmed != slots:
+                # Relecture différente : on tente de remettre la valeur d'origine.
+                try:
+                    await _post_with_ack(client, parameter, format_timeprog_write(before))
+                    restored = await importer._read_day(client, parameter)
+                except Exception as err:  # noqa: BLE001 - rapporté à l'utilisateur
+                    restored = f"échec : {err}"
+                _LOGGER.error("Programme %s %s : relu %s au lieu de %s (restauration : %s)",
+                              key, day, confirmed, slots, restored)
+                raise ValueError(
+                    f"{day} : écriture non confirmée (relu {confirmed}, attendu {slots}) ; "
+                    f"valeur d'origine restaurée : {restored}. Jours déjà écrits : {results}"
+                )
+            results[day] = "écrit et vérifié"
+            if snapshot.days is not None:
+                # Nouveau dict (pas de modification en place) : sinon HA compare l'ancien et le
+                # nouvel état comme identiques et n'envoie pas la mise à jour à l'interface.
+                snapshot.days = {**snapshot.days, day: [dict(slot) for slot in slots]}
+                snapshot.updated = dt_util.now().isoformat(timespec="seconds")
+            importer._notify()
+    return results

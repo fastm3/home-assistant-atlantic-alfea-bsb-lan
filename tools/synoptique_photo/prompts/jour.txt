@@ -1,0 +1,10 @@
+This image is a photorealistic architectural cutaway of a heat pump installation, shown at night. Re-render EXACTLY the same image in bright natural DAYTIME.
+
+Keep everything pixel-identical in geometry: same camera, framing, perspective, every object at exactly the same position, size and shape (outdoor unit, refrigerant pipes, indoor unit with hydraulic block, tank with copper coil, the 4 pipes along the back wall, the low radiator, the brass manifold, the stepped floor cutaway with the 2 spiral underfloor loops, roof edge, ceiling spots, facade section, tiles, garden, hedge, trees). Do not add, remove, move or resize anything. No text, no logos, no labels.
+
+Only change the lighting and the sky:
+- Sunny late-morning daylight, clear blue sky with a few soft white clouds instead of the starry night sky.
+- Garden, hedge and trees lit by soft sunlight with natural green colors, gentle shadows.
+- Interior lit by daylight coming from outside: neutral, bright, realistic; ceiling spots switched off.
+- No glowing elements: pipes, radiator, tank, coil and floor loops show their natural material colors (copper, red/blue pipe insulation, white radiator, stainless steel, brass) without any glow or emissive light.
+- Clean, crisp, high-end architectural visualization look.

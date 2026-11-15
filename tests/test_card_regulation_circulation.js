@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("assert");
 const fs=require("fs"),path=require("path");
-const src=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+const src=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js"),"utf8");
 assert(src.includes("Demande circulation par régulation"),
   "Missing regulation circulation state");
 assert(src.includes("flowBelowTarget"),

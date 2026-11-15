@@ -5,36 +5,228 @@
       "user": {
         "title": "Automatic BSB-LAN discovery",
         "description": "{found} of {total} entities were mapped automatically. Missing optional parameters: {missing_optional}. Submit to continue, or enable advanced manual configuration.",
-        "data": {"manual_configuration": "Show advanced manual configuration"}
+        "data": {
+          "manual_configuration": "Show advanced manual configuration"
+        }
       },
       "manual_v125": {
         "title": "Complete required entities",
         "description": "Automatic discovery could not safely resolve these parameters: {parameters}. Only these fields need to be completed.",
         "data": {
-          "heat_mode_c1": "C1 — heating mode (700)", "heat_setpoint_c1": "C1 — heating setpoint (710)", "heat_reduced_setpoint_c1": "C1 — reduced heating setpoint (712)", "cool_mode_c1": "C1 — cooling mode (901)", "cool_setpoint_c1": "C1 — cooling setpoint (902)", "cool_reduced_setpoint_c1": "C1 — reduced cooling setpoint (903)", "room_temp_c1": "C1 — room temperature (8740)", "heat_mode_c2": "C2 — heating mode (1000)", "heat_setpoint_c2": "C2 — heating setpoint (1010)", "heat_reduced_setpoint_c2": "C2 — reduced heating setpoint (1012)", "cool_mode_c2": "C2 — cooling mode (1201)", "cool_setpoint_c2": "C2 — cooling setpoint (1202)", "cool_reduced_setpoint_c2": "C2 — reduced cooling setpoint (1203)", "room_temp_c2": "C2 — room temperature (8770)", "heat_state_c1": "C1 — heating state (8000)", "cool_state_c1": "C1 — cooling state (8004)", "heat_state_c2": "C2 — heating state (8001)", "cool_state_c2": "C2 — cooling state (8025)", "dhw_mode": "DHW — operating mode (1600)", "dhw_nominal_setpoint": "DHW — nominal setpoint (1610)", "dhw_reduced_setpoint": "DHW — reduced / Eco setpoint (1612)", "dhw_state": "DHW — state (8003)", "dhw_temperature": "DHW — tank temperature (8830)", "pac_state": "Heat pump — overall state (8006)", "compressor_state": "Heat pump — compressor state (8400)", "compressor_modulation": "Heat pump — compressor modulation (8413)", "flow_temp": "Heat pump — flow temperature (8412)", "return_temp": "Heat pump — return temperature (8410)", "target_flow_temp": "Heat pump — flow setpoint (8411)", "outdoor_temp": "Heat pump — outdoor temperature (8700)", "defrost": "Heat pump — defrost (7728)", "compressor_hours": "Heat pump — compressor hours (8450)", "compressor_starts": "Heat pump — compressor starts (8451)", "compressor_min_run": "Compressor — minimum run time (2842)", "compressor_min_off": "Compressor — minimum off time (2843)", "compressor_starts_max_rate": "Compressor — controller maximum start rate (7072)", "compressor_starts_current_rate": "Compressor — controller current start rate (7073)", "dhw_electric_heater": "DHW — electric heater state (8821)", "clock_datetime": "Heat pump — current date and time (0)", "energy_total": "Heat pump — total electrical energy (3113)", "energy_heating": "Heat pump — heating energy (3124)", "energy_dhw": "Heat pump — DHW energy (3125)", "energy_cooling": "Heat pump — cooling energy (3126)"
+          "heat_mode_c1": "C1 — heating mode (700)",
+          "heat_setpoint_c1": "C1 — heating setpoint (710)",
+          "heat_reduced_setpoint_c1": "C1 — reduced heating setpoint (712)",
+          "cool_mode_c1": "C1 — cooling mode (901)",
+          "cool_setpoint_c1": "C1 — cooling setpoint (902)",
+          "cool_reduced_setpoint_c1": "C1 — reduced cooling setpoint (903)",
+          "room_temp_c1": "C1 — room temperature (8740)",
+          "heat_mode_c2": "C2 — heating mode (1000)",
+          "heat_setpoint_c2": "C2 — heating setpoint (1010)",
+          "heat_reduced_setpoint_c2": "C2 — reduced heating setpoint (1012)",
+          "cool_mode_c2": "C2 — cooling mode (1201)",
+          "cool_setpoint_c2": "C2 — cooling setpoint (1202)",
+          "cool_reduced_setpoint_c2": "C2 — reduced cooling setpoint (1203)",
+          "room_temp_c2": "C2 — room temperature (8770)",
+          "heat_state_c1": "C1 — heating state (8000)",
+          "cool_state_c1": "C1 — cooling state (8004)",
+          "heat_state_c2": "C2 — heating state (8001)",
+          "cool_state_c2": "C2 — cooling state (8025)",
+          "dhw_mode": "DHW — operating mode (1600)",
+          "dhw_nominal_setpoint": "DHW — nominal setpoint (1610)",
+          "dhw_reduced_setpoint": "DHW — reduced / Eco setpoint (1612)",
+          "dhw_state": "DHW — state (8003)",
+          "dhw_temperature": "DHW — tank temperature (8830)",
+          "pac_state": "Heat pump — overall state (8006)",
+          "compressor_state": "Heat pump — compressor state (8400)",
+          "compressor_modulation": "Heat pump — compressor modulation (8413)",
+          "flow_temp": "Heat pump — flow temperature (8412)",
+          "return_temp": "Heat pump — return temperature (8410)",
+          "target_flow_temp": "Heat pump — flow setpoint (8411)",
+          "outdoor_temp": "Heat pump — outdoor temperature (8700)",
+          "defrost": "Heat pump — defrost (7728)",
+          "compressor_hours": "Heat pump — compressor hours (8450)",
+          "compressor_starts": "Heat pump — compressor starts (8451)",
+          "compressor_min_run": "Compressor — minimum run time (2842)",
+          "compressor_min_off": "Compressor — minimum off time (2843)",
+          "compressor_starts_max_rate": "Compressor — controller maximum start rate (7072)",
+          "compressor_starts_current_rate": "Compressor — controller current start rate (7073)",
+          "dhw_electric_heater": "DHW — electric heater state (8821)",
+          "clock_datetime": "Heat pump — current date and time (0)",
+          "energy_total": "Heat pump — total electrical energy (3113)",
+          "energy_heating": "Heat pump — heating energy (3124)",
+          "energy_dhw": "Heat pump — DHW energy (3125)",
+          "energy_cooling": "Heat pump — cooling energy (3126)"
         }
       },
       "mapping_v125": {
         "title": "BSB-LAN parameter mapping",
         "description": "Detected entities are prefilled. Labels always include the BSB number and each selector is limited to compatible domains.",
         "data": {
-          "heat_mode_c1": "C1 — heating mode (700)", "heat_setpoint_c1": "C1 — heating setpoint (710)", "heat_reduced_setpoint_c1": "C1 — reduced heating setpoint (712)", "cool_mode_c1": "C1 — cooling mode (901)", "cool_setpoint_c1": "C1 — cooling setpoint (902)", "cool_reduced_setpoint_c1": "C1 — reduced cooling setpoint (903)", "room_temp_c1": "C1 — room temperature (8740)", "heat_mode_c2": "C2 — heating mode (1000)", "heat_setpoint_c2": "C2 — heating setpoint (1010)", "heat_reduced_setpoint_c2": "C2 — reduced heating setpoint (1012)", "cool_mode_c2": "C2 — cooling mode (1201)", "cool_setpoint_c2": "C2 — cooling setpoint (1202)", "cool_reduced_setpoint_c2": "C2 — reduced cooling setpoint (1203)", "room_temp_c2": "C2 — room temperature (8770)", "heat_state_c1": "C1 — heating state (8000)", "cool_state_c1": "C1 — cooling state (8004)", "heat_state_c2": "C2 — heating state (8001)", "cool_state_c2": "C2 — cooling state (8025)", "dhw_mode": "DHW — operating mode (1600)", "dhw_nominal_setpoint": "DHW — nominal setpoint (1610)", "dhw_reduced_setpoint": "DHW — reduced / Eco setpoint (1612)", "dhw_state": "DHW — state (8003)", "dhw_temperature": "DHW — tank temperature (8830)", "pac_state": "Heat pump — overall state (8006)", "compressor_state": "Heat pump — compressor state (8400)", "compressor_modulation": "Heat pump — compressor modulation (8413)", "flow_temp": "Heat pump — flow temperature (8412)", "return_temp": "Heat pump — return temperature (8410)", "target_flow_temp": "Heat pump — flow setpoint (8411)", "outdoor_temp": "Heat pump — outdoor temperature (8700)", "defrost": "Heat pump — defrost (7728)", "compressor_hours": "Heat pump — compressor hours (8450)", "compressor_starts": "Heat pump — compressor starts (8451)", "compressor_min_run": "Compressor — minimum run time (2842)", "compressor_min_off": "Compressor — minimum off time (2843)", "compressor_starts_max_rate": "Compressor — controller maximum start rate (7072)", "compressor_starts_current_rate": "Compressor — controller current start rate (7073)", "dhw_electric_heater": "DHW — electric heater state (8821)", "clock_datetime": "Heat pump — current date and time (0)", "energy_total": "Heat pump — total electrical energy (3113)", "energy_heating": "Heat pump — heating energy (3124)", "energy_dhw": "Heat pump — DHW energy (3125)", "energy_cooling": "Heat pump — cooling energy (3126)", "effective_setpoint_c1": "C1 — effective room setpoint (8741)", "effective_setpoint_c2": "C2 — effective room setpoint (8771)", "dhw_pump": "DHW — pump state (8820)", "override_c1": "C1 — warmer/colder native override (701)", "override_c2": "C2 — warmer/colder native override (1001)"
+          "heat_mode_c1": "C1 — heating mode (700)",
+          "heat_setpoint_c1": "C1 — heating setpoint (710)",
+          "heat_reduced_setpoint_c1": "C1 — reduced heating setpoint (712)",
+          "cool_mode_c1": "C1 — cooling mode (901)",
+          "cool_setpoint_c1": "C1 — cooling setpoint (902)",
+          "cool_reduced_setpoint_c1": "C1 — reduced cooling setpoint (903)",
+          "room_temp_c1": "C1 — room temperature (8740)",
+          "heat_mode_c2": "C2 — heating mode (1000)",
+          "heat_setpoint_c2": "C2 — heating setpoint (1010)",
+          "heat_reduced_setpoint_c2": "C2 — reduced heating setpoint (1012)",
+          "cool_mode_c2": "C2 — cooling mode (1201)",
+          "cool_setpoint_c2": "C2 — cooling setpoint (1202)",
+          "cool_reduced_setpoint_c2": "C2 — reduced cooling setpoint (1203)",
+          "room_temp_c2": "C2 — room temperature (8770)",
+          "heat_state_c1": "C1 — heating state (8000)",
+          "cool_state_c1": "C1 — cooling state (8004)",
+          "heat_state_c2": "C2 — heating state (8001)",
+          "cool_state_c2": "C2 — cooling state (8025)",
+          "dhw_mode": "DHW — operating mode (1600)",
+          "dhw_nominal_setpoint": "DHW — nominal setpoint (1610)",
+          "dhw_reduced_setpoint": "DHW — reduced / Eco setpoint (1612)",
+          "dhw_state": "DHW — state (8003)",
+          "dhw_temperature": "DHW — tank temperature (8830)",
+          "pac_state": "Heat pump — overall state (8006)",
+          "compressor_state": "Heat pump — compressor state (8400)",
+          "compressor_modulation": "Heat pump — compressor modulation (8413)",
+          "flow_temp": "Heat pump — flow temperature (8412)",
+          "return_temp": "Heat pump — return temperature (8410)",
+          "target_flow_temp": "Heat pump — flow setpoint (8411)",
+          "outdoor_temp": "Heat pump — outdoor temperature (8700)",
+          "defrost": "Heat pump — defrost (7728)",
+          "compressor_hours": "Heat pump — compressor hours (8450)",
+          "compressor_starts": "Heat pump — compressor starts (8451)",
+          "compressor_min_run": "Compressor — minimum run time (2842)",
+          "compressor_min_off": "Compressor — minimum off time (2843)",
+          "compressor_starts_max_rate": "Compressor — controller maximum start rate (7072)",
+          "compressor_starts_current_rate": "Compressor — controller current start rate (7073)",
+          "dhw_electric_heater": "DHW — electric heater state (8821)",
+          "clock_datetime": "Heat pump — current date and time (0)",
+          "energy_total": "Heat pump — total electrical energy (3113)",
+          "energy_heating": "Heat pump — heating energy (3124)",
+          "energy_dhw": "Heat pump — DHW energy (3125)",
+          "energy_cooling": "Heat pump — cooling energy (3126)",
+          "effective_setpoint_c1": "C1 — effective room setpoint (8741)",
+          "effective_setpoint_c2": "C2 — effective room setpoint (8771)",
+          "dhw_pump": "DHW — pump state (8820)",
+          "override_c1": "C1 — warmer/colder native override (701)",
+          "override_c2": "C2 — warmer/colder native override (1001)"
         }
       },
       "reconfigure": {
         "title": "Reconfigure Atlantic Alfea BSB-LAN",
         "description": "Automatic discovery preserves valid existing mappings and fills missing parameters. Disable it to edit all mappings manually.",
-        "data": {"automatic_detection": "Run automatic discovery"}
+        "data": {
+          "automatic_detection": "Run automatic discovery"
+        }
       },
       "reconfigure_manual_v125": {
         "title": "Complete required entities",
         "description": "Automatic discovery could not resolve these parameters: {parameters}.",
         "data": {
-          "heat_mode_c1": "C1 — heating mode (700)", "heat_setpoint_c1": "C1 — heating setpoint (710)", "heat_reduced_setpoint_c1": "C1 — reduced heating setpoint (712)", "cool_mode_c1": "C1 — cooling mode (901)", "cool_setpoint_c1": "C1 — cooling setpoint (902)", "cool_reduced_setpoint_c1": "C1 — reduced cooling setpoint (903)", "room_temp_c1": "C1 — room temperature (8740)", "heat_mode_c2": "C2 — heating mode (1000)", "heat_setpoint_c2": "C2 — heating setpoint (1010)", "heat_reduced_setpoint_c2": "C2 — reduced heating setpoint (1012)", "cool_mode_c2": "C2 — cooling mode (1201)", "cool_setpoint_c2": "C2 — cooling setpoint (1202)", "cool_reduced_setpoint_c2": "C2 — reduced cooling setpoint (1203)", "room_temp_c2": "C2 — room temperature (8770)", "heat_state_c1": "C1 — heating state (8000)", "cool_state_c1": "C1 — cooling state (8004)", "heat_state_c2": "C2 — heating state (8001)", "cool_state_c2": "C2 — cooling state (8025)", "dhw_mode": "DHW — operating mode (1600)", "dhw_nominal_setpoint": "DHW — nominal setpoint (1610)", "dhw_reduced_setpoint": "DHW — reduced / Eco setpoint (1612)", "dhw_state": "DHW — state (8003)", "dhw_temperature": "DHW — tank temperature (8830)", "pac_state": "Heat pump — overall state (8006)", "compressor_state": "Heat pump — compressor state (8400)", "compressor_modulation": "Heat pump — compressor modulation (8413)", "flow_temp": "Heat pump — flow temperature (8412)", "return_temp": "Heat pump — return temperature (8410)", "target_flow_temp": "Heat pump — flow setpoint (8411)", "outdoor_temp": "Heat pump — outdoor temperature (8700)", "defrost": "Heat pump — defrost (7728)", "compressor_hours": "Heat pump — compressor hours (8450)", "compressor_starts": "Heat pump — compressor starts (8451)", "compressor_min_run": "Compressor — minimum run time (2842)", "compressor_min_off": "Compressor — minimum off time (2843)", "compressor_starts_max_rate": "Compressor — controller maximum start rate (7072)", "compressor_starts_current_rate": "Compressor — controller current start rate (7073)", "dhw_electric_heater": "DHW — electric heater state (8821)", "clock_datetime": "Heat pump — current date and time (0)", "energy_total": "Heat pump — total electrical energy (3113)", "energy_heating": "Heat pump — heating energy (3124)", "energy_dhw": "Heat pump — DHW energy (3125)", "energy_cooling": "Heat pump — cooling energy (3126)"
+          "heat_mode_c1": "C1 — heating mode (700)",
+          "heat_setpoint_c1": "C1 — heating setpoint (710)",
+          "heat_reduced_setpoint_c1": "C1 — reduced heating setpoint (712)",
+          "cool_mode_c1": "C1 — cooling mode (901)",
+          "cool_setpoint_c1": "C1 — cooling setpoint (902)",
+          "cool_reduced_setpoint_c1": "C1 — reduced cooling setpoint (903)",
+          "room_temp_c1": "C1 — room temperature (8740)",
+          "heat_mode_c2": "C2 — heating mode (1000)",
+          "heat_setpoint_c2": "C2 — heating setpoint (1010)",
+          "heat_reduced_setpoint_c2": "C2 — reduced heating setpoint (1012)",
+          "cool_mode_c2": "C2 — cooling mode (1201)",
+          "cool_setpoint_c2": "C2 — cooling setpoint (1202)",
+          "cool_reduced_setpoint_c2": "C2 — reduced cooling setpoint (1203)",
+          "room_temp_c2": "C2 — room temperature (8770)",
+          "heat_state_c1": "C1 — heating state (8000)",
+          "cool_state_c1": "C1 — cooling state (8004)",
+          "heat_state_c2": "C2 — heating state (8001)",
+          "cool_state_c2": "C2 — cooling state (8025)",
+          "dhw_mode": "DHW — operating mode (1600)",
+          "dhw_nominal_setpoint": "DHW — nominal setpoint (1610)",
+          "dhw_reduced_setpoint": "DHW — reduced / Eco setpoint (1612)",
+          "dhw_state": "DHW — state (8003)",
+          "dhw_temperature": "DHW — tank temperature (8830)",
+          "pac_state": "Heat pump — overall state (8006)",
+          "compressor_state": "Heat pump — compressor state (8400)",
+          "compressor_modulation": "Heat pump — compressor modulation (8413)",
+          "flow_temp": "Heat pump — flow temperature (8412)",
+          "return_temp": "Heat pump — return temperature (8410)",
+          "target_flow_temp": "Heat pump — flow setpoint (8411)",
+          "outdoor_temp": "Heat pump — outdoor temperature (8700)",
+          "defrost": "Heat pump — defrost (7728)",
+          "compressor_hours": "Heat pump — compressor hours (8450)",
+          "compressor_starts": "Heat pump — compressor starts (8451)",
+          "compressor_min_run": "Compressor — minimum run time (2842)",
+          "compressor_min_off": "Compressor — minimum off time (2843)",
+          "compressor_starts_max_rate": "Compressor — controller maximum start rate (7072)",
+          "compressor_starts_current_rate": "Compressor — controller current start rate (7073)",
+          "dhw_electric_heater": "DHW — electric heater state (8821)",
+          "clock_datetime": "Heat pump — current date and time (0)",
+          "energy_total": "Heat pump — total electrical energy (3113)",
+          "energy_heating": "Heat pump — heating energy (3124)",
+          "energy_dhw": "Heat pump — DHW energy (3125)",
+          "energy_cooling": "Heat pump — cooling energy (3126)"
         }
       }
     },
-    "abort": {"already_configured": "Atlantic Alfea BSB-LAN is already configured.", "reconfigure_successful": "The configuration was updated.", "no_entry": "No Atlantic Alfea BSB-LAN entry exists yet. Add the integration first.", "multiple_entries": "Several Atlantic Alfea BSB-LAN entries exist; update the BSB-LAN URL manually.", "discovery_updated": "BSB-LAN address updated automatically."}
+    "abort": {
+      "already_configured": "Atlantic Alfea BSB-LAN is already configured.",
+      "reconfigure_successful": "The configuration was updated.",
+      "no_entry": "No Atlantic Alfea BSB-LAN entry exists yet. Add the integration first.",
+      "multiple_entries": "Several Atlantic Alfea BSB-LAN entries exist; update the BSB-LAN URL manually.",
+      "discovery_updated": "BSB-LAN address updated automatically."
+    }
   },
-  "options": {"step": {"init": {"title": "Monitoring thresholds", "description": "BSB parameter 2842 has priority for short-cycle detection. The value below is only a fallback. Normal defrosting and a DHW charge do not trigger the flow/target gap alert.", "data": {"q3_diverter_confirmed": "Q3 is a three-way DHW diverter (BSB 5731 = 2) — confirmed on my heat pump; use 8820 without publishing 5731", "short_cycle_minutes": "Short cycle — fallback threshold when 2842 is unavailable (minutes)", "frequent_starts_per_hour": "Frequent starts — threshold per hour", "flow_gap_degrees": "Flow / target gap — threshold (°C)", "flow_gap_duration_minutes": "Flow / target gap — delay (minutes)"}}}}
+  "options": {
+    "step": {
+      "init": {
+        "title": "Monitoring thresholds",
+        "description": "BSB parameter 2842 has priority for short-cycle detection. The value below is only a fallback. Normal defrosting and a DHW charge do not trigger the flow/target gap alert.",
+        "data": {
+          "q3_diverter_confirmed": "Q3 is a three-way DHW diverter (BSB 5731 = 2) — confirmed on my heat pump; use 8820 without publishing 5731",
+          "short_cycle_minutes": "Short cycle — fallback threshold when 2842 is unavailable (minutes)",
+          "frequent_starts_per_hour": "Frequent starts — threshold per hour",
+          "flow_gap_degrees": "Flow / target gap — threshold (°C)",
+          "flow_gap_duration_minutes": "Flow / target gap — delay (minutes)",
+          "circuit_1_name": "Circuit 1 (C1) name",
+          "circuit_2_name": "Circuit 2 (C2) name"
+        },
+        "data_description": {
+          "circuit_1_name": "Display name of circuit 1 (BSB 7xx parameters, program 501), used by the cards and native programs.",
+          "circuit_2_name": "Display name of circuit 2 (BSB 10xx parameters, program 521), used by the cards and native programs.",
+          "bsb_base_url": "BSB-LAN HTTP address. Enables JSON reads, Auto/Eco/Comfort regimes, fault history, program import and write. Empty = disabled.",
+          "ecs_cop_energy_entity": "Accurate electrical meter of the heat pump line, used to split energy between DHW and C1+C2 and to compute DHW session COP.",
+          "q3_diverter_confirmed": "Tick if output Q3 drives the DHW three-way valve (BSB 5731 = 2); the valve position is then derived from 8820 without 5731.",
+          "short_cycle_minutes": "A compressor run shorter than this is a short cycle. BSB 2842 (minimum run time) takes precedence; this is only a fallback.",
+          "frequent_starts_per_hour": "Alert when the compressor starts more often than this within a rolling hour.",
+          "flow_gap_degrees": "Allowed gap between measured flow (BSB 8412) and flow target (BSB 8411) while the compressor runs, outside defrost and DHW charging.",
+          "flow_gap_duration_minutes": "How long the gap must stay above the threshold without interruption before the alert. Prevents start-up false alarms; increase for slow underfloor heating."
+        }
+      }
+    }
+  },
+  "services": {
+    "set_weekly_program": {
+      "name": "Write a weekly program",
+      "description": "Writes up to 3 slots (10 min steps) of a native program to the heat pump through BSB-LAN, one day at a time, with readback. A mismatch restores the previous value.",
+      "fields": {
+        "program": {
+          "name": "Program",
+          "description": "chauffage_c1, chauffage_c2 or ecs"
+        },
+        "days": {
+          "name": "Days",
+          "description": "Days to apply the slots to"
+        },
+        "slots": {
+          "name": "Slots",
+          "description": "List of 0 to 3 {debut, fin} slots, HH:MM"
+        },
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Optional with a single heat pump"
+        }
+      }
+    }
+  }
 }

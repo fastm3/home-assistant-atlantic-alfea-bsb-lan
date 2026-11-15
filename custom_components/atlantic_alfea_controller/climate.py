@@ -18,6 +18,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_track_time_interval
 
+from .const import circuit_name
 from .const import BSB_AUTO, BSB_PROTECTION, DOMAIN, MODE_COOL, MODE_HEAT, MODE_OFF, TEMPERATURE_STEP
 from .helpers import (
     MODE_CONFIRM_TIMEOUT_SECONDS,
@@ -426,6 +427,7 @@ class AlfeaCircuitClimate(ClimateEntity):
         mode = self._mode()
         if mode == MODE_OFF or self._circuit_in_protection(mode):
             return {
+                "nom_circuit": circuit_name(self._entry, self._circuit),
                 "etat_circuit_bsb": self._circuit_status(mode),
                 "mode_circuit": "protection" if self._circuit_in_protection(mode) else "arrêt",
                 "regime_consigne": None,
@@ -450,6 +452,7 @@ class AlfeaCircuitClimate(ClimateEntity):
         override_active, override_code, override_text = self._override_state()
 
         return {
+            "nom_circuit": circuit_name(self._entry, self._circuit),
             "etat_circuit_bsb": status,
             "derogation_native_active": override_active,
             "derogation_code_bsb": override_code,

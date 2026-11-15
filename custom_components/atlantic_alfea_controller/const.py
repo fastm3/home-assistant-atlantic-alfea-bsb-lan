@@ -116,3 +116,13 @@ DHW_ECO: Final = "Eco"
 DHW_OPERATIONS: Final = [DHW_OFF, DHW_ON, DHW_ECO]
 
 TEMPERATURE_STEP: Final = 0.5
+
+# Noms affichés des circuits (options), lus par les cartes via l'attribut nom_circuit.
+CONF_CIRCUIT_1_NAME: Final = "circuit_1_name"
+CONF_CIRCUIT_2_NAME: Final = "circuit_2_name"
+
+
+def circuit_name(entry, circuit: int) -> str:
+    """Nom affiché du circuit 1 ou 2 (option), « Circuit N » par défaut."""
+    key = CONF_CIRCUIT_1_NAME if circuit == 1 else CONF_CIRCUIT_2_NAME
+    return str(entry.options.get(key) or f"Circuit {circuit}").strip() or f"Circuit {circuit}"

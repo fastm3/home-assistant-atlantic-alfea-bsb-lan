@@ -18,6 +18,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .clock import clock_offset_seconds, clock_source_age_seconds, clock_source_ids, pac_clock_datetime
+from .const import circuit_name
 from .const import (
     BSB_REFRESH_ECS_INTERVAL_SECONDS,
     BSB_REFRESH_FAST_INTERVAL_SECONDS,
@@ -959,6 +960,9 @@ class AlfeaWeeklyProgramSensor(SensorEntity):
         self._entry = entry
         self._key = key
         name, icon, _base = PROGRAMS[key]
+        self._circuit = 1 if key.endswith("_c1") else 2 if key.endswith("_c2") else None
+        if self._circuit is not None:
+            name = f"{name.rsplit(' ', 1)[0]} {circuit_name(entry, self._circuit)}"
         self._attr_name = f"Programme natif - {name}"
         self._attr_icon = icon
         self._attr_unique_id = f"{entry.entry_id}_weekly_program_{key}"
@@ -985,6 +989,8 @@ class AlfeaWeeklyProgramSensor(SensorEntity):
             "lecture_seule": True,
             "source": "BSB-LAN JSON /JQ",
             "parametre_lundi": base,
+            "circuit": self._circuit,
+            "nom_circuit": circuit_name(self._entry, self._circuit) if self._circuit else None,
             "derniere_importation": snapshot.updated,
             "erreur_derniere_lecture": snapshot.error,
             "jours": snapshot.days or {},

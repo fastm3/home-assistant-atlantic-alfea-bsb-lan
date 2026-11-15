@@ -50,7 +50,7 @@ class TestNativeScheduleDisplay(unittest.TestCase):
         self.assertIn('"ecriture_consigne_autorisee": profile is not None', climate)
 
     def test_bundled_card_has_optional_commands(self):
-        card = (ROOT / "custom_components" / "atlantic_alfea_controller" / "www" / "pac-synoptique-card.js").read_text(encoding="utf-8")
+        card = (ROOT / "custom_components" / "atlantic_alfea_controller" / "www" / "pac-synoptique-photo-card.js").read_text(encoding="utf-8")
         self.assertIn("class PacSynoptiqueCard extends HTMLElement", card)
         self.assertIn("hass.callService(", card)
         self.assertIn('data-pac-action="global"', card)

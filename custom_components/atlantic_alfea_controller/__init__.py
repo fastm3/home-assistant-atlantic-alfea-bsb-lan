@@ -9,6 +9,8 @@ import logging
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.mqtt import async_subscribe
 from homeassistant.const import EVENT_COMPONENT_LOADED
+from homeassistant.helpers.event import async_call_later, async_track_time_change
+from homeassistant.helpers.start import async_at_started
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -25,30 +27,71 @@ from .runtime import AlfeaRuntimeMonitor
 from .polling import async_start_data_polling
 from .bsb_logging import async_start_log_watch
 from .mqtt_ecs import async_setup_ecs_discovery
-from .weekly_programs import WeeklyProgramImporter
+from .weekly_programs import (
+    WEEKDAYS,
+    WRITABLE_PROGRAMS,
+    WeeklyProgramImporter,
+    async_write_program_days,
+)
+import voluptuous as vol
+from homeassistant.core import ServiceCall, ServiceResponse, SupportsResponse
+import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
-    """Expose the bundled read-only Lovelace card through Home Assistant HTTP.
+    """Expose the bundled Lovelace cards through Home Assistant HTTP.
 
-    The integration ships its static asset in HACS.  This registers only a
-    GET endpoint; it never modifies dashboards, resources, or PAC commands.
+    - pac-synoptique-photo-card.js + its images (pac_synoptique/<jeu>/*.webp);
+      it replaces the former pac-synoptique-card (retired in 2.0.0).
+    - pac-programmes-card.js.
+
+    The integration ships its static assets in HACS.  This registers only
+    GET endpoints; it never modifies dashboards, resources, or PAC commands.
     """
+    www = Path(__file__).resolve().parent / "www"
     await hass.http.async_register_static_paths(
         [
             StaticPathConfig(
-                "/alfea-synoptique/pac-synoptique-card.js",
-                str(Path(__file__).resolve().parent / "www" / "pac-synoptique-card.js"),
+                "/alfea-synoptique/pac-synoptique-photo-card.js",
+                str(www / "pac-synoptique-photo-card.js"),
                 False,
             ),
+            # images versionnées par ?v= dans la carte : cache navigateur autorisé
+            StaticPathConfig("/alfea-synoptique/pac_synoptique", str(www / "pac_synoptique"), True),
             StaticPathConfig(
                 "/alfea-synoptique/pac-programmes-card.js",
                 str(Path(__file__).resolve().parent / "www" / "pac-programmes-card.js"),
                 False,
             ),
         ]
+    )
+
+    slot_schema = vol.Schema({vol.Required("debut"): cv.string, vol.Required("fin"): cv.string})
+    schema = vol.Schema({
+        vol.Required("program"): vol.In(WRITABLE_PROGRAMS),
+        vol.Required("days"): vol.All(cv.ensure_list, [vol.In(list(WEEKDAYS))]),
+        vol.Required("slots"): vol.All(cv.ensure_list, [slot_schema], vol.Length(max=3)),
+        vol.Optional("config_entry_id"): cv.string,
+    })
+
+    async def _set_weekly_program(call: ServiceCall) -> ServiceResponse:
+        importers = hass.data.get(DOMAIN, {}).get("weekly_programs", {})
+        entry_id = call.data.get("config_entry_id") or (next(iter(importers)) if len(importers) == 1 else None)
+        importer = importers.get(entry_id) if entry_id else None
+        if importer is None:
+            raise HomeAssistantError("Intégration introuvable (préciser config_entry_id si plusieurs).")
+        days = {day: call.data["slots"] for day in call.data["days"]}
+        try:
+            results = await async_write_program_days(importer, call.data["program"], days)
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+        return {"program": call.data["program"], "results": results}
+
+    hass.services.async_register(
+        DOMAIN, "set_weekly_program", _set_weekly_program, schema=schema,
+        supports_response=SupportsResponse.OPTIONAL,
     )
     return True
 
@@ -220,16 +263,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(_clear_mqtt_subscriptions)
     await _subscribe_feedback()
 
-    # Import des programmes à la demande, indépendant des 40 publications MQTT.
-    # Aucun appel HTTP au démarrage : seul le bouton explicite déclenche /JQ.
+    # Import des programmes, indépendant des 40 publications MQTT : automatiquement une
+    # minute après le démarrage de HA, puis chaque jour à 04:00, et à la demande (bouton).
     programs = hass.data.setdefault(DOMAIN, {}).setdefault("weekly_programs", {})
-    programs[entry.entry_id] = WeeklyProgramImporter(
+    importer = WeeklyProgramImporter(
         hass, entry.entry_id, entry.options.get("bsb_base_url", "")
     )
+    programs[entry.entry_id] = importer
     def _clear_weekly_programs() -> None:
         programs.pop(entry.entry_id, None)
 
     entry.async_on_unload(_clear_weekly_programs)
+
+    async def _auto_import_programs(reason: str) -> None:
+        if not importer.configured:
+            return
+        try:
+            errors = await importer.async_refresh_all()
+        except Exception as err:  # noqa: BLE001 - BSB-LAN injoignable : non bloquant
+            _LOGGER.warning("Import automatique des programmes (%s) impossible : %s", reason, err)
+            return
+        if errors:
+            _LOGGER.warning("Import automatique des programmes (%s) partiel : %s", reason, errors)
+        else:
+            _LOGGER.debug("Programmes natifs importés (%s)", reason)
+
+    @callback
+    def _startup_import(_now) -> None:
+        hass.async_create_task(_auto_import_programs("démarrage"))
+
+    @callback
+    def _daily_import(_now) -> None:
+        hass.async_create_task(_auto_import_programs("quotidien"))
+
+    @callback
+    def _schedule_startup_import(_hass) -> None:
+        entry.async_on_unload(async_call_later(hass, 60, _startup_import))
+
+    # Une minute après la fin du démarrage de HA (ou après le chargement si HA tourne déjà).
+    entry.async_on_unload(async_at_started(hass, _schedule_startup_import))
+    entry.async_on_unload(async_track_time_change(hass, _daily_import, hour=4, minute=0, second=0))
 
     monitor = AlfeaRuntimeMonitor(hass, entry)
     entry.runtime_data = monitor

@@ -1,4 +1,4 @@
-name: Atlantic Alféa — contrôles synoptique
+name: Atlantic Alféa — contrôles des cartes
 on:
   pull_request:
     branches: [main]
@@ -20,14 +20,13 @@ jobs:
           python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Tests JavaScript
         run: |
-          node --check custom_components/atlantic_alfea_controller/www/pac-synoptique-card.js
-          node tests/test_card_theme.js
-          node tests/test_card_visual_editor.js
-          node tests/test_card_compact_orientation.js
-          node tests/test_card_pipe_geometry.js
-          node tests/test_card_portrait_regime_v1515.js
-          node tests/test_card_native_preset_v1520.js
-          node tests/test_card_aerien_v1522.js
+          node --check custom_components/atlantic_alfea_controller/www/pac-synoptique-photo-card.js
+          node --check custom_components/atlantic_alfea_controller/www/pac-programmes-card.js
+          for test in tests/*.js; do echo "$test"; node "$test"; done
+      - name: Tests navigateur simulé (jsdom)
+        run: |
+          npm install --no-save --no-package-lock jsdom@24.1.3
+          for test in tests/dom/*.cjs; do echo "$test"; node "$test"; done
       - name: Vérifier version
         run: |
           python - <<'PY'

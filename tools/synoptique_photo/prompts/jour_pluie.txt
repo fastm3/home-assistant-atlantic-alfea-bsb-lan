@@ -1,0 +1,7 @@
+This image is a photorealistic architectural cutaway of a heat pump installation. Re-render EXACTLY the same image with a different WEATHER.
+
+Keep everything pixel-identical in geometry: same camera, framing, perspective, every object at exactly the same position, size and shape (outdoor unit, refrigerant pipes, indoor unit with hydraulic block, tank with copper coil, the 4 pipes along the back wall, the low radiator, the brass manifold, the stepped floor cutaway with the 2 spiral underfloor loops, roof, ceiling, facade section, tiles, garden, hedge, trees). Do not add, remove, move or resize anything. No text, no logos, no labels. The interior of the house (cutaway room) keeps the same lighting and look as in the input image; only the outdoor part (sky, garden, trees, hedge, gravel, roof tiles, outdoor unit top) changes with the weather.
+
+Weather: RAIN. Steady rain falling in the outdoor area only, visible rain streaks, wet glossy lawn, gravel and outdoor unit with puddles and reflections, dark grey overcast sky with heavy clouds.
+
+Time of day: same as the input (daytime).

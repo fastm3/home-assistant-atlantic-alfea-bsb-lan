@@ -14,6 +14,8 @@ from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig,
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import (
+    CONF_CIRCUIT_1_NAME,
+    CONF_CIRCUIT_2_NAME,
     CONF_ENERGY_ENTITY,
     CONF_FLOW_GAP_DEGREES,
     CONF_FLOW_GAP_DURATION_MINUTES,
@@ -339,6 +341,8 @@ class AtlanticAlfeaOptionsFlow(OptionsFlowWithReload):
 
         schema = vol.Schema(
             {
+                vol.Optional(CONF_CIRCUIT_1_NAME, default=self.config_entry.options.get(CONF_CIRCUIT_1_NAME, "Circuit 1")): selector.TextSelector(),
+                vol.Optional(CONF_CIRCUIT_2_NAME, default=self.config_entry.options.get(CONF_CIRCUIT_2_NAME, "Circuit 2")): selector.TextSelector(),
                 vol.Optional("bsb_base_url", default=self.config_entry.options.get("bsb_base_url", "")): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
                 vol.Optional(
                     CONF_ENERGY_ENTITY,

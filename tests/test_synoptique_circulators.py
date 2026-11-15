@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 CARD = (Path(__file__).resolve().parents[1] /
-        "custom_components/atlantic_alfea_controller/www/pac-synoptique-card.js")
+        "custom_components/atlantic_alfea_controller/www/pac-synoptique-photo-card.js")
 
 
 class CirculatorCardTests(unittest.TestCase):

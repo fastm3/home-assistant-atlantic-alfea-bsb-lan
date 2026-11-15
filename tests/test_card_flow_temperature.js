@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("assert");
 const fs=require("fs"),path=require("path");
-const src=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+const src=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js"),"utf8");
 assert(src.includes("8743 - Flow temp actual value heat circuit 1"),"Missing C1 flow sensor mapping");
 assert(src.includes("8773 - Flow temp actual value heat circuit 2"),"Missing C2 flow sensor mapping");
 assert(src.includes("Départ circuit "),"Missing circuit flow chip");

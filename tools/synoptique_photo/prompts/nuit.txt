@@ -1,0 +1,12 @@
+Image 1 is a precise 3D layout render of a heat pump installation. Image 2 is the visual style target.
+
+Re-render Image 1 as a photorealistic architectural cutaway visualization at night with the look, materials, lighting and level of detail of Image 2 (tiled roof edge and ceiling with spots in section, concrete-block and mineral-wool facade section, realistic white outdoor unit with fan grille, realistic indoor unit with detailed hydraulic block, stainless 180 L tank with copper coil, beige porcelain tiles, stepped floor cutaway onto blue insulation boards, garden with hedge and trees, milky way sky).
+
+STRICT LAYOUT RULES - keep exactly the camera, framing, positions, sizes and routing of Image 1:
+- Outdoor unit on the left, on gravel, exactly 2 refrigerant pipes (purple and cyan) going through the wall then up into the left side of the indoor unit.
+- Indoor unit at the same place and size, front open: hydraulic block on top, tank with coil below.
+- From the TOP of the indoor unit exactly 4 pipes run along the back wall exactly as in Image 1: one red + one blue pair goes to the radiator, one red + one blue pair goes down to the brass manifold.
+- The radiator stays LOW on the wall just above the floor, at the same position as in Image 1 (not high on the wall).
+- The brass manifold has exactly 2 supply outlets and 2 return outlets, each going down into the floor and connected to the 2 floor loops.
+- Exactly 2 spiral underfloor heating loops (red supply / blue return interleaved) in the stepped floor cutaway at the front right, as in Image 1.
+- No extra pipes, no extra devices, no text, no logos, no labels.

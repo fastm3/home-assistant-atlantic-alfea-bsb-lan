@@ -1,6 +1,6 @@
 const fs=require('fs');
 const assert=require('assert');
-const card=fs.readFileSync('custom_components/atlantic_alfea_controller/www/pac-synoptique-card.js','utf8');
+const card=fs.readFileSync('custom_components/atlantic_alfea_controller/www/pac-synoptique-photo-card.js','utf8');
 assert(card.includes("st?.attributes?.preset_mode"), 'Climate preset is the source');
 assert(card.includes("label:'AUTO'"));
 assert(card.includes("label:'ECO forcé'"));

@@ -1,5 +1,76 @@
 # Changelog
 
+## 2.0.0 — Synoptique photo, écriture des programmes, noms des circuits
+
+Version majeure : nouvelle carte synoptique, programmes horaires modifiables
+depuis Home Assistant, suppression de l'ancienne carte.
+
+### ⚠️ Changements incompatibles
+
+- **Carte `custom:pac-synoptique-card` supprimée**, remplacée par
+  `custom:pac-synoptique-photo-card`. Supprimer la ressource
+  `/alfea-synoptique/pac-synoptique-card.js`, ajouter
+  `/alfea-synoptique/pac-synoptique-photo-card.js?v=2.0.0` et remplacer les
+  cartes. Ses panneaux (alarmes, diagnostics, graphes, loi d'eau, commandes)
+  sont repris en onglets dans la nouvelle carte. Correspondance des options
+  dans `docs/CARTE_SYNOPTIQUE.md`.
+- Les **capteurs de programme natif** portent le nom configuré du circuit
+  (C1 = programme 501, C2 = 521) au lieu de « RDC » / « étage » fixés quel que
+  soit le câblage. Les `entity_id` déjà créés ne changent pas.
+
+### Carte PAC Synoptique photo (nouvelle)
+
+- Vue en coupe photoréaliste de l'Alféa Extensa Duo (groupe extérieur, module
+  avec ballon 180 L et appoint, C1 radiateur, C2 plancher chauffant), avec
+  panneaux de valeurs en surimpression près de chaque élément.
+- Animations d'après l'état réel : lueurs par élément, flux dont la vitesse
+  suit la modulation, hélice du groupe extérieur et filets d'air, dégivrage,
+  chaleur au-dessus du radiateur, eau du ballon qui chauffe (teinte selon la
+  température, convection) et foyer de l'appoint électrique.
+- Décor **jour / nuit** automatique (`sun.sun`) et **météo** facultative :
+  encart discret dans le ciel, fonds neige / pluie / brouillard en jour et en
+  nuit, animations de pluie, averse, orage, neige, brume et vent limitées au
+  paysage.
+- Onglets repris de l'ancienne carte, chacun masquable ; régime déduit du
+  programme natif quand l'intégration le donne « indéterminé ».
+- Entités résolues depuis l'appareil PAC (détecté automatiquement) ; compteur
+  d'énergie repris des options de l'intégration, puissance lue sur le même
+  appareil ; éditeur visuel réduit à l'essentiel ; barre de test (`debug`).
+- Images (8 décors WebP, ~3,4 Mo) servies par l'intégration sous
+  `/alfea-synoptique/pac_synoptique/`. Chaîne de fabrication documentée dans
+  `tools/synoptique_photo/`.
+
+### Programmes horaires
+
+- Nouveau service **`set_weekly_program`** : écriture des programmes chauffage
+  C1/C2 et ECS jour par jour (`/JS`), validation complète avant envoi, accusé
+  BSB-LAN, relecture de chaque jour et restauration automatique en cas
+  d'écart. Le rafraîchissement reste en lecture seule.
+- **Import automatique** des programmes une minute après le démarrage de Home
+  Assistant, puis chaque jour à 04:00 (le bouton reste disponible).
+- Carte Programmes (v0.5.0) : **mode édition** (poignées à glisser, saisie,
+  copier/coller d'un jour ou d'un modèle vers un jour, Lun–Ven, le week-end ou
+  la semaine, validation en direct, récapitulatif avant écriture, écriture
+  regroupée), noms des circuits depuis l'intégration, éditeur visuel, message
+  explicite quand la PAC n'a pas de programme de rafraîchissement.
+- Corrections : l'affichage revenait à l'ancien programme après une écriture
+  (état modifié en place, non transmis à l'interface) ; une consigne absente
+  s'affichait 0,0 °C au lieu de « — ».
+
+### Options de l'intégration
+
+- Nouvelles options **Nom du circuit 1 / 2**, exposées dans l'attribut
+  `nom_circuit` des thermostats et des capteurs de programme.
+- Texte d'aide pour chaque option du formulaire.
+
+### Tests et CI
+
+- Tests de l'ancienne carte reportés sur le moteur des onglets embarqué.
+- Nouveaux tests en navigateur simulé (`tests/dom/`, jsdom) : météo et décors,
+  résolution des entités, mode édition et copier/coller des programmes.
+- Workflows : contrôle des deux cartes, tests jsdom avant chaque release.
+- Manifest **2.0.0**.
+
 ## 1.5.46 — Compteur d'énergie dans les options, documentation
 
 - Nouvelle option **Compteur d'énergie global de la PAC** : capteur `kWh` utilisé

@@ -4,7 +4,12 @@ Intégration Home Assistant pour **piloter, mesurer et comprendre** une pompe à
 chaleur **Atlantic Alféa Extensa Duo** à travers une passerelle
 [BSB-LAN](https://docs.bsb-lan.de/fr/index.html).
 
-![Carte PAC Synoptique dans Home Assistant](docs/images/pac-synoptique-carte.gif)
+![Carte PAC Synoptique photo dans Home Assistant](docs/images/synoptique-photo-jour.webp)
+
+> **2.0.0** : nouvelle carte synoptique photoréaliste (jour, nuit, météo), écriture des
+> programmes horaires depuis Home Assistant, noms des circuits dans les options.
+> L'ancienne carte `pac-synoptique-card` est supprimée : voir
+> [Mise à jour depuis la 1.5.x](#mise-à-jour-depuis-la-15x).
 
 ## Objectif
 
@@ -20,8 +25,9 @@ avec un objectif plus large :
 - **Observation du fonctionnement** : loi d'eau, températures départ/retour,
   états du régulateur, circulateurs, compresseur, défauts, programmes horaires.
 
-La programmation horaire reste dans la PAC : l'intégration ne la remplace pas
-et la PAC reste la référence pour les régimes Confort/Réduit.
+La programmation horaire reste dans la PAC, qui reste la référence pour les
+régimes Confort/Réduit : l'intégration importe les programmes natifs et permet
+de les modifier, mais ne les remplace pas par des automatisations.
 
 ## Matériel validé
 
@@ -49,8 +55,9 @@ fonctionner mais ne sont pas validées.
 3. **Paramètres → Appareils et services → Ajouter une intégration** →
    *Atlantic Alfea BSB-LAN*. La détection associe automatiquement les entités
    BSB-LAN ; les paramètres ambigus sont demandés.
-4. Dans les **options** de l'intégration, renseigner l'adresse BSB-LAN et le
-   **compteur d'énergie global** de la PAC (capteur `kWh` de la ligne PAC).
+4. Dans les **options** de l'intégration, renseigner l'adresse BSB-LAN, le
+   **compteur d'énergie global** de la PAC (capteur `kWh` de la ligne PAC) et
+   les **noms des circuits** (voir [Options](#options-de-lintégration)).
 
 Si l'intégration d'origine est installée par HACS, retirez d'abord son dépôt
 personnalisé : sinon HACS proposera ses mises à jour à la place de celles-ci.
@@ -67,12 +74,43 @@ ressource (**Paramètres → Tableaux de bord → Ressources**, type *Module
 JavaScript*) :
 
 ```text
-/alfea-synoptique/pac-synoptique-card.js?v=<version>
+/alfea-synoptique/pac-synoptique-photo-card.js?v=<version>
 /alfea-synoptique/pac-programmes-card.js?v=<version>
 ```
 
 Changer `?v=` à chaque mise à jour pour forcer le rechargement par les
 navigateurs. Détails : [docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md).
+
+### Mise à jour depuis la 1.5.x
+
+La 2.0.0 est une version majeure :
+
+- la carte `custom:pac-synoptique-card` est **supprimée**. Supprimer sa
+  ressource `/alfea-synoptique/pac-synoptique-card.js`, ajouter celle de la
+  carte photo et remplacer les cartes concernées par
+  `custom:pac-synoptique-photo-card`. Ses panneaux (alarmes, diagnostics,
+  graphes, loi d'eau, commandes) sont repris en onglets sous l'image ;
+- les capteurs de programme natif portent désormais le **nom configuré du
+  circuit** (C1 = programme 501, C2 = 521) au lieu de « RDC » / « étage » fixes ;
+  leurs `entity_id` existants ne changent pas.
+
+Correspondance des options : [docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md#depuis-la-15x).
+
+## Options de l'intégration
+
+**Paramètres → Appareils et services → Atlantic Alfea BSB-LAN → Configurer.**
+
+| Option | Rôle |
+|---|---|
+| **Nom du circuit 1 / 2** | Noms affichés des circuits (C1 = paramètres 7xx / programme 501, C2 = 10xx / 521). Exposés dans l'attribut `nom_circuit` des thermostats et des capteurs de programme, et repris par les cartes. Défaut : « Circuit 1 » / « Circuit 2 ». |
+| **Adresse BSB-LAN** | URL HTTP de BSB-LAN (`http://192.168.x.x`). Active les lectures JSON (`/JQ`), les régimes Auto/Éco/Confort, l'historique des défauts, l'import et l'écriture des programmes horaires. |
+| **Compteur d'énergie global** | Compteur électrique précis de la ligne PAC : répartition de l'énergie entre l'ECS et C1+C2, COP des charges ECS ; repris par la carte photo. Vide = capteurs d'énergie désactivés. |
+| **Q3 = vanne 3 voies ECS confirmée** | À cocher si la sortie Q3 pilote la vanne de dérivation ECS (BSB 5731 = 2) : la position de la vanne est alors déduite de 8820. |
+| **Cycle court — seuil de secours** | Durée de marche du compresseur en dessous de laquelle un cycle est court ; le temps de marche minimum de la PAC (2842) est prioritaire. |
+| **Démarrages fréquents — seuil par heure** | Alarme au-delà de ce nombre de démarrages sur une heure glissante. |
+| **Écart départ / consigne — seuil et temporisation** | Écart toléré entre le départ mesuré (8412) et la consigne de départ (8411), et durée pendant laquelle il doit persister avant l'alarme ; surveillé compresseur en marche, hors dégivrage et hors charge ECS. À allonger (20–30 min) avec un plancher chauffant à forte inertie. |
+
+Chaque option est expliquée dans le formulaire.
 
 ## Configuration de BSB-LAN
 
@@ -109,6 +147,7 @@ comme erreur.
 | ECS : mode et consignes | `water_heater` *Eau chaude sanitaire* | 1600, 1610, 1612 |
 | Forçage d'un cycle ECS | bouton *Forçage cycle ECS* | — |
 | Horloge de la PAC | bouton *Horloge PAC - Synchroniser* | 0 |
+| Programmes horaires chauffage C1/C2 et ECS | service `set_weekly_program`, mode édition de la carte Programmes | 501–507, 521–527, 561–567 |
 
 Garde-fous :
 
@@ -121,6 +160,45 @@ Garde-fous :
 - dérogation : écart de 0,1 à 5 °C par rapport à la consigne effective ; en
   rafraîchissement, seulement vers plus froid. La durée est gérée par le
   régulateur, qui revient seul au programme.
+
+## Programmes horaires
+
+Les programmes natifs (chauffage C1/C2, ECS, rafraîchissement C1/C2) sont
+importés par JSON (`/JQ`, sans consommer d'emplacement du journal MQTT) une
+minute après le démarrage de Home Assistant, puis chaque jour à 04:00 et à la
+demande (bouton *Programmes natifs - Actualiser*). Un échec est seulement
+journalisé.
+
+Le service `atlantic_alfea_controller.set_weekly_program` écrit un programme
+jour par jour (`/JS`) :
+
+| Champ | Description |
+|---|---|
+| `program` | `chauffage_c1` (501–507), `chauffage_c2` (521–527) ou `ecs` (561–567). Le rafraîchissement reste en lecture seule. |
+| `days` | liste de jours : `lundi` … `dimanche` |
+| `slots` | 0 à 3 plages `{debut, fin}` au format `HH:MM`, pas de 10 min, `24:00` accepté en fin ; liste vide = aucune plage Confort |
+| `config_entry_id` | facultatif s'il n'y a qu'une PAC |
+
+Sécurités : validation complète avant tout envoi (format, pas, ordre,
+chevauchement, 3 plages) ; aucun envoi si le jour est inchangé ; accusé
+BSB-LAN ; **relecture de chaque jour** et, si elle diffère, **restauration
+automatique** de la valeur d'origine puis arrêt. Réponse :
+`{"program": "ecs", "results": {"dimanche": "écrit et vérifié"}}`.
+
+```yaml
+action: atlantic_alfea_controller.set_weekly_program
+data:
+  program: chauffage_c2
+  days: [lundi, mardi, mercredi, jeudi, vendredi]
+  slots:
+    - debut: "06:00"
+      fin: "08:30"
+    - debut: "17:00"
+      fin: "22:00"
+```
+
+Format envoyé à BSB-LAN : `06:00-08:30_17:00-22:00_xx:xx-xx:xx` (validé sur
+RVS21.831F).
 
 ## Énergie
 
@@ -139,13 +217,15 @@ utilisables dans le tableau de bord Énergie. Les compteurs internes de la PAC
 
 ## Observation
 
-- **Carte PAC Synoptique** : compresseur, PAC, circuits, ECS, circulateurs,
-  température de départ par circuit, alarmes, diagnostics ; historique au clic
-  sur les températures ; panneaux **Graphes** (consommation ECS / C1+C2 sur
-  7 jours et par heure) et **Loi d'eau** (courbes 720/1020 et point de
-  fonctionnement) ; commandes optionnelles.
+- **Carte PAC Synoptique photo** : vue en coupe photoréaliste de
+  l'installation, animée d'après l'état réel (compresseur et hélice selon la
+  modulation, liaisons frigorifiques, circuits, radiateur, plancher, charge ECS
+  et appoint électrique) ; décor jour/nuit et météo (neige, pluie, brouillard,
+  vent) ; panneaux de valeurs ; onglets alarmes, diagnostics, graphes de
+  consommation, loi d'eau et commandes.
 - **Carte Programmes PAC** : programmes horaires natifs chauffage, ECS et
-  rafraîchissement, importés à la demande (lecture seule).
+  rafraîchissement, avec **mode édition** (glisser les plages, copier/coller,
+  modèles, récapitulatif avant écriture) pour le chauffage et l'ECS.
 - **Diagnostics** : cycles courts, démarrages fréquents, écart départ/consigne,
   horloge désynchronisée, historique des 10 derniers défauts, état de
   l'installation, journalisation BSB-LAN.
@@ -171,7 +251,7 @@ relu ; les autres sont demandés par `BSB-LAN/poll` ou, pour 8740/8770/8830/8821
 par une requête JSON par minute. Après une écriture depuis Home Assistant, le
 paramètre est relu immédiatement. Toutes les requêtes HTTP vers BSB-LAN passent
 par une file unique : jamais deux à la fois. Ce sont uniquement des lectures,
-sauf les commandes listées dans *Pilotage*.
+sauf les commandes listées dans *Pilotage* (dont l'écriture des programmes).
 
 ## Limites connues
 
@@ -191,6 +271,7 @@ sauf les commandes listées dans *Pilotage*.
 - [docs/BSB_LAN_JOURNALISATION.md](docs/BSB_LAN_JOURNALISATION.md) : réglage de
   BSB-LAN et lectures de l'intégration.
 - [docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md) : options des cartes.
+- [tools/synoptique_photo/](tools/synoptique_photo/README.md) : comment les images de la carte photo sont produites.
 - [Documentation BSB-LAN](https://docs.bsb-lan.de/fr/index.html).
 
 Projet communautaire non officiel, sans lien avec Atlantic ni avec le projet

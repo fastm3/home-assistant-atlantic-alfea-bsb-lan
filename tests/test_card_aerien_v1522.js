@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("assert");
 const fs=require("fs"),vm=require("vm"),path=require("path");
-const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js"),"utf8");
 class E{
   constructor(){this.dataset={};this.calls=[]}
   attachShadow(){
@@ -19,8 +19,8 @@ vm.runInNewContext(source,{
   window:{customCards:[],matchMedia:()=>({matches:false})},
   Date,JSON,Object,Intl,Number,String,Array,Math,Set,Boolean
 });
-const Card=registered["pac-synoptique-card"];
-const Editor=registered["pac-synoptique-card-editor"];
+const Card=registered["pac-photo-tabs"];
+const Editor=registered["pac-photo-tabs-editor"];
 assert(Card&&Editor,"card and editor should register");
 const BLADE='M90 77 C77 59 73 36 88 31 C108 27 111 52 90 77Z';
 assert.equal(source.split(BLADE).length-1,4,"four strictly identical rotor blades required");

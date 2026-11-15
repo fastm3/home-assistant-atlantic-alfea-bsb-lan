@@ -1,0 +1,7 @@
+This image is a photorealistic architectural cutaway of a heat pump installation. Re-render EXACTLY the same image with a different WEATHER.
+
+Keep everything pixel-identical in geometry: same camera, framing, perspective, every object at exactly the same position, size and shape (outdoor unit, refrigerant pipes, indoor unit with hydraulic block, tank with copper coil, the 4 pipes along the back wall, the low radiator, the brass manifold, the stepped floor cutaway with the 2 spiral underfloor loops, roof, ceiling, facade section, tiles, garden, hedge, trees). Do not add, remove, move or resize anything. No text, no logos, no labels. The interior of the house (cutaway room) keeps the same lighting and look as in the input image; only the outdoor part (sky, garden, trees, hedge, gravel, roof tiles, outdoor unit top) changes with the weather.
+
+Weather: FOG. Dense soft fog / mist in the outdoor area: trees and hedge fade into the fog with distance, low contrast, diffuse light, grey-white sky, slightly damp ground.
+
+Time of day: same as the input (daytime).

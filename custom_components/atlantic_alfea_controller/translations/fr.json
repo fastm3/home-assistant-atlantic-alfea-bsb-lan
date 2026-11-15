@@ -5,7 +5,9 @@
       "user": {
         "title": "Détection automatique BSB-LAN",
         "description": "{found} entités sur {total} ont été associées automatiquement. Paramètres optionnels absents : {missing_optional}. Validez pour continuer ou activez la configuration manuelle avancée.",
-        "data": {"manual_configuration": "Afficher la configuration manuelle avancée"}
+        "data": {
+          "manual_configuration": "Afficher la configuration manuelle avancée"
+        }
       },
       "manual_v125": {
         "title": "Compléter les entités requises",
@@ -18,7 +20,9 @@
       "reconfigure": {
         "title": "Reconfigurer Atlantic Alfea BSB-LAN",
         "description": "La détection automatique conserve les associations valides et complète les paramètres manquants. Désactivez-la pour modifier toutes les associations manuellement.",
-        "data": {"automatic_detection": "Lancer la détection automatique"}
+        "data": {
+          "automatic_detection": "Lancer la détection automatique"
+        }
       },
       "reconfigure_manual_v125": {
         "title": "Compléter les entités requises",
@@ -45,7 +49,44 @@
           "short_cycle_minutes": "Cycle court — seuil de secours si 2842 est indisponible (minutes)",
           "frequent_starts_per_hour": "Démarrages fréquents — seuil par heure",
           "flow_gap_degrees": "Écart départ / consigne — seuil (°C)",
-          "flow_gap_duration_minutes": "Écart départ / consigne — temporisation (minutes)"
+          "flow_gap_duration_minutes": "Écart départ / consigne — temporisation (minutes)",
+          "circuit_1_name": "Nom du circuit 1 (C1)",
+          "circuit_2_name": "Nom du circuit 2 (C2)"
+        },
+        "data_description": {
+          "circuit_1_name": "Nom affiché du circuit 1 (paramètres BSB 7xx, programme 501). Repris par les cartes et les programmes natifs.",
+          "circuit_2_name": "Nom affiché du circuit 2 (paramètres BSB 10xx, programme 521). Repris par les cartes et les programmes natifs.",
+          "bsb_base_url": "Adresse HTTP de BSB-LAN (ex. http://192.168.1.50). Active les lectures JSON, les régimes Auto/Éco/Confort, l'historique des défauts, l'import et l'écriture des programmes horaires. Vide = fonctions désactivées.",
+          "ecs_cop_energy_entity": "Compteur électrique précis de la ligne PAC. Sert à répartir l'énergie entre l'ECS et les circuits C1+C2 et à calculer le COP des sessions ECS. Vide = capteurs d'énergie désactivés.",
+          "q3_diverter_confirmed": "À cocher si la sortie Q3 pilote la vanne 3 voies ECS (BSB 5731 = 2) sur votre PAC : la position de la vanne est alors déduite du paramètre 8820 même si 5731 n'est pas publié.",
+          "short_cycle_minutes": "Un fonctionnement du compresseur plus court que ce seuil compte comme cycle court. Le temps de marche minimum lu dans la PAC (BSB 2842) est prioritaire ; cette valeur ne sert que s'il est indisponible.",
+          "frequent_starts_per_hour": "Alarme si le compresseur démarre plus de fois que ce seuil sur une heure glissante.",
+          "flow_gap_degrees": "Écart toléré entre la température de départ PAC mesurée (BSB 8412) et la consigne de départ (BSB 8411), compresseur en marche, hors dégivrage et hors charge ECS.",
+          "flow_gap_duration_minutes": "Durée pendant laquelle l'écart doit rester au-dessus du seuil, sans interruption, avant de déclencher l'alarme « Écart de température anormal ». Évite les fausses alarmes au démarrage ; à allonger avec un plancher chauffant à forte inertie."
+        }
+      }
+    }
+  },
+  "services": {
+    "set_weekly_program": {
+      "name": "Écrire un programme horaire",
+      "description": "Écrit les plages (3 max, pas de 10 min) d'un programme natif dans la PAC via BSB-LAN, jour par jour, avec relecture de contrôle. Une relecture différente restaure la valeur d'origine.",
+      "fields": {
+        "program": {
+          "name": "Programme",
+          "description": "chauffage_c1, chauffage_c2 ou ecs"
+        },
+        "days": {
+          "name": "Jours",
+          "description": "Jours auxquels appliquer les plages"
+        },
+        "slots": {
+          "name": "Plages",
+          "description": "Liste de 0 à 3 plages {debut, fin} au format HH:MM ; liste vide = aucune plage confort"
+        },
+        "config_entry_id": {
+          "name": "Entrée d'intégration",
+          "description": "Facultatif si une seule PAC"
         }
       }
     }

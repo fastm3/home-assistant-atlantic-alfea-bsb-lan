@@ -1,0 +1,26 @@
+set_weekly_program:
+  fields:
+    program:
+      required: true
+      selector:
+        select:
+          options:
+            - chauffage_c1
+            - chauffage_c2
+            - ecs
+    days:
+      required: true
+      selector:
+        select:
+          multiple: true
+          options: [lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche]
+    slots:
+      required: true
+      example: '[{"debut": "06:00", "fin": "22:00"}]'
+      selector:
+        object:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: atlantic_alfea_controller

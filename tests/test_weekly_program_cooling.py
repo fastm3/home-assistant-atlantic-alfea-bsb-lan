@@ -87,10 +87,18 @@ class TestCoolingWeeklyPrograms(unittest.TestCase):
         )
 
     def test_no_write_calls_in_importer(self):
+        """L'import (classe WeeklyProgramImporter) ne fait que lire ; l'écriture (2.0.0) est isolée."""
         self.assertIn("client.get_jq(parameter", TEXT)
-        self.assertNotIn("/JS", TEXT)
         self.assertNotIn("session.post(", TEXT)
-        self.assertNotIn("post_js(", TEXT)
+        importer = next(n for n in TREE.body if isinstance(n, ast.ClassDef) and n.name == "WeeklyProgramImporter")
+        self.assertNotIn("post_js(", ast.get_source_segment(TEXT, importer))
+        writers = [n.name for n in TREE.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                   and "post_js(" in (ast.get_source_segment(TEXT, n) or "")]
+        self.assertEqual(writers, ["_post_with_ack"])
+
+    def test_cooling_programs_are_not_writable(self):
+        writable = load_literal("WRITABLE_PROGRAMS")
+        self.assertEqual(set(writable), {"chauffage_c1", "chauffage_c2", "ecs"})
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 "use strict";
 const fs=require("fs"),vm=require("vm"),path=require("path");
-const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-card.js"),"utf8");
+const source=fs.readFileSync(path.join(__dirname,"..","custom_components","atlantic_alfea_controller","www","pac-synoptique-photo-card.js"),"utf8");
 class E {
   constructor(){this.dataset={};this.shadowRoot={innerHTML:"",querySelector:()=>null};}
   attachShadow(){return this.shadowRoot;}
@@ -9,7 +9,7 @@ const custom={};
 const context={HTMLElement:E,customElements:{get:k=>custom[k],define:(k,v)=>custom[k]=v},
  window:{customCards:[],matchMedia:()=>({matches:false})},Date,JSON,Object,Intl,Number,String,Array,Math,Set};
 vm.runInNewContext(source,context);
-const Card=custom["pac-synoptique-card"];
+const Card=custom["pac-photo-tabs"];
 if(!Card)throw Error("Carte non enregistrée");
 for(const mode of ["auto","light","dark"]){
  const card=new Card();card.setConfig({theme_mode:mode,show_diagnostics:true});
