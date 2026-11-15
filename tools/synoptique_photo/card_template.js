@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.0.0";
+const VERSION = "2.0.1";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -616,9 +616,13 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const v3v = (this._v("v3v") || "").toLowerCase();
     const ecsMode = /ecs|eau|sanit|dhw/.test(v3v) || this._on("ecs_pump");
     const defrost = this._on("degivrage") || f.defrost;
+    // C1 = circuit direct : son « circulateur » est souvent un relais partagé (QX1) qui suit aussi la
+    // charge ECS. Il ne compte que si le circuit est en service et que la V3V n'est pas sur l'ECS.
+    const c1Off = this._v("c1_climate") === "off";
+    const c1Active = this._on("c1_pump") && !c1Off && !ecsMode;
     const st = {
       frigo: comp || defrost, ventilateur: comp || defrost, module: comp,
-      c1: this._on("c1_pump"), c1_radiateur: this._on("c1_pump"), c2: this._on("c2_pump"),
+      c1: c1Active, c1_radiateur: c1Active, c2: this._on("c2_pump"),
       ecs_serpentin: ecsMode, ecs_resistance: this._on("ecs_appoint"),
     };
     for (const k of LAYERS) if (f[k]) st[k] = true;
@@ -673,9 +677,12 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       $(`${n}_f`).textContent = direct ? this._num("depart") : this._num(`${n}_flow`);
       if (n === "c1") $("c1_fk").textContent = direct ? "Départ (= départ PAC)" : "Départ circuit";
       const cl = this._v(`${n}_climate`);
+      const pumpRaw = this._on(`${n}_pump`), pumpActive = n === "c1" ? c1Active : pumpRaw;
+      const pumpChip = pumpActive ? `<span class="chip on">Circulateur en marche</span>`
+        : pumpRaw ? `<span class="chip" title="Relais actif mais circuit ${ecsMode ? "court-circuité par la charge ECS" : "à l'arrêt"}">Pompe PAC${ecsMode ? " (charge ECS)" : ""}</span>`
+        : `<span class="chip">Circulateur arrêté</span>`;
       $(`${n}_chips`).innerHTML = `<span class="chip ${cl === "heat" ? "hot" : ""}">${cl === "heat" ? "Chauffe" : cl === "off" ? "OFF" : (cl || "—")}</span>` +
-        `<span class="chip">${this._v(`${n}_etat`) || "—"}</span>` +
-        `<span class="chip ${this._on(`${n}_pump`) ? "on" : ""}">Circulateur ${this._on(`${n}_pump`) ? "en marche" : "arrêté"}</span>`;
+        `<span class="chip">${this._v(`${n}_etat`) || "—"}</span>` + pumpChip;
     }
     $("e_t").textContent = this._num("ecs_temp");
     $("e_conf").textContent = this._num("ecs_confort");
