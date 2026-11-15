@@ -2536,7 +2536,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.1.0";
+const VERSION = "2.1.1";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -2827,10 +2827,14 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const root = this.shadowRoot || this.attachShadow({ mode: "open" });
     const flows = Object.entries(FLOWS.flows).map(([k, f]) =>
       `<path class="flow" data-layer="${f.layer}" data-flow="${k}" d="${f.d}" style="--c:${f.color}"/>`).join("");
-    // effet chaleur au-dessus du radiateur C1 : distorsion de l'image (air chaud) + volutes
-    const [rx0, ry0, rx1, ry1] = RADIATOR, hz = 230, rw = rx1 - rx0;
-    const wisps = [0.25, 0.52, 0.78].map((f) => { const x = rx0 + rw * f;
-      return `<path class="wisp" d="M${x},${ry0 - 6} C${x - 14},${ry0 - 50} ${x + 16},${ry0 - 95} ${x},${ry0 - 140}"/>`; }).join("");
+    // effet chaleur au-dessus du radiateur C1 : air qui ondule (distorsion) + voile chaud + effluves
+    // qui montent ; intensité selon la température de départ (--hk, réglée dans _update)
+    const [rx0, ry0, rx1, ry1] = RADIATOR, hz = 330, rw = rx1 - rx0, HR = rng(31);
+    const ribbons = Array.from({ length: 7 }, (_, i) => {
+      const x = rx0 + rw * (0.1 + 0.8 * (i + HR() * 0.6) / 7), a = 10 + HR() * 12, s = HR() < 0.5 ? 1 : -1, d = 3.6 + HR() * 2.2;
+      return `<path class="rib" d="M${x.toFixed(0)},${ry0 - 12} C${(x - s * a).toFixed(0)},${ry0 - 55} ${(x + s * a).toFixed(0)},${ry0 - 105} ${x.toFixed(0)},${ry0 - 150} S${(x - s * a * 0.8).toFixed(0)},${ry0 - 215} ${(x + s * 4).toFixed(0)},${ry0 - 250}"
+        style="--d:${d.toFixed(2)}s;--dl:${(-HR() * d).toFixed(2)}s;stroke-width:${(7 + HR() * 5).toFixed(1)}"/>`;
+    }).join("");
     // ventilateur du groupe exterieur : pales qui tournent (vitesse = modulation) + filets de vent
     const [fx, fy, fr] = FAN;
     const blade = `M0,0 C${0.22 * fr},${-0.2 * fr} ${0.68 * fr},${-0.42 * fr} ${0.9 * fr},${-0.1 * fr} C${0.74 * fr},${0.16 * fr} ${0.36 * fr},${0.14 * fr} 0,0 Z`;
@@ -2853,18 +2857,23 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       </g>
       <g id="wind" opacity="0" filter="url(#windBlur)">${winds}</g>`;
     const heat = `<defs>
-        <filter id="haze" x="${rx0 - 20}" y="${ry0 - hz}" width="${rw + 40}" height="${hz + 10}" filterUnits="userSpaceOnUse">
-          <feTurbulence type="fractalNoise" baseFrequency="0.010 0.045" numOctaves="2" seed="7" result="n">
-            <animate attributeName="baseFrequency" dur="2.6s" values="0.010 0.045;0.013 0.060;0.010 0.045" repeatCount="indefinite"/></feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G"/></filter>
-        <linearGradient id="hazeGrad" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff"/><stop offset=".85" stop-color="#fff" stop-opacity=".25"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-        <mask id="hazeMask" maskUnits="userSpaceOnUse"><rect x="${rx0 - 10}" y="${ry0 - hz}" width="${rw + 20}" height="${hz - 2}" fill="url(#hazeGrad)"/></mask>
-        <linearGradient id="wispGrad" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffb070" stop-opacity=".5"/><stop offset="1" stop-color="#ffb070" stop-opacity="0"/></linearGradient>
-        <filter id="wispBlur" x="-50%" y="-20%" width="200%" height="140%"><feGaussianBlur stdDeviation="7"/></filter>
+        <filter id="haze" x="${rx0 - 50}" y="${ry0 - hz}" width="${rw + 100}" height="${hz + 10}" filterUnits="userSpaceOnUse">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.05" numOctaves="2" seed="7" result="n">
+            <animate attributeName="baseFrequency" dur="1.6s" values="0.012 0.050;0.016 0.068;0.012 0.050" repeatCount="indefinite"/></feTurbulence>
+          <feDisplacementMap id="hazeDisp" in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G"/></filter>
+        <radialGradient id="hazeGrad" cx=".5" cy="1" r=".5" fx=".5" fy="1"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        <mask id="hazeMask" maskUnits="userSpaceOnUse"><rect x="${rx0 - 40}" y="${ry0 - hz}" width="${rw + 80}" height="${hz - 16}" fill="url(#hazeGrad)"/></mask>
+        <linearGradient id="veilGrad" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff9a50" stop-opacity=".26"/><stop offset=".55" stop-color="#ffb070" stop-opacity=".1"/><stop offset="1" stop-color="#ffc090" stop-opacity="0"/></linearGradient>
+        <linearGradient id="ribGrad" gradientUnits="userSpaceOnUse" x1="0" y1="${ry0}" x2="0" y2="${ry0 - 255}">
+          <stop offset="0" stop-color="#ff9a4a" stop-opacity=".68"/><stop offset=".45" stop-color="#ffb877" stop-opacity=".45"/><stop offset="1" stop-color="#ffd0a0" stop-opacity="0"/></linearGradient>
+        <filter id="ribBlur" x="-60%" y="-10%" width="220%" height="120%"><feGaussianBlur stdDeviation="2.6"/></filter>
+        <radialGradient id="veilFade" cx=".5" cy="1" r=".5" fx=".5" fy="1"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        <mask id="veilMask" maskUnits="userSpaceOnUse"><rect x="${rx0 - 70}" y="${ry0 - hz}" width="${rw + 140}" height="${hz - 8}" fill="url(#veilFade)"/></mask>
       </defs>
       <g class="heat" data-layer="c1_radiateur">
         <image id="hazeImg" href="${this._img("base", wx0.variant)}" x="0" y="0" width="${FLOWS.width}" height="${FLOWS.height}" preserveAspectRatio="none" filter="url(#haze)" mask="url(#hazeMask)"/>
-        ${wisps}
+        <rect class="veil" x="${rx0 - 70}" y="${ry0 - hz}" width="${rw + 140}" height="${hz - 8}" fill="url(#veilGrad)" mask="url(#veilMask)"/>
+        ${ribbons}
       </g>`;
     // eau du ballon : teinte qui se stratifie + panaches de convection (serpentin) / foyer + bulles (résistance)
     const [tx0, ty0, tx1, ty1] = TANK, tw = tx1 - tx0, th = ty1 - ty0, [hx, hy0, hy1] = HEATER, TR = rng(77);
@@ -2900,7 +2909,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
         </g>
       </g>`;
     // position des panneaux [x%, y%, largeur%] sur l'image, surchargeable par config.positions
-    const P_ = { ext: [3, 32, 16], pac: [29.8, 26, 12.6], c1: [79.5, 26, 16], ecs: [52.6, 49, 12.8], c2: [51, 74.5, 15], ...(c.positions || {}) };
+    const P_ = { ext: [3, 32, 16], pac: [29.8, 26, 12.6], c1: [79.5, 12.5, 16], ecs: [52.6, 49, 12.8], c2: [51, 74.5, 15], ...(c.positions || {}) };
     root.innerHTML = `
 <style>
   :host { display:block; --glass: rgba(14,18,26,.62); --line: rgba(255,255,255,.12); --txt:#f3f5f8; --mut:#9aa4b2;
@@ -2921,9 +2930,14 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .layer.ecs_serpentin.on, .layer.ecs_resistance.on, .layer.c2.on { animation:breath 3.2s ease-in-out infinite; }
   .layer.c1_radiateur.on { animation:breath 4.5s ease-in-out infinite; }
   .heat { opacity:0; transition:opacity 1.5s ease; } .heat.on { opacity:1; }
-  .wisp { fill:none; stroke:url(#wispGrad); stroke-width:16; stroke-linecap:round; filter:url(#wispBlur); opacity:0; }
-  .heat.on .wisp { animation:wisp 5s ease-in-out infinite; }
-  .heat.on .wisp:nth-of-type(2) { animation-delay:-1.7s; } .heat.on .wisp:nth-of-type(3) { animation-delay:-3.4s; }
+  .veil { opacity:0; } .heat.on .veil { animation:veil 4s ease-in-out infinite; }
+  @keyframes veil { 0%,100% { opacity:calc(.7 * var(--hk, 1)) } 50% { opacity:var(--hk, 1) } }
+  .rib { fill:none; stroke:url(#ribGrad); stroke-linecap:round; filter:url(#ribBlur); opacity:0; mix-blend-mode:normal;
+         transform-box:fill-box; transform-origin:50% 100%; }
+  .heat.on .rib { animation:rib var(--d) ease-in-out var(--dl) infinite; }
+  @keyframes rib { 0% { opacity:0; transform:translateY(30px) scaleX(.5) }
+                   22% { opacity:calc(.95 * var(--hk, 1)) } 70% { opacity:calc(.55 * var(--hk, 1)) }
+                   100% { opacity:0; transform:translateY(-110px) scaleX(1.9) } }
   @keyframes wisp { 0% { opacity:0; transform:translateY(0) } 25% { opacity:.55 } 100% { opacity:0; transform:translateY(-70px) } }
   .layer.ventilateur.defrost { filter:saturate(0) brightness(1.6); }
   @keyframes breath { 0%,100% { opacity:.65 } 50% { opacity:1 } }
@@ -3173,6 +3187,10 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const tB = parseFloat(this._v("ecs_temp"));
     r.querySelector(".water")?.style.setProperty("--wheat", isNaN(tB) ? ".85" : Math.max(0.45, Math.min(1, (tB - 20) / 35)).toFixed(2));
     r.querySelectorAll("[data-layer]").forEach((el) => el.classList.toggle("on", !!st[el.dataset.layer]));
+    let tDep = parseFloat(this._v("c1_flow")); if (isNaN(tDep)) tDep = parseFloat(this._v("depart"));
+    const hk = isNaN(tDep) ? 0.7 : Math.max(0.3, Math.min(1, (tDep - 25) / 22));  // 30 °C discret -> 47 °C plein
+    r.querySelector(".heat")?.style.setProperty("--hk", hk.toFixed(2));
+    r.getElementById("hazeDisp")?.setAttribute("scale", (6 + 16 * hk).toFixed(1));
     const vent = r.querySelector(".layer.ventilateur"); if (vent) vent.classList.toggle("defrost", !!defrost);
     // vitesse des flux selon la modulation compresseur
     // cible de vitesse de l'helice (degres/s) : arret si compresseur arrete ou degivrage
