@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.1.2";
+const VERSION = "2.2.0";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -57,15 +57,27 @@ const RADIATOR = [1607, 599, 1852, 734]; // x0,y0,x1,y1 pixels image
 const TANK = [920, 546, 1020, 792];   // intérieur de la cuve ECS x0,y0,x1,y1 (pixels image)
 const HEATER = [975, 730, 790];       // tige de la résistance : x, haut, bas
 const PUMPS = { pompe_primaire: [1018, 393, 15], pompe_c2: [1018, 447, 15] };  // circulateurs du module : x, y, rayon
+// groupe extérieur double (deux blocs empilés) : hélices, décalage du logo, panneau remonté
+const FANS_DOUBLE = [[303, 562, 96], [303, 784, 96]];
+const LOGO_DOUBLE_SHIFT = [3, -210];
+const EXT_DOUBLE_POS = [3, 9, 16];
 const LOGO_BOX = [428, 688, 72];  // logo du groupe extérieur : x, y, largeur (pixels image), zone lisse en haut à droite
 const NO_LOGO = "aucun";
 // logo effectif : entrée choisie dans `logos` (liste fournie par l'utilisateur), sinon logo_url / logo_box
 function logoFor(c) {
   const list = Array.isArray(c.logos) ? c.logos.filter((l) => l && l.url) : [];
   const pick = c.logo && c.logo !== NO_LOGO ? list.find((l) => l.name === c.logo) : null;
-  if (pick) return { url: pick.url, box: Array.isArray(pick.box) && pick.box.length === 3 ? pick.box : LOGO_BOX };
+  const dbl = c.outdoor_unit === "double";
+  // groupe double : logo en haut à droite du bloc du haut (box_double si fourni, sinon box décalé)
+  const place = (box, boxDouble) => {
+    const b = Array.isArray(box) && box.length === 3 ? box : LOGO_BOX;
+    if (!dbl) return b;
+    if (Array.isArray(boxDouble) && boxDouble.length === 3) return boxDouble;
+    return [b[0] + LOGO_DOUBLE_SHIFT[0], b[1] + LOGO_DOUBLE_SHIFT[1], b[2]];
+  };
+  if (pick) return { url: pick.url, box: place(pick.box, pick.box_double) };
   if (c.logo === NO_LOGO && list.length) return null;
-  return c.logo_url ? { url: c.logo_url, box: c.logo_box || LOGO_BOX } : null;
+  return c.logo_url ? { url: c.logo_url, box: place(c.logo_box, c.logo_box_double) } : null;
 }
 const FAN = [310, 797, 106]; // centre x, y et rayon de l'helice du groupe exterieur (pixels image)
 // zone paysage (jardin + ciel, hors maison et toit) : les effets météo y sont limités
@@ -87,7 +99,7 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 // ---------- éditeur visuel ----------
 const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", circuit_1_name: "", circuit_2_name: "",
   image_path: "/alfea-synoptique/pac_synoptique/", image_set: "auto", debug: false,
-  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO,
+  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple",
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
@@ -97,6 +109,7 @@ const EDITOR_SCHEMA = [
   { type: "grid", name: "", schema: [{ name: "title", selector: { text: {} } }, { name: "subtitle", selector: { text: {} } }] },
   { type: "grid", name: "", schema: [{ name: "circuit_1_name", selector: { text: {} } }, { name: "circuit_2_name", selector: { text: {} } }] },
   { name: "image_set", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique (soleil)" }, { value: "jour", label: "Jour" }, { value: "nuit", label: "Nuit" }] } } },
+  { name: "outdoor_unit", selector: { select: { mode: "dropdown", options: [{ value: "simple", label: "Simple (1 ventilateur)" }, { value: "double", label: "Double (2 blocs, 2 ventilateurs)" }] } } },
   { type: "expandable", name: "", flatten: true, title: "Météo", icon: "mdi:weather-partly-snowy-rainy", schema: [
       { name: "weather_entity", selector: { entity: { domain: "weather" } } },
       { type: "grid", name: "", schema: [
@@ -118,6 +131,7 @@ const LABELS = {
   power_entity: "Puissance électrique PAC (W)",
   energy_entity: "Énergie électrique PAC (kWh ; vide = compteur des options de l'intégration)",
   title: "Titre", subtitle: "Sous-titre", circuit_1_name: "Nom du circuit 1 (vide = nom défini dans l'intégration)", circuit_2_name: "Nom du circuit 2 (vide = nom défini dans l'intégration)",
+  outdoor_unit: "Groupe extérieur",
   logo: "Logo sur le groupe extérieur",
   logo_url: "Logo : URL d'une image si aucun n'est choisi dans la liste (ex. /local/mon_logo.png ; fond blanc accepté)",
   image_set: "Jeu d'images", debug: "Boutons de test (debug)", image_path: "Chemin des images",
@@ -234,9 +248,13 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     return { s, cond, info, attrs: a, wind: isNaN(wind) ? null : wind, variant, fx, windy };
   }
   _img(name, variant) {
-    const set = this._imgSet(), dir = name === "base" && variant ? `${set}_${variant}` : set;
-    return `${this._config.image_path}${dir}/${name}.webp?v=${VERSION}`;
+    const set = this._imgSet(), dbl = this._config.outdoor_unit === "double";
+    let dir = name === "base" && variant ? `${set}_${variant}` : set;
+    if (dbl && name === "base") dir += "_double";
+    const file = dbl && name === "calque_ventilateur" ? "calque_ventilateur_double" : name;
+    return `${this._config.image_path}${dir}/${file}.webp?v=${VERSION}`;
   }
+  _fans() { return this._config.outdoor_unit === "double" ? FANS_DOUBLE : [FAN]; }
   // fond + calques selon jour/nuit et météo, sans reconstruire la carte
   _applyImages(wx) {
     const sig = this._imgSet() + "|" + (wx.variant || "");
@@ -316,26 +334,29 @@ class PacSynoptiquePhotoCard extends HTMLElement {
         style="--d:${d.toFixed(2)}s;--dl:${(-HR() * d).toFixed(2)}s;stroke-width:${(5 + HR() * 4).toFixed(1)}"/>`;
     }).join("");
     // ventilateur du groupe exterieur : pales qui tournent (vitesse = modulation) + filets de vent
-    const [fx, fy, fr] = FAN;
-    const blade = `M0,0 C${0.22 * fr},${-0.2 * fr} ${0.68 * fr},${-0.42 * fr} ${0.9 * fr},${-0.1 * fr} C${0.74 * fr},${0.16 * fr} ${0.36 * fr},${0.14 * fr} 0,0 Z`;
-    const blades = [0, 120, 240].map((a) => `<path d="${blade}" transform="rotate(${a})"/>`).join("");
-    const winds = Array.from({ length: 7 }, (_, k) => {
-      const y0 = fy - fr * 0.62 + k * fr * 0.21, j = (k % 2 ? 1 : -1) * fr * 0.12, x0 = fx - fr * 0.15;
-      return `<path class="windl" d="M${x0},${y0} C${fx - fr * 1.2},${y0 + j} ${fx - fr * 2.2},${y0 - j} ${fx - fr * 3.4},${y0 + fr * 0.18 + k * 4}" style="stroke-width:${3 + (k % 3) * 1.5}"/>`;
-    }).join("");
+    const fanParts = this._fans().map(([fx, fy, fr], i) => {
+      const blade = `M0,0 C${0.22 * fr},${-0.2 * fr} ${0.68 * fr},${-0.42 * fr} ${0.9 * fr},${-0.1 * fr} C${0.74 * fr},${0.16 * fr} ${0.36 * fr},${0.14 * fr} 0,0 Z`;
+      const blades = [0, 120, 240].map((a) => `<path d="${blade}" transform="rotate(${a})"/>`).join("");
+      const winds = Array.from({ length: 7 }, (_, k) => {
+        const y0 = fy - fr * 0.62 + k * fr * 0.21, j = (k % 2 ? 1 : -1) * fr * 0.12, x0 = fx - fr * 0.15;
+        return `<path class="windl" d="M${x0},${y0} C${fx - fr * 1.2},${y0 + j} ${fx - fr * 2.2},${y0 - j} ${fx - fr * 3.4},${y0 + fr * 0.18 + k * 4}" style="stroke-width:${3 + (k % 3) * 1.5}"/>`;
+      }).join("");
+      return { clip: `<clipPath id="fanClip${i}"><circle cx="${fx}" cy="${fy}" r="${fr * 0.93}"/></clipPath>`,
+        body: `<g clip-path="url(#fanClip${i})" style="mix-blend-mode:screen">
+        <g class="fanRot" data-cx="${fx}" data-cy="${fy}" fill="rgba(190,200,215,.3)" transform="translate(${fx} ${fy}) rotate(0)">${blades}</g>
+        <circle class="fanBlurDisk" cx="${fx}" cy="${fy}" r="${fr * 0.9}" fill="url(#fanBlur)" opacity="0"/>
+      </g>`, winds };
+    });
     const fan = `<defs>
-        <clipPath id="fanClip"><circle cx="${fx}" cy="${fy}" r="${fr * 0.93}"/></clipPath>
+        ${fanParts.map((p) => p.clip).join("")}
         <radialGradient id="fanBlur"><stop offset=".18" stop-color="#c8d2dc" stop-opacity="0"/><stop offset=".3" stop-color="#c8d2dc" stop-opacity=".22"/>
           <stop offset=".85" stop-color="#c8d2dc" stop-opacity=".16"/><stop offset="1" stop-color="#c8d2dc" stop-opacity="0"/></radialGradient>
         <linearGradient id="windGrad" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#cfe8ff" stop-opacity="0"/>
           <stop offset=".25" stop-color="#cfe8ff" stop-opacity=".85"/><stop offset="1" stop-color="#cfe8ff" stop-opacity="0"/></linearGradient>
         <filter id="windBlur" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter>
       </defs>
-      <g clip-path="url(#fanClip)" style="mix-blend-mode:screen">
-        <g id="fanRot" fill="rgba(190,200,215,.3)" transform="translate(${fx} ${fy}) rotate(0)">${blades}</g>
-        <circle id="fanBlurDisk" cx="${fx}" cy="${fy}" r="${fr * 0.9}" fill="url(#fanBlur)" opacity="0"/>
-      </g>
-      <g id="wind" opacity="0" filter="url(#windBlur)">${winds}</g>`;
+      ${fanParts.map((p) => p.body).join("")}
+      <g id="wind" opacity="0" filter="url(#windBlur)">${fanParts.map((p) => p.winds).join("")}</g>`;
     const heat = `<defs>
         <filter id="haze" x="${rx0 - 50}" y="${ry0 - hz}" width="${rw + 100}" height="${hz + 10}" filterUnits="userSpaceOnUse">
           <feTurbulence type="fractalNoise" baseFrequency="0.012 0.05" numOctaves="2" seed="7" result="n">
@@ -389,7 +410,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
         </g>
       </g>`;
     // position des panneaux [x%, y%, largeur%] sur l'image, surchargeable par config.positions
-    const P_ = { ext: [3, 32, 16], pac: [29.8, 26, 12.6], c1: [79.5, 12.5, 16], ecs: [52.6, 49, 12.8], c2: [51, 74.5, 15], ...(c.positions || {}) };
+    const P_ = { ext: c.outdoor_unit === "double" ? EXT_DOUBLE_POS : [3, 32, 16], pac: [29.8, 26, 12.6], c1: [79.5, 12.5, 16], ecs: [52.6, 49, 12.8], c2: [51, 74.5, 15], ...(c.positions || {}) };
     root.innerHTML = `
 <style>
   :host { display:block; --glass: rgba(14,18,26,.62); --line: rgba(255,255,255,.12); --txt:#f3f5f8; --mut:#9aa4b2;
@@ -595,9 +616,9 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     if (this._raf || !this._root) return;
     this._fanAngle = this._fanAngle || 0; this._fanSpeed = this._fanSpeed || 0; this._windOff = this._windOff || 0;
     let last = performance.now();
-    const rot = this._root.getElementById("fanRot"), blur = this._root.getElementById("fanBlurDisk"), wind = this._root.getElementById("wind");
+    const rots = [...this._root.querySelectorAll(".fanRot")], blurs = [...this._root.querySelectorAll(".fanBlurDisk")];
+    const wind = this._root.getElementById("wind");
     const lines = [...this._root.querySelectorAll(".windl")];
-    const [fx, fy] = FAN;
     const tick = (now) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       const target = this._fanTarget || 0;
@@ -605,9 +626,11 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       if (this._fanSpeed < 0.5 && target === 0) this._fanSpeed = 0;
       this._fanAngle = (this._fanAngle + this._fanSpeed * dt) % 360;
       const k = Math.min(1, this._fanSpeed / 1300);
-      rot.setAttribute("transform", `translate(${fx} ${fy}) rotate(${this._fanAngle.toFixed(1)})`);
-      rot.setAttribute("fill", `rgba(190,200,215,${(0.3 * (1 - 0.75 * k)).toFixed(3)})`);
-      blur.setAttribute("opacity", (k * 0.9).toFixed(3));
+      rots.forEach((rot, i) => {  // deux hélices : légèrement décalées pour ne pas tourner « en miroir »
+        rot.setAttribute("transform", `translate(${rot.dataset.cx} ${rot.dataset.cy}) rotate(${((this._fanAngle + i * 37) % 360).toFixed(1)})`);
+        rot.setAttribute("fill", `rgba(190,200,215,${(0.3 * (1 - 0.75 * k)).toFixed(3)})`);
+      });
+      blurs.forEach((b) => b.setAttribute("opacity", (k * 0.9).toFixed(3)));
       this._windOff -= this._fanSpeed * dt * 0.35;
       wind.setAttribute("opacity", Math.min(0.85, this._fanSpeed / 500).toFixed(3));
       lines.forEach((l, i) => l.style.strokeDashoffset = (this._windOff * (1 + (i % 3) * 0.18)).toFixed(1));

@@ -46,6 +46,20 @@ la carte prend les calques dans `jour/` ou `nuit/`.
 
 Dépendances Python : `numpy`, `opencv-python-headless`, `pillow`.
 
+## Groupe extérieur double
+
+Les décors `*_double` sont fabriqués sans tout régénérer (`double/`) :
+
+1. une seule édition masquée du décor de jour (`prompt_double.txt`, masque limité au
+   groupe et à l'espace au-dessus) dessine deux blocs identiques empilés ;
+2. `double_sprite.py` découpe ce groupe (GrabCut + enveloppe convexe), l'étire
+   légèrement pour recouvrir l'emprise de l'ancien groupe, ajuste sa teinte à chaque
+   décor (luminosité mise à l'échelle, couleur décalée) et le pose sur les 8 décors ;
+3. `snow_cap.py` reprend la neige du couvercle d'origine pour le bloc du haut ;
+4. le calque `calque_ventilateur_double` reproduit l'anneau lumineux sur les deux grilles.
+
+Repères : `FANS_DOUBLE`, `LOGO_DOUBLE_SHIFT`, `EXT_DOUBLE_POS` dans `card_template.js`.
+
 ## Repères dans l'image (pixels, 2048×1152)
 
 Définis dans `card_template.js` : `RADIATOR` (radiateur, effet de chaleur),

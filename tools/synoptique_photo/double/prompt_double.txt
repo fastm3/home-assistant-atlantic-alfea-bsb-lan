@@ -1,0 +1,10 @@
+This is a photorealistic architectural visualization. Edit ONLY the masked area (the outdoor heat pump unit on the left and the space above it).
+
+Replace the single outdoor unit with a DOUBLE outdoor unit made of TWO IDENTICAL BLOCKS STACKED VERTICALLY:
+- The lower block stays exactly where the current unit is: same position, same size, same feet on the gravel, same white casing, same round black fan grille on the left of its front face, same right side panel.
+- The upper block is an exact copy of the lower block (same width, same height, same fan grille, same panels), placed directly on top of the lower block, perfectly aligned, no gap at all between them: the bottom of the upper block rests flat on the top lid of the lower block, with a clean realistic seam and a very subtle contact shadow.
+- Only the lower block has the two refrigerant pipe connections on its right side (already present, keep them exactly connected). The upper block has no pipes.
+- Same camera, perspective, lighting and photographic style as the rest of the image (sunny daylight). Around the upper block, continue the hedge, trees and sky naturally.
+- No text, no logos, no labels.
+
+Do not change anything outside the masked area.
