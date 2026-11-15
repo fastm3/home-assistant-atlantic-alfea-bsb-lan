@@ -22,8 +22,11 @@ const set = (patch) => { card.hass = { states: { ...base, ...patch }, entities }
 
 set({});
 ok(!on("c1") && !on("c1_radiateur") && !$("#k_c1").classList.contains("active"), "charge ECS + étage en protection : étage non animé malgré QX1");
-ok($("#c1_chips").textContent.includes("Pompe PAC (charge ECS)"), "puce explicite : " + $("#c1_chips").textContent);
+ok($("#c1_chips").textContent.includes("Pompe primaire (charge ECS)"), "puce explicite : " + $("#c1_chips").textContent);
 ok(on("c2") && on("ecs_serpentin"), "C2 (pompe réelle) et serpentin ECS animés");
+const pump = (k) => card.shadowRoot.querySelector(`.pump[data-layer="${k}"]`).classList.contains("on");
+ok(pump("pompe_primaire") && pump("pompe_c2"), "circulateurs du module animés (primaire QX1 + C2)");
+ok($("#x_chips").textContent.includes("Pompe primaire ON · ECS"), "panneau PAC : " + $("#x_chips").textContent);
 set({ [`climate.${X}_c1_circuit_1`]: S("heat") });
 ok(!on("c1"), "étage en chauffe mais V3V sur l'ECS : pas de flux vers les radiateurs");
 set({ [`climate.${X}_c1_circuit_1`]: S("heat"), [`binary_sensor.${X}_ecs_pompe`]: S("off"), [`sensor.${X}_v3v_commande`]: S("Chauffage") });

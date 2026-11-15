@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.0.1";
+const VERSION = "2.0.2";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -64,6 +64,7 @@ const LAYERS = ["frigo", "ventilateur", "module", "c1", "c1_radiateur", "c2", "e
 const RADIATOR = [1607, 599, 1852, 734]; // x0,y0,x1,y1 pixels image
 const TANK = [920, 546, 1020, 792];   // intérieur de la cuve ECS x0,y0,x1,y1 (pixels image)
 const HEATER = [975, 730, 790];       // tige de la résistance : x, haut, bas
+const PUMPS = { pompe_primaire: [1018, 393, 15], pompe_c2: [1018, 447, 15] };  // circulateurs du module : x, y, rayon
 const FAN = [310, 797, 106]; // centre x, y et rayon de l'helice du groupe exterieur (pixels image)
 // zone paysage (jardin + ciel, hors maison et toit) : les effets météo y sont limités
 const OUTDOOR = "0,0 575,0 575,95 700,235 700,935 640,950 640,1152 0,1152";
@@ -354,6 +355,9 @@ class PacSynoptiquePhotoCard extends HTMLElement {
           <stop offset="1" stop-color="#ff7a20" stop-opacity="0"/></radialGradient>
         <filter id="plumeBlur" x="-80%" y="-50%" width="260%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
       </defs>
+      ${Object.entries(PUMPS).map(([k, [px, py, pr]]) => `<g class="pump" data-layer="${k}">
+        <circle class="pring" cx="${px}" cy="${py}" r="${pr + 3}"/>
+        <circle class="prot" cx="${px}" cy="${py}" r="${pr - 4}"/></g>`).join("")}
       <g clip-path="url(#tankClip)">
         <g class="water" data-layer="ecs_eau">
           <rect class="wfill" x="${tx0}" y="${ty0}" width="${tw}" height="${th}" fill="url(#waterHot)"/>
@@ -439,6 +443,12 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .dbg button { background:#222a36; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:4px 8px; cursor:pointer; }
   .dbg button.on { background:#2d6a4f; }
   .dbg label { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--mut); }
+  /* circulateurs du module : anneau + roue qui tourne */
+  .pump { opacity:0; transition:opacity 1s ease; } .pump.on { opacity:1; }
+  .pring { fill:none; stroke:#5fd0ff; stroke-width:3; filter:drop-shadow(0 0 4px #5fd0ff); }
+  .prot { fill:none; stroke:#d8f2ff; stroke-width:3.5; stroke-dasharray:7 5; transform-box:fill-box; transform-origin:center; }
+  .pump.on .prot { animation:pspin .9s linear infinite; }
+  @keyframes pspin { to { transform:rotate(360deg) } }
   /* eau du ballon ECS */
   .tankfx { mix-blend-mode:screen; }
   .water, .heater { opacity:0; transition:opacity 1.6s ease; }
@@ -621,8 +631,9 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const c1Off = this._v("c1_climate") === "off";
     const c1Active = this._on("c1_pump") && !c1Off && !ecsMode;
     const st = {
-      frigo: comp || defrost, ventilateur: comp || defrost, module: comp,
+      frigo: comp || defrost, ventilateur: comp || defrost, module: comp || this._on("c1_pump"),
       c1: c1Active, c1_radiateur: c1Active, c2: this._on("c2_pump"),
+      pompe_primaire: this._on("c1_pump"), pompe_c2: this._on("c2_pump"),
       ecs_serpentin: ecsMode, ecs_resistance: this._on("ecs_appoint"),
     };
     for (const k of LAYERS) if (f[k]) st[k] = true;
@@ -664,7 +675,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     $("x_dep").textContent = this._num("depart"); $("x_ret").textContent = this._num("retour");
     $("x_cons").textContent = this._num("depart_cible");
     $("x_dt").textContent = isNaN(dep) || isNaN(ret) ? "—" : `${(dep - ret).toLocaleString("fr-FR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} °C`;
-    $("x_chips").innerHTML = `<span class="chip ${/chauff/i.test(this._v("mode") || "") ? "hot" : ""}">${this._v("mode") || "—"}</span><span class="chip">${this._v("pac_etat") || "—"}</span>`;
+    const prim = this._v("c1_pump") === undefined ? "" : `<span class="chip ${this._on("c1_pump") ? "on" : ""}" title="Relais QX1 : circuit direct C1 ou charge ECS selon la V3V">Pompe primaire ${this._on("c1_pump") ? "ON" : "OFF"}${this._on("c1_pump") ? (ecsMode ? " · ECS" : " · chauffage") : ""}</span>`;
+    $("x_chips").innerHTML = `<span class="chip ${/chauff/i.test(this._v("mode") || "") ? "hot" : ""}">${this._v("mode") || "—"}</span><span class="chip">${this._v("pac_etat") || "—"}</span>${prim}`;
     $("x_pw").textContent = isNaN(pw) ? "—" : `${Math.round(pw).toLocaleString("fr-FR")} W`;
     $("x_en").textContent = this._num("energy", 1, this._s("energy")?.attributes?.unit_of_measurement || "kWh");
     for (const n of ["c1", "c2"]) {
@@ -679,7 +691,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       const cl = this._v(`${n}_climate`);
       const pumpRaw = this._on(`${n}_pump`), pumpActive = n === "c1" ? c1Active : pumpRaw;
       const pumpChip = pumpActive ? `<span class="chip on">Circulateur en marche</span>`
-        : pumpRaw ? `<span class="chip" title="Relais actif mais circuit ${ecsMode ? "court-circuité par la charge ECS" : "à l'arrêt"}">Pompe PAC${ecsMode ? " (charge ECS)" : ""}</span>`
+        : pumpRaw ? `<span class="chip" title="Pompe primaire active mais circuit ${ecsMode ? "court-circuité par la charge ECS" : "à l'arrêt"}">Pompe primaire${ecsMode ? " (charge ECS)" : ""}</span>`
         : `<span class="chip">Circulateur arrêté</span>`;
       $(`${n}_chips`).innerHTML = `<span class="chip ${cl === "heat" ? "hot" : ""}">${cl === "heat" ? "Chauffe" : cl === "off" ? "OFF" : (cl || "—")}</span>` +
         `<span class="chip">${this._v(`${n}_etat`) || "—"}</span>` + pumpChip;
