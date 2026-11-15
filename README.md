@@ -156,7 +156,9 @@ Garde-fous :
   mode global ;
 - un circuit à l'arrêt ne reçoit aucune commande de régime ;
 - la confirmation BSB-LAN attend jusqu'à 30 s et redemande la valeur si le
-  retour MQTT tarde ;
+  retour MQTT tarde ; pour les modes (700/901/1000/1201), sans confirmation
+  après 10 s la valeur est renvoyée par HTTP `/JS` (adresse BSB-LAN requise),
+  avec une trace dans le journal ;
 - dérogation : écart de 0,1 à 5 °C par rapport à la consigne effective ; en
   rafraîchissement, seulement vers plus froid. La durée est gérée par le
   régulateur, qui revient seul au programme.
@@ -239,7 +241,7 @@ utilisables dans le tableau de bord Énergie. Les compteurs internes de la PAC
 | `select` | Mode global |
 | `number` | consignes Confort/Éco chauffage et rafraîchissement C1/C2, durées de dérogation |
 | `button` | Annuler dérogation C1/C2, Forçage cycle ECS, Horloge PAC - Synchroniser, Programmes natifs - Actualiser |
-| `binary_sensor` | circulateurs C1/C2, dérogations C1/C2, alarme horloge |
+| `binary_sensor` | pompe primaire (QX1 : circuit direct C1 et charge ECS), circulateur C2, dérogations C1/C2, alarme horloge |
 | `sensor` | états PAC/circuits/ECS, températures, énergie, COP ECS, programmes natifs, historique des défauts, horloge, journalisation BSB-LAN, état de l'installation |
 
 ## Lectures et fréquences

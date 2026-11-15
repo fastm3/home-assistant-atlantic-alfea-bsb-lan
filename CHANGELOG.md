@@ -1,5 +1,42 @@
 # Changelog
 
+## 2.1.0 — Renvoi HTTP des modes, pompe primaire, puissance réglable
+
+### Intégration
+
+- **Renvoi par HTTP des commandes de mode** (700/901/1000/1201 : Off/Auto des
+  circuits, mode global) : sans confirmation MQTT au bout de 10 s, la même
+  valeur est renvoyée par BSB-LAN `/JS` si l'adresse est configurée, le statut
+  du régulateur est contrôlé puis la valeur relue (délai total inchangé :
+  30 s). Chaque étape est journalisée (renvoi, accepté, refusé, en échec,
+  non confirmé « MQTT seul » ou « MQTT puis HTTP »). Cas observé : commande
+  MQTT publiée mais jamais appliquée par BSB-LAN, acceptée par `/JS`.
+- Le capteur « C1 - Circulateur » devient **« Pompe primaire (QX1) »** : le
+  relais QX1 (9031) commande la pompe primaire de la PAC, partagée par le
+  circuit direct C1 et la charge ECS (V3V). Attribut `usage` ajouté ;
+  `unique_id` et `entity_id` existants conservés.
+
+### Carte PAC Synoptique photo (2.1.0)
+
+- Réglages explicites **Puissance électrique PAC** (`power_entity`) et
+  **Énergie électrique PAC** (`energy_entity`, vide = compteur des options de
+  l'intégration). La puissance n'est plus déduite de l'appareil du compteur
+  (sur un compteur multi-voies, une autre voie pouvait être affichée).
+- L'étage n'est plus animé par la pompe primaire pendant une charge ECS ou
+  quand le circuit est à l'arrêt ; puce « Pompe primaire (charge ECS) ».
+- Les deux **circulateurs du module** s'animent (pompe primaire QX1 et pompe
+  C2) ; le module s'éclaire aussi quand la pompe primaire tourne ; le
+  panneau PAC indique « Pompe primaire ON · ECS / chauffage ».
+- Onglets : la tuile « Puissance PAC » se met à jour à chaque changement de
+  la puissance (elle pouvait rester figée).
+
+### Tests
+
+- Renvoi HTTP : accepté, refusé, BSB-LAN injoignable, adresse absente,
+  confirmation MQTT rapide sans renvoi.
+- jsdom : pompe primaire / charge ECS, nouvel `entity_id`, puissance réglable.
+- Manifest **2.1.0**.
+
 ## 2.0.0 — Synoptique photo, écriture des programmes, noms des circuits
 
 Version majeure : nouvelle carte synoptique, programmes horaires modifiables
