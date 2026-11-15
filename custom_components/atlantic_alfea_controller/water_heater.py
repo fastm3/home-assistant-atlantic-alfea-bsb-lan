@@ -20,7 +20,8 @@ from .const import (
     TEMPERATURE_STEP,
 )
 from .helpers import (
-    async_select_option,
+    MODE_CONFIRM_TIMEOUT_SECONDS,
+    async_write_circuit_mode_confirmed,
     clean_bsb_status,
     source_entity,
     state_float,
@@ -166,7 +167,15 @@ class AlfeaWaterHeater(WaterHeaterEntity):
         source = self._source("dhw_mode", 1600)
         if source is None:
             raise HomeAssistantError("Entité BSB-LAN 1600 introuvable.")
-        await async_select_option(self.hass, source, _MODE_OPTIONS[operation_mode])
+        option = _MODE_OPTIONS[operation_mode]
+        # Même chemin que les modes des circuits : confirmation, renvoi HTTP /JS après 10 s,
+        # puis relecture immédiate de l'état ECS, de la pompe et de l'appoint.
+        if not await async_write_circuit_mode_confirmed(self.hass, self._entry, source, option,
+                                                        parameter=1600, exact=True):
+            raise HomeAssistantError(
+                f"Le régulateur n'a pas confirmé {option} sur {source} après "
+                f"{MODE_CONFIRM_TIMEOUT_SECONDS:.0f} secondes."
+            )
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(async_dispatcher_connect(

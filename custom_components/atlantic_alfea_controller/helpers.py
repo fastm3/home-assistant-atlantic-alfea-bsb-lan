@@ -237,7 +237,8 @@ MODE_HTTP_FALLBACK_SECONDS = 10.0
 # Après un changement de mode confirmé, la consigne effective (8741/8771) et l'état du circuit
 # (8000/8001) ne sont republiés par le journal BSB-LAN qu'à la minute suivante : la consigne
 # affichée restait celle de l'ancien mode (ex. 8 °C de protection). On les redemande tout de suite.
-MODE_FOLLOWUP_PARAMETERS = {700: (8741, 8000), 901: (8741, 8000), 1000: (8771, 8001), 1201: (8771, 8001)}
+MODE_FOLLOWUP_PARAMETERS = {700: (8741, 8000), 901: (8741, 8000), 1000: (8771, 8001), 1201: (8771, 8001),
+                            1600: (8003, 8820, 8821)}  # ECS : état, pompe, appoint
 MODE_FOLLOWUP_DELAYS = (2.0, 6.0)  # le régulateur recalcule sa consigne en quelques secondes
 
 
@@ -293,6 +294,9 @@ async def async_write_circuit_mode_confirmed(
     entity_id: str,
     option: str,
     timeout: float = MODE_CONFIRM_TIMEOUT_SECONDS,
+    *,
+    parameter: int | None = None,
+    exact: bool = False,
 ) -> bool:
     """Write a 700/901/1000/1201 option and wait for the BSB-LAN MQTT feedback.
 
@@ -303,16 +307,25 @@ async def async_write_circuit_mode_confirmed(
     """
     from .polling import async_poll_parameters
 
-    parameter = next(
-        (CIRCUIT_MODE_PARAMETERS[key] for key, value in entry.data.items()
-         if value == entity_id and key in CIRCUIT_MODE_PARAMETERS),
-        None,
-    )
+    if parameter is None:
+        parameter = next(
+            (CIRCUIT_MODE_PARAMETERS[key] for key, value in entry.data.items()
+             if value == entity_id and key in CIRCUIT_MODE_PARAMETERS),
+            None,
+        )
     expected_protection = option == BSB_PROTECTION
+
+    def code(text) -> str | None:
+        match = _BSB_STATUS_RE.match(str(text)) if text is not None else None
+        return match.group(1) if match else None
 
     def confirmed() -> bool:
         value = state_value(hass, entity_id)
-        return value is not None and is_protection(value) == expected_protection
+        if value is None:
+            return False
+        if exact:  # ECS 1600 : Off / On / Eco, la valeur exacte doit revenir
+            return code(value) == code(option)
+        return is_protection(value) == expected_protection
 
     await async_select_option(hass, entity_id, option)
     started = time.monotonic()

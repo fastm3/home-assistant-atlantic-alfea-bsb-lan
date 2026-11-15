@@ -166,6 +166,45 @@ class ModeConfirmationTests(unittest.TestCase):
         self.assertFalse(asyncio.run(func(hass, ENTRY, "select.c2", "1 - Automatique")))
         self.assertEqual(hass.tasks, [])
 
+    def _ecs_hass(self, start, publish, **kw):
+        """ECS 1600 : la valeur publiée après écriture est `publish` (None = rien)."""
+        clock = Clock()
+        hass = make_hass(confirm_on_poll=False, **kw)
+        hass.entity, hass.values = "select.ecs", {"select.ecs": start}
+        hass.target = publish or start
+
+        async def select(_hass, entity_id, option):
+            hass.writes.append((entity_id, option))
+            if publish is not None:
+                hass.values[entity_id] = publish
+        func = build(clock, hass)
+        func.__globals__["async_select_option"] = select
+        return clock, hass, func
+
+    def test_dhw_off_confirmed_exactly_and_refreshes_state_pump_heater(self):
+        clock, hass, func = self._ecs_hass("1 - On", "0 - Off")
+        hass.keep_tasks = True
+
+        async def scenario():
+            ok = await func(hass, ENTRY, "select.ecs", "0 - Off", parameter=1600, exact=True)
+            await hass.tasks[0]
+            return ok
+
+        self.assertTrue(asyncio.run(scenario()))
+        self.assertEqual(hass.polls[-2:], [(8003, 8820, 8821), (8003, 8820, 8821)])
+
+    def test_dhw_eco_is_not_taken_for_on(self):
+        """Avec la logique protection/non-protection, Eco aurait confirmé une demande On."""
+        clock, hass, func = self._ecs_hass("2 - Eco", None)
+        self.assertFalse(asyncio.run(func(hass, ENTRY, "select.ecs", "1 - On", parameter=1600, exact=True)))
+        self.assertGreaterEqual(clock.now, 30.0)
+
+    def test_dhw_mqtt_ignored_http_fallback(self):
+        clock, hass, func = self._ecs_hass("1 - On", None, http_configured=True)
+        hass.target = "0 - Off"
+        self.assertTrue(asyncio.run(func(hass, ENTRY, "select.ecs", "0 - Off", parameter=1600, exact=True)))
+        self.assertEqual(hass.js, [{"parameter": 1600, "value": "0", "type": 1, "destination": 0}])
+
     def test_no_feedback_times_out_after_30s(self):
         clock, hass = Clock(), make_hass(confirm_on_poll=False)
         func = build(clock, hass)
