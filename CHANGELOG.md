@@ -1,5 +1,43 @@
 # Changelog
 
+## 2.3.0 — Configuration de l'installation détectée, variantes du synoptique
+
+### Intégration
+
+- **Détection de l'installation** : lecture au démarrage puis toutes les 6 h des
+  paramètres 5710/5715 (circuits), 5711/5716 (rafraîchissement), 5731 (ECS),
+  720/1020 (pente de loi d'eau) et 741/1041 (départ maximal). Émetteur deviné pour
+  chaque circuit : rafraîchissement actif → plancher, sinon pente (≤ 0,6 plancher,
+  ≥ 0,8 radiateurs), sinon départ maximal. Nouveau capteur de diagnostic
+  **Installation - Configuration** (configuration, raison et confiance de chaque
+  choix, réponse brute du régulateur).
+- **Réglages dans les options** : « Installation — ballon d'eau chaude » et
+  « Installation — émetteurs des circuits », limités aux configurations que le
+  synoptique sait dessiner (C1 radiateurs + C2 plancher, C1 plancher + C2 radiateurs,
+  un seul circuit). Ils corrigent la détection ; le capteur publie la configuration
+  effective, reprise par toutes les cartes.
+- **Diagnostics téléchargeables** (Appareils et services → ⋮ → Télécharger les
+  diagnostics) : relecture des paramètres, détection, réglages, journal BSB-LAN ;
+  adresse BSB-LAN masquée. Journal détaillé à chaque détection, avertissement quand
+  elle est incertaine. Formulaire de ticket « Détection de l'installation incorrecte ».
+
+### Carte PAC Synoptique photo (2.3.0)
+
+- **Variantes d'installation**, dans les 8 décors et avec le groupe simple ou double :
+  sans ballon (module mural, tuyaux frigo redessinés), radiateurs seuls (sol fini à la
+  place du plancher), plancher seul (radiateur effacé, plancher animé par le circuit
+  qui l'alimente, C1 compris), zones inversées (C1 plancher + C2 radiateurs).
+  Panneaux, historique et animations suivent la configuration. Options `ecs` et
+  `emitters` (section « Installation » de l'éditeur, « Automatique » = intégration).
+- **Panneau ECS** : énergie de la charge en cours ou de la dernière charge et COP sur
+  deux lignes (le cumul de toutes les charges n'est plus affiché, il reste dans
+  l'historique).
+- **Panneau PAC** : énergie du jour (statistiques de HA depuis minuit, suivie en
+  direct), total du compteur en infobulle.
+- Onglet « Graphes » renommé « Consommation énergétique ».
+- Manifest **2.3.0**. Redémarrage de Home Assistant nécessaire (nouveau capteur,
+  options et diagnostics).
+
 ## 2.2.2 — Post-circulation, panneau étage simplifié
 
 ### Carte PAC Synoptique photo (2.2.2)
