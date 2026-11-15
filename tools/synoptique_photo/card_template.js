@@ -11,7 +11,7 @@ const DEVICE_MATCH = {  // clé : [domaine, suffixe de l'entity_id] parmi les en
   degivrage: ["binary_sensor", "_pac_degivrage_di6"], pac_etat: ["sensor", "_pac_etat"], mode: ["select", "_mode_global"],
   installation: ["sensor", "_installation_etat"], depart: ["sensor", "_pac_t_depart"], retour: ["sensor", "_pac_t_retour"],
   depart_cible: ["sensor", "_pac_t_depart_cible"], v3v: ["sensor", "_v3v_commande"],
-  c1_climate: ["climate", "_c1_circuit_1"], c1_pump: ["binary_sensor", "_c1_circulateur"], c1_etat: ["sensor", "_c1_etat_actuel"],
+  c1_climate: ["climate", "_c1_circuit_1"], c1_pump: ["binary_sensor", ["_c1_circulateur", "_pompe_primaire_qx1"]], c1_etat: ["sensor", "_c1_etat_actuel"],
   c2_climate: ["climate", "_c2_circuit_2"], c2_pump: ["binary_sensor", "_c2_circulateur"], c2_etat: ["sensor", "_c2_etat_actuel"],
   ecs_temp: ["sensor", "_ecs_t_ballon"], ecs_confort: ["sensor", "_ecs_t_confort"], ecs_heater: ["water_heater", "_eau_chaude_sanitaire"],
   ecs_pump: ["binary_sensor", "_ecs_pompe"], ecs_appoint: ["binary_sensor", "_ecs_appoint_electrique"], ecs_etat: ["sensor", "_ecs_etat"],
@@ -26,7 +26,7 @@ function autoEntities(hass, device) {
   const out = {};
   if (!hass || !hass.entities) return out;
   const all = Object.values(hass.entities);
-  const find = (ids, dom, suf) => ids.find((id) => id.startsWith(dom + ".") && id.endsWith(suf));
+  const find = (ids, dom, suf) => [].concat(suf).map((s) => ids.find((id) => id.startsWith(dom + ".") && id.endsWith(s))).find(Boolean);
   if (device) {
     const ids = all.filter((e) => e.device_id === device).map((e) => e.entity_id);
     for (const [k, [dom, suf]] of Object.entries(DEVICE_MATCH)) { const hit = find(ids, dom, suf); if (hit) out[k] = hit; }

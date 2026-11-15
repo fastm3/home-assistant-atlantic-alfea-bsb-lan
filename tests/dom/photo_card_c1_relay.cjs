@@ -28,5 +28,11 @@ set({ [`climate.${X}_c1_circuit_1`]: S("heat") });
 ok(!on("c1"), "étage en chauffe mais V3V sur l'ECS : pas de flux vers les radiateurs");
 set({ [`climate.${X}_c1_circuit_1`]: S("heat"), [`binary_sensor.${X}_ecs_pompe`]: S("off"), [`sensor.${X}_v3v_commande`]: S("Chauffage") });
 ok(on("c1") && on("c1_radiateur") && $("#c1_chips").textContent.includes("Circulateur en marche"), "étage en chauffe, V3V sur le chauffage : étage animé");
+// nouvelle installation (2.0.1) : entity_id dérivé du nom « Pompe primaire (QX1) »
+const ren = { ...base, [`climate.${X}_c1_circuit_1`]: S("heat"), [`binary_sensor.${X}_ecs_pompe`]: S("off"), [`sensor.${X}_v3v_commande`]: S("Chauffage") };
+delete ren[`binary_sensor.${X}_c1_circulateur`]; ren[`binary_sensor.${X}_pompe_primaire_qx1`] = S("on");
+const ent2 = Object.fromEntries(Object.keys(ren).map((id) => [id, { entity_id: id, device_id: D, platform: "atlantic_alfea_controller" }]));
+card.hass = { states: ren, entities: ent2 };
+ok(on("c1"), "entity_id …_pompe_primaire_qx1 reconnu comme pompe du circuit 1");
 console.log("\nCircuit 1 / relais QX1 OK.");
 process.exit(0);

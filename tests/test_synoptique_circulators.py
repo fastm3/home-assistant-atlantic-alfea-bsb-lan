@@ -9,7 +9,8 @@ CARD = (Path(__file__).resolve().parents[1] /
 class CirculatorCardTests(unittest.TestCase):
     def test_pump_entities_discovered_and_shown(self):
         code = CARD.read_text(encoding="utf-8")
-        self.assertIn("pump1:           ['binary_sensor','C1 - Circulateur']", code)
+        # 2.0.1 : QX1 est la pompe primaire (circuit direct C1 + charge ECS)
+        self.assertIn("pump1:           ['binary_sensor','Pompe primaire (QX1)']", code)
         self.assertIn("pump2:           ['binary_sensor','C2 - Circulateur']", code)
         self.assertIn("pump:this._b(", code)
         # Libellés effectivement exposés depuis V1.5.12 (ancienne liste obsolète).

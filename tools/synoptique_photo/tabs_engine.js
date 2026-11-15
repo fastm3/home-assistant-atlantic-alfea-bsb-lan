@@ -29,7 +29,7 @@ const FIELDS = {
   circuit2:        ['climate','C2 - Circuit 2'],
   circuit1State:   ['sensor','C1 - État actuel'],
   circuit2State:   ['sensor','C2 - État actuel'],
-  pump1:           ['binary_sensor','C1 - Circulateur'],
+  pump1:           ['binary_sensor','Pompe primaire (QX1)'],
   pump2:           ['binary_sensor','C2 - Circulateur'],
   program1:        ['sensor','C1 - Programme actif'],
   program2:        ['sensor','C2 - Programme actif'],

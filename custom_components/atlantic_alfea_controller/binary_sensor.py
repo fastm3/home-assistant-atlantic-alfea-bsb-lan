@@ -83,7 +83,12 @@ async def async_setup_entry(
 
 
 class AlfeaCircuitPumpBinarySensor(BinarySensorEntity):
-    """Physical circuit circulation from validated read-only BSB outputs."""
+    """Physical circulation from validated read-only BSB outputs.
+
+    C2 has its own pump (8760). C1 is the heat pump's direct circuit: QX1 (9031)
+    drives the primary pump, shared with the DHW charge through the diverting
+    valve, so it is named after what it really is (unique_id kept).
+    """
 
     _attr_has_entity_name = True
     _attr_device_class = BinarySensorDeviceClass.RUNNING
@@ -94,7 +99,7 @@ class AlfeaCircuitPumpBinarySensor(BinarySensorEntity):
         self._entry = entry
         self._circuit = circuit
         self._parameter = 9031 if circuit == 1 else 8760
-        self._attr_name = f"C{circuit} - Circulateur"
+        self._attr_name = "Pompe primaire (QX1)" if circuit == 1 else f"C{circuit} - Circulateur"
         self._attr_unique_id = f"{entry.entry_id}_circuit_pump_c{circuit}"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
 
@@ -107,7 +112,10 @@ class AlfeaCircuitPumpBinarySensor(BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, int | str]:
-        return {"parametre_bsb": self._parameter, "source": "QX1" if self._circuit == 1 else "Pompe CC2"}
+        if self._circuit == 1:
+            return {"parametre_bsb": self._parameter, "source": "QX1",
+                    "usage": "pompe primaire PAC : circuit direct C1 et charge ECS (V3V)"}
+        return {"parametre_bsb": self._parameter, "source": "Pompe CC2"}
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(track_entities(self.hass, [self._source()], self.async_write_ha_state))

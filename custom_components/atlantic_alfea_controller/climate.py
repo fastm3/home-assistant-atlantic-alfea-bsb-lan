@@ -334,9 +334,10 @@ class AlfeaCircuitClimate(ClimateEntity):
     def hvac_action(self) -> HVACAction:
         """Use each circuit's pump feedback before generator-wide heuristics.
 
-        C1 QX1 (9031) and C2 pump state (8760) were matched to physical
-        circulation on the reference Alfea. Compressor activity does not
-        determine the state of each hydraulic circuit independently.
+        C1 uses the primary pump relay QX1 (9031), which also runs during a
+        DHW charge (vetoed below by the DHW pump); C2 has its own pump (8760).
+        Compressor activity does not determine the state of each hydraulic
+        circuit independently.
         """
         mode = self._mode()
         if mode == MODE_OFF or self._circuit_in_protection(mode):
