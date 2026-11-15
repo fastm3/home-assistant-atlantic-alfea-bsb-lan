@@ -724,7 +724,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     r.querySelector(".water")?.style.setProperty("--wheat", isNaN(tB) ? ".85" : Math.max(0.45, Math.min(1, (tB - 20) / 35)).toFixed(2));
     r.querySelectorAll("[data-layer]").forEach((el) => el.classList.toggle("on", !!st[el.dataset.layer]));
     let tDep = parseFloat(this._v("c1_flow")); if (isNaN(tDep)) tDep = parseFloat(this._v("depart"));
-    const hk = isNaN(tDep) ? 0.7 : Math.max(0.3, Math.min(1, (tDep - 25) / 22));  // 30 °C discret -> 47 °C plein
+    let hk = isNaN(tDep) ? 0.7 : Math.max(0.3, Math.min(1, (tDep - 25) / 22));  // 30 °C discret -> 47 °C plein
+    if (f.c1 || f.c1_radiateur) hk = Math.max(hk, 0.85);  // forçage debug : visible même PAC arrêtée (départ froid)
     r.querySelector(".heat")?.style.setProperty("--hk", hk.toFixed(2));
     r.getElementById("hazeDisp")?.setAttribute("scale", (6 + 16 * hk).toFixed(1));
     const vent = r.querySelector(".layer.ventilateur"); if (vent) vent.classList.toggle("defrost", !!defrost);
