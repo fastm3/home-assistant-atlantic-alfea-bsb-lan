@@ -2587,6 +2587,15 @@ function findPacDevice(hass) {
   return e ? e.device_id : undefined;
 }
 
+// clic sur un panneau : historique de ses entités (clés résolues ; absentes ignorées)
+const PANEL_HISTORY = {
+  comp: ["Unité extérieure", ["ext_temp", "comp_mod", "comp", "degivrage"]],
+  pac_etat: ["PAC · Échangeurs", ["depart", "retour", "depart_cible", "power", "c1_pump", "pac_etat", "mode"]],
+  c1_climate: [null, ["c1_climate", "c1_flow", "depart", "c1_pump", "c1_etat"]],
+  c2_climate: [null, ["c2_climate", "c2_flow", "c2_pump", "c2_etat"]],
+  ecs_heater: ["ECS · Ballon", ["ecs_temp", "ecs_confort", "ecs_heater", "ecs_pump", "ecs_appoint", "ecs_etat"]],
+};
+const HIST_HOURS = [6, 24, 48, 168];
 const LAYERS = ["frigo", "ventilateur", "module", "c1", "c1_radiateur", "c2", "ecs_serpentin", "ecs_resistance"];
 const RADIATOR = [1607, 599, 1852, 734]; // x0,y0,x1,y1 pixels image
 const TANK = [920, 546, 1020, 792];   // intérieur de la cuve ECS x0,y0,x1,y1 (pixels image)
@@ -2637,7 +2646,7 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 // ---------- éditeur visuel ----------
 const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", circuit_1_name: "", circuit_2_name: "",
   image_path: "/alfea-synoptique/pac_synoptique/", image_set: "auto", debug: false,
-  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple",
+  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple", panel_click: "history", history_hours: 24,
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
@@ -2661,6 +2670,9 @@ const EDITOR_SCHEMA = [
         { name: "show_controls", selector: { boolean: {} } }] }] },
   { type: "expandable", name: "", flatten: true, title: "Avancé", icon: "mdi:tune", schema: [
       { name: "debug", selector: { boolean: {} } },
+      { type: "grid", name: "", schema: [
+        { name: "panel_click", selector: { select: { mode: "dropdown", options: [{ value: "history", label: "Historique des entités du panneau" }, { value: "more-info", label: "Fiche de l'entité principale" }] } } },
+        { name: "history_hours", selector: { select: { mode: "dropdown", options: HIST_HOURS.map((h) => ({ value: h, label: h < 48 ? `${h} h` : `${h / 24} jours` })) } } }] },
       { name: "image_path", selector: { text: {} } },
       { name: "positions", selector: { object: {} } }] },
 ];
@@ -2676,6 +2688,7 @@ const LABELS = {
   image_set: "Jeu d'images", debug: "Boutons de test (debug)", image_path: "Chemin des images",
   show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Graphes",
   show_curve: "Loi d'eau", show_controls: "Commandes (mode, consignes)",
+  panel_click: "Clic sur un panneau", history_hours: "Durée de l'historique",
   weather_entity: "Entité météo (optionnelle)", show_weather: "Afficher la météo dans le paysage",
   weather_sync: "Fond synchronisé (neige, pluie, brouillard)", weather_anim: "Animations météo (pluie, neige, vent…)",
   positions: "Positions des panneaux [x %, y %, largeur %] (ext, pac, c1, c2, ecs)",
@@ -2779,6 +2792,35 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   _more(key) {
     const entityId = this._e[key]; if (!entityId) return;
     this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId } }));
+  }
+  _histEntities(key) {
+    const ids = (PANEL_HISTORY[key]?.[1] || [key]).filter((k) => !(k === "depart" && key === "c1_climate" && this._e.c1_flow))
+      .map((k) => this._e[k]).filter((id) => id && this._hass.states[id]);
+    return [...new Set(ids)];
+  }
+  async _history(key) {
+    const box = this._root.getElementById("hist"), body = this._root.getElementById("hist_body");
+    const entities = this._histEntities(key); if (!entities.length) return this._more(key);
+    this._histKey = key;
+    const hours = this._histHours || +this._config.history_hours || 24;
+    const name = PANEL_HISTORY[key]?.[0] || (key === "c1_climate" ? `Circuit 1 · ${this._cname(1)}` : key === "c2_climate" ? `Circuit 2 · ${this._cname(2)}` : key);
+    this._root.getElementById("hist_t").textContent = name;
+    box.querySelectorAll("[data-h]").forEach((b) => b.classList.toggle("on", +b.dataset.h === hours));
+    box.hidden = false;
+    if (!this._onKey) { this._onKey = (e) => { if (e.key === "Escape") this._closeHistory(); }; window.addEventListener("keydown", this._onKey); }
+    const conf = { type: "history-graph", entities, hours_to_show: hours };
+    let el;
+    try { const h = await window.loadCardHelpers?.(); el = h ? await h.createCardElement(conf) : null; } catch (e) { el = null; }
+    if (!el) { el = document.createElement("hui-history-graph-card"); el.setConfig?.(conf); }
+    el.hass = this._hass;
+    body.replaceChildren(el);
+    this._hist = el;
+  }
+  _closeHistory() {
+    this._root.getElementById("hist").hidden = true;
+    this._root.getElementById("hist_body").replaceChildren();
+    this._hist = null; this._histKey = null; this._histHours = null;
+    if (this._onKey) { window.removeEventListener("keydown", this._onKey); this._onKey = null; }
   }
   // nom du circuit : config de la carte > option de l'integration (attribut nom_circuit du thermostat) > « Circuit N »
   _cname(n) {
@@ -3050,6 +3092,19 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     .chips { gap:6px; margin-top:8px; } .chip { font-size:12px; padding:3px 8px; }
   }
   .tabs:empty { display:none; } .tabs { padding:0 4px 4px; }
+  .hist { position:fixed; inset:0; z-index:9; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .hist[hidden] { display:none; }
+  .histbox { width:min(900px, 100%); max-height:calc(100% - 32px); overflow:auto; background:var(--card-background-color, #1c1f26);
+    border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.5); }
+  .histbox header { display:flex; align-items:center; gap:8px; padding:12px 12px 4px 18px; position:sticky; top:0; background:inherit; z-index:1; }
+  .histbox header b { flex:1; font-size:17px; color:var(--primary-text-color, #fff); }
+  .hh { display:flex; gap:4px; }
+  .hh button, .histbox .ic { background:transparent; color:var(--secondary-text-color, #aaa); border:1px solid var(--divider-color, #444);
+    border-radius:8px; padding:3px 8px; cursor:pointer; font:inherit; font-size:12px; }
+  .hh button.on { background:var(--primary-color, #03a9f4); border-color:transparent; color:#fff; }
+  .histbox .ic { border:0; padding:4px; display:flex; }
+  #hist_body { padding:0 4px 8px; }
+  #hist_body > * { --ha-card-box-shadow:none; --ha-card-border-width:0; }
   .dbg { display:flex; flex-wrap:wrap; gap:6px; padding:0 12px 12px; }
   .dbg button { background:#222a36; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:4px 8px; cursor:pointer; }
   .dbg button.on { background:#2d6a4f; }
@@ -3152,9 +3207,21 @@ class PacSynoptiquePhotoCard extends HTMLElement {
    </div>
   </div>
   <div class="tabs" id="tabs"></div>
+  <div class="hist" id="hist" hidden><div class="histbox" role="dialog" aria-modal="true">
+    <header><b id="hist_t"></b><span class="hh">${HIST_HOURS.map((h) => `<button data-h="${h}">${h < 48 ? h + " h" : h / 24 + " j"}</button>`).join("")}</span>
+      <button class="ic" data-act="more" title="Fiche de l'entité"><ha-icon icon="mdi:information-outline"></ha-icon></button>
+      <button class="ic" data-act="close" title="Fermer"><ha-icon icon="mdi:close"></ha-icon></button></header>
+    <div id="hist_body"></div></div></div>
   ${c.debug ? `<div class="dbg">${LAYERS.map((l) => `<button data-force="${l}">${l}</button>`).join("")}<button data-force="defrost">dégivrage</button><label>Météo <select id="dbg_wx"><option value="">réelle</option>${Object.entries(WX).map(([k, v]) => `<option value="${k}">${v[0]} (${k})</option>`).join("")}</select></label><label>Moment <select id="dbg_sun"><option value="">réel</option><option value="jour">Jour</option><option value="nuit">Nuit</option></select></label><label>Modulation <input type="range" id="dbg_mod" min="-1" max="100" value="-1"><span id="dbg_mod_v">réelle</span></label></div>` : ""}
 </ha-card>`;
-    root.querySelectorAll("[data-more]").forEach((el) => el.addEventListener("click", () => this._more(el.dataset.more)));
+    root.querySelectorAll("[data-more]").forEach((el) => el.addEventListener("click", () =>
+      c.panel_click === "more-info" ? this._more(el.dataset.more) : this._history(el.dataset.more)));
+    root.getElementById("hist").addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-h]"), a = ev.target.closest("[data-act]");
+      if (b) { this._histHours = +b.dataset.h; this._history(this._histKey); }
+      else if (a?.dataset.act === "close" || ev.target.id === "hist") this._closeHistory();
+      else if (a?.dataset.act === "more") { const k = this._histKey; this._closeHistory(); this._more(k); }
+    });
     this._force = {};
     root.querySelectorAll("[data-force]").forEach((b) => b.addEventListener("click", () => {
       const k = b.dataset.force; this._force[k] = !this._force[k]; b.classList.toggle("on", this._force[k]); this._update();
@@ -3176,7 +3243,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
 
   // ---------- animation ventilateur / vent (requestAnimationFrame, vitesse lissee) ----------
   connectedCallback() { if (this._built) this._startFan(); }
-  disconnectedCallback() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = null; }
+  disconnectedCallback() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = null; if (this._onKey) this._closeHistory(); }
   _startFan() {
     if (this._raf || !this._root) return;
     this._fanAngle = this._fanAngle || 0; this._fanSpeed = this._fanSpeed || 0; this._windOff = this._windOff || 0;
@@ -3236,6 +3303,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   _update() {
     if (!this._root || !this._hass) return;
     if (this._tabs) this._tabs.hass = this._hass;
+    if (this._hist) this._hist.hass = this._hass;
     const r = this._root, $ = (id) => r.getElementById(id), f = this._force || {};
     const wx = this._wx(); this._applyImages(wx); this._applyWxFx(wx); this._applyWxBadge(wx);
     const comp = this._on("comp");

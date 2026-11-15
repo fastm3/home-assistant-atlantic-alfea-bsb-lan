@@ -106,6 +106,8 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `circuit_1_name`, `circuit_2_name` | texte | options de l'intégration | libellés des circuits |
 | `image_set` | `auto`, `jour`, `nuit` | `auto` | décor ; `auto` suit le soleil |
 | `outdoor_unit` | `simple`, `double` | `simple` | groupe extérieur simple ou double (deux blocs empilés, deux ventilateurs animés) ; en double, le panneau « Unité extérieure » remonte et le logo passe sur le bloc du haut |
+| `panel_click` | `history`, `more-info` | `history` | clic sur un panneau : popup d'historique de ses entités (températures, modulation, puissance, états, circulateurs) ou fiche de l'entité principale |
+| `history_hours` | `6`, `24`, `48`, `168` | `24` | durée affichée à l'ouverture du popup (boutons 6 h / 24 h / 48 h / 7 j dans le popup) |
 | `weather_entity` | entity_id `weather.*` | — | active la météo |
 | `show_weather` | booléen | `true` | encart météo dans le ciel |
 | `weather_sync` | booléen | `true` | fond neige / pluie / brouillard |
