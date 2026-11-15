@@ -2646,7 +2646,7 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 // ---------- éditeur visuel ----------
 const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", circuit_1_name: "", circuit_2_name: "",
   image_path: "/alfea-synoptique/pac_synoptique/", image_set: "auto", debug: false,
-  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple", panel_click: "history", history_hours: 24,
+  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple", panel_click: "history", history_hours: "24",
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
@@ -2670,9 +2670,8 @@ const EDITOR_SCHEMA = [
         { name: "show_controls", selector: { boolean: {} } }] }] },
   { type: "expandable", name: "", flatten: true, title: "Avancé", icon: "mdi:tune", schema: [
       { name: "debug", selector: { boolean: {} } },
-      { type: "grid", name: "", schema: [
-        { name: "panel_click", selector: { select: { mode: "dropdown", options: [{ value: "history", label: "Historique des entités du panneau" }, { value: "more-info", label: "Fiche de l'entité principale" }] } } },
-        { name: "history_hours", selector: { select: { mode: "dropdown", options: HIST_HOURS.map((h) => ({ value: h, label: h < 48 ? `${h} h` : `${h / 24} jours` })) } } }] },
+      { name: "panel_click", selector: { select: { mode: "dropdown", options: [{ value: "history", label: "Historique des entités du panneau" }, { value: "more-info", label: "Fiche de l'entité principale" }] } } },
+      { name: "history_hours", selector: { select: { mode: "dropdown", options: HIST_HOURS.map((h) => ({ value: String(h), label: h < 48 ? `${h} h` : `${h / 24} jours` })) } } },
       { name: "image_path", selector: { text: {} } },
       { name: "positions", selector: { object: {} } }] },
 ];
@@ -2749,7 +2748,7 @@ class PacSynoptiquePhotoCardEditor extends HTMLElement {
         x: num("Position x (pixels de l'image, facultatif)"), y: num("Position y (facultatif)"), largeur: num("Largeur (facultatif)") } } } },
     ];
     this._form.schema = EDITOR_SCHEMA.map((s) => s.title === "Logo du groupe extérieur" ? { ...s, schema: logoSection } : s);
-    this._form.data = { ...DEFAULTS, ...this._config, logo,
+    this._form.data = { ...DEFAULTS, ...this._config, logo, history_hours: String(this._config.history_hours || DEFAULTS.history_hours),
       logos: all.map((l) => ({ name: l.name || "", url: l.url || "", ...(Array.isArray(l.box) && l.box.length === 3 ? { x: l.box[0], y: l.box[1], largeur: l.box[2] } : {}) })) };
   }
 }
