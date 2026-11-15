@@ -45,7 +45,7 @@ Ce qui s'anime, toujours d'après l'état réel des entités :
 | Liaisons frigorifiques | compresseur | lueur et flux animés |
 | Module hydraulique | compresseur ou pompe primaire | lueur de l'échangeur |
 | Circulateurs du module | pompe primaire (QX1), pompe C2 (8760) | anneau lumineux et roue qui tourne |
-| Circuit 1 (radiateur) | pompe primaire, circuit en service et V3V sur le chauffage | flux dans les tuyaux, chaleur et air chaud au-dessus du radiateur |
+| Circuit 1 (radiateur) | pompe primaire, circuit en service et V3V sur le chauffage | flux dans les tuyaux, effluves de chaleur et air qui ondule au-dessus du radiateur (intensité selon la température de départ) |
 | Circuit 2 (plancher) | circulateur C2 | flux, collecteur et boucles du plancher |
 | Ballon ECS | charge ECS (pompe ou V3V) | serpentin, eau qui chauffe (teinte selon la température du ballon), convection |
 | Appoint électrique | appoint ECS | foyer rouge et bulles autour de la résistance |

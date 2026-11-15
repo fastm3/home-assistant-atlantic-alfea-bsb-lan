@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.1 — Chaleur du radiateur plus visible
+
+### Carte PAC Synoptique photo (2.1.1)
+
+- Radiateur de l'étage en chauffe : effluves de chaleur qui montent en
+  ondulant, air qui ondule plus haut et plus fort, voile chaud léger, avec des
+  contours fondus.
+- Intensité selon la température de départ du circuit 1 (8743, sinon départ
+  PAC) : discrète vers 30 °C, pleine vers 47 °C.
+- Panneau « Circuit 1 » remonté (y 26 % → 12,5 %) pour dégager le panache ;
+  position réglable avec `positions`.
+- Manifest **2.1.1**.
+
 ## 2.1.0 — Renvoi HTTP des modes, pompe primaire, puissance réglable
 
 ### Intégration
