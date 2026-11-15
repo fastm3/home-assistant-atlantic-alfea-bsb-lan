@@ -2536,7 +2536,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.0.3";
+const VERSION = "2.0.4";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -2570,20 +2570,6 @@ function autoEntities(hass, device) {
   for (const [k, [dom, suf]] of Object.entries(GLOBAL_MATCH)) { const hit = find(allIds, dom, suf); if (hit) out[k] = hit; }
   return out;
 }
-// puissance : capteur de classe "power" du même appareil que l'entité énergie choisie. Un compteur
-// multi-voies (Shelly 3EM, Pro 4PM…) en a un par voie : on prend celui qui porte le même nom
-// (…_energy -> …_power), sinon celui dont l'entity_id partage le plus long préfixe avec le compteur.
-function powerFromEnergy(hass, energyId) {
-  const reg = hass && hass.entities && hass.entities[energyId];
-  if (!reg || !reg.device_id) return undefined;
-  const sibs = Object.values(hass.entities).filter((e) => e.device_id === reg.device_id && e.entity_id.startsWith("sensor.")
-    && hass.states[e.entity_id]?.attributes?.device_class === "power").map((e) => e.entity_id);
-  if (!sibs.length) return undefined;
-  const twin = energyId.replace(/_energy(?=$|_)/, "_power");
-  if (sibs.includes(twin)) return twin;
-  const lcp = (a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return i; };
-  return sibs.reduce((best, id) => (lcp(id, energyId) > lcp(best, energyId) ? id : best));
-}
 function resolveEntities(hass, config) {
   const custom = Object.fromEntries(Object.entries(config.entities || {}).filter(([, v]) => v));  // surcharge YAML (avancé)
   const r = { ...DEFAULT_ENTITIES, ...autoEntities(hass, config.device || findPacDevice(hass)), ...custom };
@@ -2592,8 +2578,8 @@ function resolveEntities(hass, config) {
   const fromIntegration = [r.ecs_cop, r.ecs_energie].map((id) => hass?.states?.[id]?.attributes?.energy_entity).find(Boolean);
   if (config.energy_entity) r.energy = config.energy_entity;
   else if (!custom.energy && fromIntegration) r.energy = fromIntegration;
-  const pw = powerFromEnergy(hass, r.energy);
-  if (pw && !custom.power) r.power = pw;
+  // puissance : uniquement l'entité choisie dans la carte (aucune déduction)
+  if (config.power_entity) r.power = config.power_entity;
   return r;
 }
 function findPacDevice(hass) {
@@ -2630,7 +2616,9 @@ const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", cir
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
-  { name: "energy_entity", selector: { entity: { domain: "sensor", device_class: "energy" } } },
+  { type: "grid", name: "", schema: [
+      { name: "power_entity", selector: { entity: { domain: "sensor", device_class: "power" } } },
+      { name: "energy_entity", selector: { entity: { domain: "sensor", device_class: "energy" } } }] },
   { type: "grid", name: "", schema: [{ name: "title", selector: { text: {} } }, { name: "subtitle", selector: { text: {} } }] },
   { type: "grid", name: "", schema: [{ name: "circuit_1_name", selector: { text: {} } }, { name: "circuit_2_name", selector: { text: {} } }] },
   { name: "image_set", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique (soleil)" }, { value: "jour", label: "Jour" }, { value: "nuit", label: "Nuit" }] } } },
@@ -2651,7 +2639,8 @@ const EDITOR_SCHEMA = [
 ];
 const LABELS = {
   device: "Appareil PAC (Atlantic Alfea BSB-LAN)",
-  energy_entity: "Compteur d'énergie PAC (vide = celui des options de l'intégration ; la puissance est lue sur le même appareil)",
+  power_entity: "Puissance électrique PAC (W)",
+  energy_entity: "Énergie électrique PAC (kWh ; vide = compteur des options de l'intégration)",
   title: "Titre", subtitle: "Sous-titre", circuit_1_name: "Nom du circuit 1 (vide = nom défini dans l'intégration)", circuit_2_name: "Nom du circuit 2 (vide = nom défini dans l'intégration)",
   image_set: "Jeu d'images", debug: "Boutons de test (debug)", image_path: "Chemin des images",
   show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Graphes",
@@ -2680,6 +2669,7 @@ class PacSynoptiquePhotoCardEditor extends HTMLElement {
         for (const [k, d] of Object.entries(DEFAULTS)) if (v[k] === d || v[k] === "" || v[k] === undefined) delete v[k];
         if (!v.device) delete v.device;
         if (!v.energy_entity) delete v.energy_entity;
+        if (!v.power_entity) delete v.power_entity;
         if (v.positions && !Object.keys(v.positions).length) delete v.positions;
         this._config = { type: this._config.type, ...v };
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));

@@ -31,12 +31,17 @@ const card = w.document.createElement("pac-synoptique-photo-card");
 w.document.body.appendChild(card);
 card.setConfig({ type: "custom:pac-synoptique-photo-card", show_alarms: false, show_diagnostics: false, show_graphs: false, show_curve: false });
 card.hass = { states, entities };
+const $0 = (q) => card.shadowRoot.querySelector(q);
+if (!$0("#p_power").textContent.includes("—")) { console.log("ECHEC : sans power_entity, aucune puissance ne doit être devinée :", $0("#p_power").textContent); process.exit(1); }
+console.log("OK    sans entité puissance : « — » (aucune déduction depuis l'appareil du compteur)");
+card.setConfig({ type: "custom:pac-synoptique-photo-card", power_entity: "sensor.compteur_pac_power", show_alarms: false, show_diagnostics: false, show_graphs: false, show_curve: false });
+card.hass = { states, entities };
 const $ = (q) => card.shadowRoot.querySelector(q);
 const stub = w.customElements.get("pac-synoptique-photo-card").getStubConfig({ entities });
 ok(stub.device === D && !("energy_entity" in stub), "configuration de départ : appareil PAC détecté, pas d'entité codée en dur");
 ok($("#u_ext").textContent.includes("4,5"), "sans appareil configuré : PAC auto-détectée (T ext " + $("#u_ext").textContent + ")");
 ok($("#x_en").textContent.includes("1"), "compteur d'énergie repris des options de l'intégration : " + $("#x_en").textContent);
-ok($("#p_power").textContent.replace(/\s/g, "") === "812W", "compteur multi-voies : puissance de la même voie que le compteur (pas l'autre phase à 68 W) : " + $("#p_power").textContent);
+ok($("#p_power").textContent.replace(/\s/g, "") === "812W", "puissance = entité choisie dans la carte : " + $("#p_power").textContent);
 ok($("#k_c1 h3 span").textContent === "Chambres" && $("#k_c2 h3 span").textContent === "Séjour", "noms des circuits depuis l'intégration");
 ok($("#baseImg").src.startsWith("/alfea-synoptique/pac_synoptique/"), "images servies par l'intégration : " + $("#baseImg").src);
 card.setConfig({ type: "custom:pac-synoptique-photo-card", energy_entity: "sensor.autre", show_alarms: false, show_diagnostics: false, show_graphs: false, show_curve: false });

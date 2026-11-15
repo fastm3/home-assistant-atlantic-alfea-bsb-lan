@@ -85,21 +85,22 @@ automatiquement s'il n'est pas choisi) :
 
 - températures de départ par circuit : paramètres BSB 8743 / 8773 de
   l'appareil BSB-LAN ;
-- **compteur d'énergie** : celui des options de l'intégration, ou celui choisi
-  dans la carte ; la **puissance** est le capteur `power` du même appareil
-  que le compteur ;
+- **énergie** : entité choisie dans la carte, sinon le compteur des options de
+  l'intégration ; **puissance** : entité choisie dans la carte (aucune
+  déduction) ;
 - **noms des circuits** : options de l'intégration (attribut `nom_circuit`),
   surchargeables dans la carte.
 
 ### Options
 
-L'éditeur visuel n'affiche que l'essentiel : appareil, compteur d'énergie,
+L'éditeur visuel n'affiche que l'essentiel : appareil, puissance et énergie,
 titres, noms, jeu d'images, météo, onglets et réglages avancés.
 
 | Option | Valeurs | Défaut | Rôle |
 |---|---|---|---|
 | `device` | appareil | détection auto | appareil PAC de l'intégration |
-| `energy_entity` | entity_id | options de l'intégration | compteur d'énergie (puissance lue sur le même appareil) |
+| `power_entity` | entity_id (W) | — | puissance électrique de la PAC (entête, panneau PAC, onglet Commandes) |
+| `energy_entity` | entity_id (kWh) | options de l'intégration | énergie électrique de la PAC |
 | `title`, `subtitle` | texte | Alfea Duo, Pompe à chaleur Air/Eau | entête |
 | `circuit_1_name`, `circuit_2_name` | texte | options de l'intégration | libellés des circuits |
 | `image_set` | `auto`, `jour`, `nuit` | `auto` | décor ; `auto` suit le soleil |
@@ -116,6 +117,8 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 
 ```yaml
 type: custom:pac-synoptique-photo-card
+power_entity: sensor.pac_puissance
+energy_entity: sensor.pac_energie
 weather_entity: weather.maison
 show_controls: true
 grid_options:
@@ -124,9 +127,8 @@ grid_options:
 ```
 
 Correspondance avec l'ancienne carte : `circuit_*_name`, `show_controls`,
-`show_diagnostics`, `show_graphs`, `show_curve`, `energy_entity` et `entities`
-sont conservés ; `power_entity` est remplacé par la détection depuis le
-compteur ; `theme_mode`, `layout_*`, `show_links`, `animate_flows` et
+`show_diagnostics`, `show_graphs`, `show_curve`, `power_entity`,
+`energy_entity` et `entities` sont conservés ; `theme_mode`, `layout_*`, `show_links`, `animate_flows` et
 `show_pump_badges` n'ont plus d'objet.
 
 Sur un écran étroit (< 860 px de carte), les panneaux passent sous l'image.
