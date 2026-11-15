@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.2.2";
+const VERSION = "2.2.3";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -58,7 +58,7 @@ const PANEL_HISTORY = {
   pac_etat: ["PAC · Échangeurs", ["depart", "retour", "depart_cible", "power", "c1_pump", "pac_etat", "mode"]],
   c1_climate: [null, ["c1_climate", "c1_flow", "depart", "c1_pump", "c1_etat"]],
   c2_climate: [null, ["c2_climate", "c2_flow", "c2_pump", "c2_etat"]],
-  ecs_heater: ["ECS · Ballon", ["ecs_temp", "ecs_confort", "ecs_heater", "ecs_pump", "ecs_appoint", "ecs_etat"]],
+  ecs_heater: ["ECS · Ballon", ["ecs_temp", "ecs_confort", "ecs_heater", "ecs_pump", "ecs_appoint", "ecs_etat", "ecs_energie"]],
 };
 const HIST_HOURS = [6, 24, 48, 168];
 const LAYERS = ["frigo", "ventilateur", "module", "c1", "c1_radiateur", "c2", "ecs_serpentin", "ecs_resistance"];
@@ -666,7 +666,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       <div class="big" id="e_t"></div>
       <div class="row"><span class="k">Confort</span><span class="v" id="e_conf"></span></div>
       <div class="row"><span class="k">Actuelle</span><span class="v" id="e_cur"></span></div>
-      <div class="row"><span class="k">COP · kWh</span><span class="v" id="e_cop"></span></div>
+      <div class="row"><span class="k" id="e_enk">Dernière charge</span><span class="v" id="e_en"></span></div>
+      <div class="row"><span class="k" id="e_copk">COP</span><span class="v" id="e_cop"></span></div>
       <div class="chips" id="e_chips"></div></div>
    </div>
   </div>
@@ -860,7 +861,16 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     $("e_t").textContent = this._num("ecs_temp");
     $("e_conf").textContent = this._num("ecs_confort");
     $("e_cur").textContent = this._attr("ecs_heater", "temperature");
-    $("e_cop").textContent = `${this._num("ecs_cop", 2, "")} · ${this._num("ecs_energie", 2, "kWh")}`;
+    // charge ECS : énergie de la charge en cours (COP connu à la fin), sinon COP et énergie de la dernière charge.
+    // (« ECS - Énergie consommée » est un cumul de toutes les charges : il reste dans l'historique du panneau)
+    const ca = this._s("ecs_cop")?.attributes || {}, fr = (v, d) => (+v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+    const last = Array.isArray(ca.sessions) && ca.sessions.length ? ca.sessions[ca.sessions.length - 1] : null;
+    const lastCop = last && isFinite(parseFloat(last.cop)) ? +last.cop : parseFloat(this._v("ecs_cop"));
+    const running = ca.session_active && isFinite(parseFloat(ca.conso_session_kwh));
+    $("e_enk").textContent = running ? "Charge en cours" : "Dernière charge";
+    $("e_en").textContent = running ? `${fr(ca.conso_session_kwh, 2)} kWh` : last && isFinite(parseFloat(last.e_elec_kwh)) ? `${fr(last.e_elec_kwh, 2)} kWh` : "—";
+    $("e_copk").textContent = running ? "COP charge préc." : "COP";
+    $("e_cop").textContent = isFinite(lastCop) ? fr(lastCop, 2) : "—";
     $("k_ecs").title = this._v("ecs_etat") || "";
     $("e_chips").innerHTML =
       `<span class="chip ${this._on("ecs_pump") ? "on" : ""}">Pompe ${this._on("ecs_pump") ? "ON" : "OFF"}</span>` +
