@@ -2991,7 +2991,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .dbg button { background:#222a36; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:4px 8px; cursor:pointer; }
   .dbg button.on { background:#2d6a4f; }
   .dbg label { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--mut); }
-  .logo { mix-blend-mode:multiply; opacity:.92; }
+  .pic img.logo { inset:auto; height:auto; mix-blend-mode:multiply; opacity:.92; }
   /* circulateurs du module : anneau + roue qui tourne */
   .pump { opacity:0; transition:opacity 1s ease; } .pump.on { opacity:1; }
   .pring { fill:none; stroke:#5fd0ff; stroke-width:3; filter:drop-shadow(0 0 4px #5fd0ff); }
@@ -3048,7 +3048,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     <img id="baseImg" src="${this._img("base", wx0.variant)}" alt="">
     ${LAYERS.map((l) => `<img class="layer ${l}" data-layer="${l}" src="${this._img("calque_" + l)}" alt="">`).join("")}
     <svg class="fx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${fan}${heat}${flows}</svg>
-    ${c.logo_url ? `<svg class="fx logo" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none"><image href="${String(c.logo_url).replace(/"/g, "&quot;")}" x="${(c.logo_box || LOGO_BOX)[0]}" y="${(c.logo_box || LOGO_BOX)[1]}" width="${(c.logo_box || LOGO_BOX)[2]}" height="${(c.logo_box || LOGO_BOX)[2]}" preserveAspectRatio="xMidYMin meet"/></svg>` : ""}
+    ${c.logo_url ? (() => { const [lx, ly, lw] = c.logo_box || LOGO_BOX;  // image HTML : haut calé, hauteur selon le format du logo
+      return `<img class="logo" alt="" src="${String(c.logo_url).replace(/"/g, "&quot;")}" style="left:${(lx / FLOWS.width * 100).toFixed(3)}%;top:${(ly / FLOWS.height * 100).toFixed(3)}%;width:${(lw / FLOWS.width * 100).toFixed(3)}%">`; })() : ""}
     <svg class="fx tankfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${tank}</svg>
     <svg class="fx wxfx" id="wxfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none"></svg>
     <div class="wx" id="wx" hidden><ha-icon id="wx_i"></ha-icon><div><b id="wx_t"></b><span id="wx_l"></span><small id="wx_d"></small></div></div>
