@@ -328,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
         st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique];
-    }));
+    }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
   _discover(){

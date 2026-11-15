@@ -13,7 +13,8 @@ const reg = (entity_id, device_id, platform = "atlantic_alfea_controller") => ({
 const entities = Object.fromEntries([
   reg(`sensor.${X}_pac_t_exterieure`, D), reg(`binary_sensor.${X}_comp_etat`, D), reg(`sensor.${X}_comp_modulation`, D),
   reg(`climate.${X}_c1_circuit_1`, D), reg(`climate.${X}_c2_circuit_2`, D), reg(`sensor.${X}_ecs_t_ballon`, D),
-  reg(`sensor.${X}_ecs_cop_session`, D), reg("sensor.compteur_pac_energy", "dev_meter", "shelly"), reg("sensor.compteur_pac_power", "dev_meter", "shelly"),
+  reg(`sensor.${X}_ecs_cop_session`, D), reg("sensor.phase_b_four_power", "dev_meter", "shelly"),
+  reg("sensor.compteur_pac_energy", "dev_meter", "shelly"), reg("sensor.compteur_pac_power", "dev_meter", "shelly"),
 ].map((e) => [e.entity_id, e]));
 const S = (state, attributes = {}) => ({ state: String(state), attributes });
 const states = {
@@ -24,6 +25,7 @@ const states = {
   [`sensor.${X}_ecs_cop_session`]: S(2.1, { energy_entity: "sensor.compteur_pac_energy" }),
   "sensor.compteur_pac_energy": S(1234.5, { unit_of_measurement: "kWh", device_class: "energy" }),
   "sensor.compteur_pac_power": S(812, { unit_of_measurement: "W", device_class: "power" }),
+  "sensor.phase_b_four_power": S(68, { unit_of_measurement: "W", device_class: "power" }),  // autre voie du même compteur
 };
 const card = w.document.createElement("pac-synoptique-photo-card");
 w.document.body.appendChild(card);
@@ -34,7 +36,7 @@ const stub = w.customElements.get("pac-synoptique-photo-card").getStubConfig({ e
 ok(stub.device === D && !("energy_entity" in stub), "configuration de départ : appareil PAC détecté, pas d'entité codée en dur");
 ok($("#u_ext").textContent.includes("4,5"), "sans appareil configuré : PAC auto-détectée (T ext " + $("#u_ext").textContent + ")");
 ok($("#x_en").textContent.includes("1"), "compteur d'énergie repris des options de l'intégration : " + $("#x_en").textContent);
-ok($("#p_power").textContent.replace(/\s/g, "") === "812W", "puissance lue sur le même appareil que le compteur : " + $("#p_power").textContent);
+ok($("#p_power").textContent.replace(/\s/g, "") === "812W", "compteur multi-voies : puissance de la même voie que le compteur (pas l'autre phase à 68 W) : " + $("#p_power").textContent);
 ok($("#k_c1 h3 span").textContent === "Chambres" && $("#k_c2 h3 span").textContent === "Séjour", "noms des circuits depuis l'intégration");
 ok($("#baseImg").src.startsWith("/alfea-synoptique/pac_synoptique/"), "images servies par l'intégration : " + $("#baseImg").src);
 card.setConfig({ type: "custom:pac-synoptique-photo-card", energy_entity: "sensor.autre", show_alarms: false, show_diagnostics: false, show_graphs: false, show_curve: false });

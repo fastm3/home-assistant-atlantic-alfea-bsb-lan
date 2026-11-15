@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.0.2";
+const VERSION = "2.0.3";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -35,13 +35,19 @@ function autoEntities(hass, device) {
   for (const [k, [dom, suf]] of Object.entries(GLOBAL_MATCH)) { const hit = find(allIds, dom, suf); if (hit) out[k] = hit; }
   return out;
 }
-// puissance : capteur de classe "power" du même appareil que l'entité énergie choisie
+// puissance : capteur de classe "power" du même appareil que l'entité énergie choisie. Un compteur
+// multi-voies (Shelly 3EM, Pro 4PM…) en a un par voie : on prend celui qui porte le même nom
+// (…_energy -> …_power), sinon celui dont l'entity_id partage le plus long préfixe avec le compteur.
 function powerFromEnergy(hass, energyId) {
   const reg = hass && hass.entities && hass.entities[energyId];
   if (!reg || !reg.device_id) return undefined;
-  const sib = Object.values(hass.entities).find((e) => e.device_id === reg.device_id && e.entity_id.startsWith("sensor.")
-    && hass.states[e.entity_id]?.attributes?.device_class === "power");
-  return sib ? sib.entity_id : undefined;
+  const sibs = Object.values(hass.entities).filter((e) => e.device_id === reg.device_id && e.entity_id.startsWith("sensor.")
+    && hass.states[e.entity_id]?.attributes?.device_class === "power").map((e) => e.entity_id);
+  if (!sibs.length) return undefined;
+  const twin = energyId.replace(/_energy(?=$|_)/, "_power");
+  if (sibs.includes(twin)) return twin;
+  const lcp = (a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return i; };
+  return sibs.reduce((best, id) => (lcp(id, energyId) > lcp(best, energyId) ? id : best));
 }
 function resolveEntities(hass, config) {
   const custom = Object.fromEntries(Object.entries(config.entities || {}).filter(([, v]) => v));  // surcharge YAML (avancé)

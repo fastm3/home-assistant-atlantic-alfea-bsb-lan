@@ -328,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
         st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique];
-    }));
+    }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
   _discover(){
@@ -2536,7 +2536,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.0.2";
+const VERSION = "2.0.3";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -2570,13 +2570,19 @@ function autoEntities(hass, device) {
   for (const [k, [dom, suf]] of Object.entries(GLOBAL_MATCH)) { const hit = find(allIds, dom, suf); if (hit) out[k] = hit; }
   return out;
 }
-// puissance : capteur de classe "power" du même appareil que l'entité énergie choisie
+// puissance : capteur de classe "power" du même appareil que l'entité énergie choisie. Un compteur
+// multi-voies (Shelly 3EM, Pro 4PM…) en a un par voie : on prend celui qui porte le même nom
+// (…_energy -> …_power), sinon celui dont l'entity_id partage le plus long préfixe avec le compteur.
 function powerFromEnergy(hass, energyId) {
   const reg = hass && hass.entities && hass.entities[energyId];
   if (!reg || !reg.device_id) return undefined;
-  const sib = Object.values(hass.entities).find((e) => e.device_id === reg.device_id && e.entity_id.startsWith("sensor.")
-    && hass.states[e.entity_id]?.attributes?.device_class === "power");
-  return sib ? sib.entity_id : undefined;
+  const sibs = Object.values(hass.entities).filter((e) => e.device_id === reg.device_id && e.entity_id.startsWith("sensor.")
+    && hass.states[e.entity_id]?.attributes?.device_class === "power").map((e) => e.entity_id);
+  if (!sibs.length) return undefined;
+  const twin = energyId.replace(/_energy(?=$|_)/, "_power");
+  if (sibs.includes(twin)) return twin;
+  const lcp = (a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return i; };
+  return sibs.reduce((best, id) => (lcp(id, energyId) > lcp(best, energyId) ? id : best));
 }
 function resolveEntities(hass, config) {
   const custom = Object.fromEntries(Object.entries(config.entities || {}).filter(([, v]) => v));  // surcharge YAML (avancé)
