@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.2.2 — Post-circulation, panneau étage simplifié
+
+### Carte PAC Synoptique photo (2.2.2)
+
+- **Post-circulation** (BSB « Overrun active ») reconnue : puce
+  « Post-circulation » sur le circuit 2, « Pompe primaire ON ·
+  post-circulation » dans le panneau PAC, flux de l'étage toujours animé
+  (l'eau traverse les radiateurs) sans volutes de chauffe.
+- **Panneau Étage sans puce de pompe** : la pompe primaire (QX1) n'est
+  affichée que dans le panneau PAC ; l'état du circuit (chauffe,
+  post-circulation…) suffit sur l'étage.
+- Éditeur : « Clic sur un panneau » et « Durée de l'historique » visibles dans
+  « Avancé » (valeurs texte pour le sélecteur de HA).
+- Manifest **2.2.2**.
+
 ## 2.2.1 — Historique au clic, éditeur du logo, chaleur du radiateur
 
 ### Carte PAC Synoptique photo (2.2.1)
