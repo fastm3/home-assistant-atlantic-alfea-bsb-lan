@@ -855,7 +855,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
         : pumpRaw ? `<span class="chip" title="Pompe primaire active mais circuit ${ecsMode ? "court-circuité par la charge ECS" : "à l'arrêt"}">Pompe primaire${ecsMode ? " (charge ECS)" : ""}</span>`
         : `<span class="chip">Circulateur arrêté</span>`;
       $(`${n}_chips`).innerHTML = `<span class="chip ${cl === "heat" ? "hot" : ""}">${cl === "heat" ? "Chauffe" : cl === "off" ? "OFF" : (cl || "—")}</span>` +
-        `<span class="chip">${this._v(`${n}_etat`) || "—"}</span>` + pumpChip;
+        `<span class="chip">${this._v(`${n}_etat`) || "—"}</span>` +
+        (n === "c1" ? "" : pumpChip);  // C1 : la pompe primaire (QX1) est affichée dans le panneau PAC, l'état du circuit suffit ici
     }
     $("e_t").textContent = this._num("ecs_temp");
     $("e_conf").textContent = this._num("ecs_confort");
