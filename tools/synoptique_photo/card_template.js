@@ -197,7 +197,7 @@ const LABELS = {
   logo_url: "URL de l'image (ex. /local/pac_logos/mon_logo.svg ; un fond blanc disparaît)",
   logos: "Logos proposés dans le menu",
   image_set: "Jeu d'images", debug: "Boutons de test (debug)", image_path: "Chemin des images",
-  show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Graphes",
+  show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Consommation énergétique",
   show_curve: "Loi d'eau", show_controls: "Commandes (mode, consignes)",
   panel_click: "Clic sur un panneau", history_hours: "Durée de l'historique",
   weather_entity: "Entité météo (optionnelle)", show_weather: "Afficher la météo dans le paysage",

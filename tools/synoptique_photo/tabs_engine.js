@@ -2274,7 +2274,7 @@ class PacSynoptiqueCard extends HTMLElement {
         <div class="diag-grid">${diagComp}${diagPac}${diagCircs}${diagActivity}</div>
       </details>`:''}
       ${this._config.show_graphs!==false?`<details data-panel="graphs" class="alarm-details" ${prevGraphs?'open':''}>
-        <summary><span>Graphes</span></summary>
+        <summary><span>Consommation énergétique</span></summary>
         <div class="graph-panel">${this._graphsHtml()}</div>
       </details>`:''}
       ${this._config.show_curve!==false?`<details data-panel="curve" class="alarm-details" ${prevCurve?'open':''}>
@@ -2462,7 +2462,7 @@ class PacSynoptiqueCardEditor extends HTMLElement {
         <div class="field">
           <label class="toggle" for="pac-show-graphs">
             <input type="checkbox" id="pac-show-graphs"${checkedGraphs}>
-            Afficher la section Graphes
+            Afficher la section Consommation énergétique
           </label>
           <label class="toggle" for="pac-show-curve">
             <input type="checkbox" id="pac-show-curve"${checkedCurve}>

@@ -72,7 +72,7 @@ inventée : une entité absente affiche « — ».
 ### Onglets sous l'image
 
 Les panneaux de l'ancienne carte sont repris, chacun masquable : **Alarmes et
-surveillance**, **Diagnostics et capteurs**, **Graphes** (consommation ECS /
+surveillance**, **Diagnostics et capteurs**, **Consommation énergétique** (ECS /
 C1+C2 sur 7 jours et par heure), **Loi d'eau** (courbes 720/1020 et point de
 fonctionnement) et **Commandes** (mode de la PAC, Off/Auto et régime par
 circuit, consignes, ECS ; confirmées par BSB-LAN). Quand l'intégration donne un
