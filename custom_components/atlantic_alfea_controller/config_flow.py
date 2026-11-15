@@ -13,6 +13,8 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
+from .installation_config import COMBO_LABELS
+
 from .const import (
     CONF_CIRCUIT_1_NAME,
     CONF_CIRCUIT_2_NAME,
@@ -344,6 +346,16 @@ class AtlanticAlfeaOptionsFlow(OptionsFlowWithReload):
                 vol.Optional(CONF_CIRCUIT_1_NAME, default=self.config_entry.options.get(CONF_CIRCUIT_1_NAME, "Circuit 1")): selector.TextSelector(),
                 vol.Optional(CONF_CIRCUIT_2_NAME, default=self.config_entry.options.get(CONF_CIRCUIT_2_NAME, "Circuit 2")): selector.TextSelector(),
                 vol.Optional("bsb_base_url", default=self.config_entry.options.get("bsb_base_url", "")): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
+                # installation (détection automatique corrigeable) : reprise par toutes les cartes
+                vol.Required("installation_ecs", default=self.config_entry.options.get("installation_ecs", "auto")): selector.SelectSelector(
+                    selector.SelectSelectorConfig(mode=selector.SelectSelectorMode.DROPDOWN, options=[
+                        selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
+                        selector.SelectOptionDict(value="oui", label="Avec ballon d'eau chaude"),
+                        selector.SelectOptionDict(value="non", label="Sans ballon d'eau chaude")])),
+                vol.Required("installation_emetteurs", default=self.config_entry.options.get("installation_emetteurs", "auto")): selector.SelectSelector(
+                    selector.SelectSelectorConfig(mode=selector.SelectSelectorMode.DROPDOWN, options=[
+                        selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
+                        *[selector.SelectOptionDict(value=key, label=label) for key, label in COMBO_LABELS.items()]])),
                 vol.Optional(
                     CONF_ENERGY_ENTITY,
                     description={"suggested_value": energy_entity(self.hass, self.config_entry) or None},

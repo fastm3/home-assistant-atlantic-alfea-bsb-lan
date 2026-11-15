@@ -83,5 +83,33 @@ class InstallationConfigTest(unittest.TestCase):
         self.assertIsNone(ic.parse_installation("x"))
 
 
+class InstallationOverridesTest(unittest.TestCase):
+    def test_integration_settings_override_detection(self):
+        detected = ic.parse_installation(answer())
+        eff = ic.effective_layout(detected, {"installation_emetteurs": "c1_plancher", "installation_ecs": "non"})
+        self.assertEqual((eff["circuit_1_emetteur"], eff["circuit_2_present"], eff["ecs_presente"]), ("plancher", False, False))
+        self.assertEqual(eff["circuit_1_source"], "réglage de l'intégration")
+        self.assertEqual(eff["circuit_1_emetteur_detecte"], "radiateur")
+        self.assertEqual(eff["configuration"], "c1_plancher")
+        self.assertEqual(ic.summary(eff), "C1 plancher · sans ECS")
+
+    def test_auto_keeps_detection(self):
+        detected = ic.parse_installation(answer())
+        eff = ic.effective_layout(detected, {"installation_emetteurs": "auto", "installation_ecs": "auto"})
+        self.assertEqual(eff["configuration"], "c1_radiateur_c2_plancher")
+        self.assertEqual(eff["circuit_2_source"], "détection")
+
+    def test_only_drawable_combos(self):
+        self.assertEqual(ic.combo_of("plancher", "plancher"), "non_representable")
+        self.assertEqual(ic.combo_of("radiateur", None), "c1_radiateur")
+        self.assertNotIn("c1_radiateur_c2_radiateur", ic.COMBOS)
+        self.assertEqual(ic.overrides({"installation_emetteurs": "nimporte"}), {})
+
+    def test_settings_without_detection(self):
+        eff = ic.effective_layout(None, {"installation_emetteurs": "c2_plancher"})
+        self.assertEqual((eff["circuit_1_present"], eff["circuit_2_emetteur"]), (False, "plancher"))
+        self.assertIsNone(ic.effective_layout(None, {}))
+
+
 if __name__ == "__main__":
     unittest.main()

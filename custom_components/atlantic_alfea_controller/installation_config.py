@@ -45,6 +45,37 @@ TMAX_FLOOR_MAX: Final = 40.0
 
 FLOOR: Final = "plancher"
 RADIATOR: Final = "radiateur"
+NONE: Final = "aucun"
+AUTO: Final = "auto"
+# réglages de l'intégration (options) : corrigent la détection, repris par toutes les cartes
+OPT_ECS: Final = "installation_ecs"              # auto / oui / non
+OPT_EMITTERS: Final = "installation_emetteurs"   # auto / une des configurations dessinables
+# configurations que le synoptique sait dessiner (une zone radiateurs, une zone plancher)
+COMBOS: Final[dict[str, tuple[str, str]]] = {
+    "c1_radiateur_c2_plancher": (RADIATOR, FLOOR),
+    "c1_plancher_c2_radiateur": (FLOOR, RADIATOR),
+    "c1_radiateur": (RADIATOR, NONE),
+    "c1_plancher": (FLOOR, NONE),
+    "c2_radiateur": (NONE, RADIATOR),
+    "c2_plancher": (NONE, FLOOR),
+}
+COMBO_LABELS: Final[dict[str, str]] = {
+    "c1_radiateur_c2_plancher": "C1 radiateurs + C2 plancher chauffant",
+    "c1_plancher_c2_radiateur": "C1 plancher chauffant + C2 radiateurs",
+    "c1_radiateur": "C1 radiateurs seul",
+    "c1_plancher": "C1 plancher chauffant seul",
+    "c2_radiateur": "C2 radiateurs seul",
+    "c2_plancher": "C2 plancher chauffant seul",
+}
+
+
+def combo_of(e1: str | None, e2: str | None) -> str:
+    """Clé de configuration dessinable, ou « non_representable »."""
+    pair = (e1 or NONE, e2 or NONE)
+    for key, value in COMBOS.items():
+        if value == pair:
+            return key
+    return "non_representable"
 
 
 def _number(data: dict, parameter: int) -> float | None:
@@ -163,8 +194,47 @@ DIAGNOSTICS_HINT: Final = (
 )
 
 
-def installation_layout(hass: HomeAssistant, entry: ConfigEntry) -> dict | None:
-    return hass.data.get(DOMAIN, {}).get("installation_config", {}).get(entry.entry_id)
+def overrides(options) -> dict:
+    """Réglages explicites de l'intégration (sans les valeurs « auto »)."""
+    out = {}
+    ecs = (options or {}).get(OPT_ECS, AUTO)
+    if ecs in ("oui", "non"):
+        out["ecs"] = ecs == "oui"
+    combo = (options or {}).get(OPT_EMITTERS, AUTO)
+    if combo in COMBOS:
+        out[1], out[2] = COMBOS[combo]
+    return out
+
+
+def effective_layout(detected: dict | None, options) -> dict | None:
+    """Détection corrigée par les réglages de l'intégration ; source de chaque valeur indiquée."""
+    forced = overrides(options)
+    if not detected and not forced:
+        return None
+    layout = dict(detected or {})
+    for n in (1, 2):
+        layout[f"circuit_{n}_emetteur_detecte"] = (detected or {}).get(f"circuit_{n}_emetteur")
+        if n in forced:
+            v = forced[n]
+            layout[f"circuit_{n}_present"] = v != NONE
+            layout[f"circuit_{n}_emetteur"] = None if v == NONE else v
+            layout[f"circuit_{n}_source"] = "réglage de l'intégration"
+        else:
+            layout[f"circuit_{n}_source"] = "détection" if detected else "inconnue"
+    layout["configuration"] = combo_of(layout.get("circuit_1_emetteur") if layout.get("circuit_1_present") is not False else None,
+                                       layout.get("circuit_2_emetteur") if layout.get("circuit_2_present") is not False else None)
+    layout["ecs_detectee"] = (detected or {}).get("ecs_presente")
+    if "ecs" in forced:
+        layout["ecs_presente"] = forced["ecs"]
+        layout["ecs_source"] = "réglage de l'intégration"
+    else:
+        layout["ecs_source"] = "détection" if detected else "inconnue"
+    return layout
+
+
+def installation_layout(hass: HomeAssistant, entry: ConfigEntry, effective: bool = True) -> dict | None:
+    detected = hass.data.get(DOMAIN, {}).get("installation_config", {}).get(entry.entry_id)
+    return effective_layout(detected, entry.options) if effective else detected
 
 
 async def async_start_installation_watch(hass: HomeAssistant, entry: ConfigEntry):
@@ -188,7 +258,9 @@ async def async_start_installation_watch(hass: HomeAssistant, entry: ConfigEntry
         store[entry.entry_id] = layout
         if previous is None or summary(previous) != summary(layout):
             _LOGGER.info("Configuration de l'installation : %s — %s", summary(layout), details(layout))
-            doubt = uncertain(layout)
+            forced = overrides(entry.options)
+            doubt = [d for d in uncertain(layout)
+                     if not (d == "ECS" and "ecs" in forced) and not (d.startswith("circuit ") and int(d[-1]) in forced)]
             if doubt:
                 _LOGGER.warning(
                     "Détection de l'installation incertaine pour %s : %s. %s",

@@ -189,7 +189,9 @@
           "flow_gap_degrees": "Flow / target gap — threshold (°C)",
           "flow_gap_duration_minutes": "Flow / target gap — delay (minutes)",
           "circuit_1_name": "Circuit 1 (C1) name",
-          "circuit_2_name": "Circuit 2 (C2) name"
+          "circuit_2_name": "Circuit 2 (C2) name",
+          "installation_ecs": "Installation — ballon d'eau chaude (ECS)",
+          "installation_emetteurs": "Installation — émetteurs des circuits"
         },
         "data_description": {
           "circuit_1_name": "Display name of circuit 1 (BSB 7xx parameters, program 501), used by the cards and native programs.",
@@ -200,7 +202,9 @@
           "short_cycle_minutes": "A compressor run shorter than this is a short cycle. BSB 2842 (minimum run time) takes precedence; this is only a fallback.",
           "frequent_starts_per_hour": "Alert when the compressor starts more often than this within a rolling hour.",
           "flow_gap_degrees": "Allowed gap between measured flow (BSB 8412) and flow target (BSB 8411) while the compressor runs, outside defrost and DHW charging.",
-          "flow_gap_duration_minutes": "How long the gap must stay above the threshold without interruption before the alert. Prevents start-up false alarms; increase for slow underfloor heating."
+          "flow_gap_duration_minutes": "How long the gap must stay above the threshold without interruption before the alert. Prevents start-up false alarms; increase for slow underfloor heating.",
+          "installation_ecs": "Automatique : selon le paramètre 5731 lu dans la PAC. À forcer si la détection est fausse ; repris par toutes les cartes.",
+          "installation_emetteurs": "Automatique : deviné pour chaque circuit d'après le rafraîchissement (5711/5716), la pente de loi d'eau (720/1020) et le départ maximal (741/1041). Seules les configurations que le synoptique sait dessiner sont proposées. Le capteur « Installation - Configuration » indique le choix et sa raison."
         }
       }
     }

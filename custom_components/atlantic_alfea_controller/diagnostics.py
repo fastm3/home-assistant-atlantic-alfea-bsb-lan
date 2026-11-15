@@ -15,7 +15,7 @@ from homeassistant.loader import async_get_integration
 
 from .bsb_http import entry_client
 from .const import DOMAIN
-from .installation_config import CONFIG_PARAMETERS, installation_layout, parse_installation, summary
+from .installation_config import CONFIG_PARAMETERS, installation_layout, overrides, parse_installation, summary
 
 TO_REDACT = {"bsb_base_url", "password", "passkey", "username", "token"}
 
@@ -30,7 +30,8 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
             fresh = parse_installation(await client.get_jq(CONFIG_PARAMETERS, timeout=20)) or "réponse illisible"
         except Exception as err:  # noqa: BLE001 - rapporté en texte dans les diagnostics
             fresh = f"lecture impossible : {err!r}"
-    stored = installation_layout(hass, entry)
+    stored = installation_layout(hass, entry, effective=False)
+    effective = installation_layout(hass, entry)
     try:
         from .bsb_logging import log_report
         from .polling import json_polled
@@ -41,7 +42,9 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     return {
         "version_integration": str(integration.version),
         "installation": {
-            "resume": summary(stored),
+            "resume": summary(effective),
+            "reglages_integration": overrides(entry.options),
+            "configuration_effective": effective,
             "detection_en_memoire": stored,
             "lecture_a_la_demande": fresh,
         },

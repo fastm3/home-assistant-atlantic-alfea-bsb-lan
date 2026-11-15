@@ -51,7 +51,9 @@
           "flow_gap_degrees": "Écart départ / consigne — seuil (°C)",
           "flow_gap_duration_minutes": "Écart départ / consigne — temporisation (minutes)",
           "circuit_1_name": "Nom du circuit 1 (C1)",
-          "circuit_2_name": "Nom du circuit 2 (C2)"
+          "circuit_2_name": "Nom du circuit 2 (C2)",
+          "installation_ecs": "Installation — ballon d'eau chaude (ECS)",
+          "installation_emetteurs": "Installation — émetteurs des circuits"
         },
         "data_description": {
           "circuit_1_name": "Nom affiché du circuit 1 (paramètres BSB 7xx, programme 501). Repris par les cartes et les programmes natifs.",
@@ -62,7 +64,9 @@
           "short_cycle_minutes": "Un fonctionnement du compresseur plus court que ce seuil compte comme cycle court. Le temps de marche minimum lu dans la PAC (BSB 2842) est prioritaire ; cette valeur ne sert que s'il est indisponible.",
           "frequent_starts_per_hour": "Alarme si le compresseur démarre plus de fois que ce seuil sur une heure glissante.",
           "flow_gap_degrees": "Écart toléré entre la température de départ PAC mesurée (BSB 8412) et la consigne de départ (BSB 8411), compresseur en marche, hors dégivrage et hors charge ECS.",
-          "flow_gap_duration_minutes": "Durée pendant laquelle l'écart doit rester au-dessus du seuil, sans interruption, avant de déclencher l'alarme « Écart de température anormal ». Évite les fausses alarmes au démarrage ; à allonger avec un plancher chauffant à forte inertie."
+          "flow_gap_duration_minutes": "Durée pendant laquelle l'écart doit rester au-dessus du seuil, sans interruption, avant de déclencher l'alarme « Écart de température anormal ». Évite les fausses alarmes au démarrage ; à allonger avec un plancher chauffant à forte inertie.",
+          "installation_ecs": "Automatique : selon le paramètre 5731 lu dans la PAC. À forcer si la détection est fausse ; repris par toutes les cartes.",
+          "installation_emetteurs": "Automatique : deviné pour chaque circuit d'après le rafraîchissement (5711/5716), la pente de loi d'eau (720/1020) et le départ maximal (741/1041). Seules les configurations que le synoptique sait dessiner sont proposées. Le capteur « Installation - Configuration » indique le choix et sa raison."
         }
       }
     }

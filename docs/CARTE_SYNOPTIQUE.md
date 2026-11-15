@@ -109,8 +109,16 @@ de diagnostic **Installation - Configuration**) : circuits présents (5710, 5715
 (5731 ≠ 0) et type d'émetteur deviné pour chaque circuit — rafraîchissement actif (5711 /
 5716) → plancher, sinon pente de loi d'eau (720 / 1020 : ≤ 0,6 plancher, ≥ 0,8
 radiateurs), sinon départ maximal (741 / 1041 : ≤ 40 °C plancher). La raison du choix est
-dans les attributs du capteur. Dans l'éditeur de la carte, section **Installation**,
-« Automatique » affiche ce qui a été détecté ; chaque valeur peut être corrigée.
+dans les attributs du capteur.
+
+La détection se corrige **dans les options de l'intégration** (Installation — ballon d'eau
+chaude, Installation — émetteurs des circuits) : le capteur publie alors la configuration
+effective, avec la source de chaque valeur, et toutes les cartes la suivent. Seules les
+configurations que le dessin sait représenter sont proposées : C1 radiateurs + C2 plancher,
+C1 plancher + C2 radiateurs, ou un seul circuit (radiateurs ou plancher). Deux circuits du
+même type ne sont pas dessinables : la carte garde alors la répartition par défaut.
+Dans l'éditeur de la carte, section **Installation**, « Automatique » affiche la
+configuration de l'intégration ; un réglage propre à la carte reste possible.
 
 **Détection fausse ?** Corrigez-la dans la carte, puis aidez à l'améliorer : Paramètres →
 Appareils et services → Atlantic Alfea BSB-LAN → ⋮ → **Télécharger les diagnostics**, et
@@ -134,8 +142,8 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `circuit_1_name`, `circuit_2_name` | texte | options de l'intégration | libellés des circuits |
 | `image_set` | `auto`, `jour`, `nuit` | `auto` | décor ; `auto` suit le soleil |
 | `outdoor_unit` | `simple`, `double` | `simple` | groupe extérieur simple ou double (deux blocs empilés, deux ventilateurs animés) ; en double, le panneau « Unité extérieure » remonte et le logo passe sur le bloc du haut |
-| `ecs` | `auto`, `oui`, `non` | `auto` | ballon d'eau chaude : `non` retire le bas de l'unité intérieure (module mural), le panneau ECS et ses effets. `auto` suit la détection de l'intégration (5731), sinon la présence des entités ECS |
-| `circuit_1_emitter`, `circuit_2_emitter` | `auto`, `radiateur`, `plancher`, `aucun` | `auto` | émetteurs de chaque circuit. Le dessin a une zone radiateur (étage) et une zone plancher (RDC) : chacune suit le circuit qui a ce type d'émetteur, une zone sans circuit est effacée. Deux circuits du même type : affichage par défaut (C1 radiateur, C2 plancher). `auto` suit la détection de l'intégration |
+| `ecs` | `auto`, `oui`, `non` | `auto` | ballon d'eau chaude : `non` retire le bas de l'unité intérieure (module mural), le panneau ECS et ses effets. `auto` suit l'intégration, sinon la présence des entités ECS |
+| `emitters` | `auto`, `c1_radiateur_c2_plancher`, `c1_plancher_c2_radiateur`, `c1_radiateur`, `c1_plancher`, `c2_radiateur`, `c2_plancher` | `auto` | émetteurs des circuits, parmi les configurations que le dessin sait représenter (une zone radiateurs à l'étage, une zone plancher au rez-de-chaussée ; chaque zone suit son circuit, une zone sans circuit est effacée). `auto` suit l'intégration |
 | `panel_click` | `history`, `more-info` | `history` | clic sur un panneau : popup d'historique de ses entités (températures, modulation, puissance, états, circulateurs) ou fiche de l'entité principale |
 | `history_hours` | `6`, `24`, `48`, `168` | `24` | durée affichée à l'ouverture du popup (boutons 6 h / 24 h / 48 h / 7 j dans le popup) |
 | `weather_entity` | entity_id `weather.*` | — | active la météo |

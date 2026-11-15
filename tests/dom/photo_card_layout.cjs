@@ -35,16 +35,16 @@ const shown = ($, id) => $(id).style.display !== "none";
   ok($("img.layer.frigo").src.includes("/calque_frigo_sans_ecs.webp") && $('path[data-flow="frigo_liquide"]').getAttribute("d").startsWith("M915"), "sans ECS : tuyaux frigo redessinés (calque + flux)");
   ok($("img.patch").src.includes("/jour/patch_sans_ecs.webp"), "rustine du décor courant (jour)");
 
-  $ = show({ circuit_2_emitter: "aucun" });
+  $ = show({ emitters: "c1_radiateur" });
   ok(patches() === "sans_plancher" && shown($, "#k_c1") && !shown($, "#k_c2"), "radiateurs seuls : plancher remplacé, panneau RDC masqué");
   ok(on($, "c1") && !on($, "c2") && !card.shadowRoot.querySelector('.pump[data-layer="pompe_c2"]').classList.contains("on"), "radiateurs seuls : circuit 1 animé, plancher et circulateur C2 éteints");
 
-  $ = show({ circuit_1_emitter: "plancher", circuit_2_emitter: "aucun" });
+  $ = show({ emitters: "c1_plancher" });
   ok(patches() === "sans_radiateur" && !shown($, "#k_c1") && shown($, "#k_c2"), "plancher seul sur C1 : radiateur effacé, panneau au plancher");
   ok($("#k_c2 h3").textContent.includes("Circuit 1") && $("#k_c2 h3").textContent.includes("Étage") && $("#k_c2").dataset.more === "c1_climate", "panneau du plancher relié au circuit 1 (titre, historique)");
   ok(on($, "c2") && !on($, "c1") && !on($, "c1_radiateur"), "plancher animé par le circuit 1, radiateur éteint");
 
-  $ = show({ circuit_1_emitter: "plancher", circuit_2_emitter: "radiateur" });
+  $ = show({ emitters: "c1_plancher_c2_radiateur" });
   ok(patches() === "" && $("#k_c1 h3").textContent.includes("Circuit 2") && $("#k_c2 h3").textContent.includes("Circuit 1"), "C1 plancher + C2 radiateurs : zones inversées");
 
   // détection par l'intégration (« Installation - Configuration »)
@@ -52,7 +52,7 @@ const shown = ($, id) => $(id).style.display !== "none";
     { circuit_1_present: true, circuit_1_emetteur: "plancher", circuit_2_present: false, ecs_presente: false, lu_le: "2026-11-15T21:00:00" }) };
   $ = show({}, det);
   ok(patches() === "sans_ecs,sans_radiateur" && $("#k_c2 h3").textContent.includes("Circuit 1"), "détection : plancher seul sur C1, sans ECS");
-  $ = show({ ecs: "oui", circuit_2_emitter: "radiateur" }, det);
+  $ = show({ ecs: "oui", emitters: "c1_radiateur_c2_plancher" }, det);
   ok(patches() === "" && shown($, "#k_ecs"), "réglage de la carte prioritaire sur la détection");
 
   // éditeur : section Installation avec la valeur détectée
@@ -62,8 +62,19 @@ const shown = ($, id) => $(id).style.display !== "none";
   await tick(); await tick();
   const sec = ed.querySelector("ha-form").schema.find((s) => s.title === "Installation").schema;
   const auto = (name) => JSON.stringify(sec).match(new RegExp(`"name":"${name}".*?"label":"(Automatique[^"]*)"`))[1];
-  ok(auto("ecs").includes("sans ballon") && auto("circuit_1_emitter").includes("plancher") && auto("circuit_2_emitter").includes("aucun"),
-    `éditeur : valeurs détectées affichées (${auto("ecs")} | ${auto("circuit_1_emitter")} | ${auto("circuit_2_emitter")})`);
+  ok(auto("ecs").includes("sans ballon") && auto("emitters").includes("C1 plancher chauffant seul"),
+    `éditeur : valeurs détectées affichées (${auto("ecs")} | ${auto("emitters")})`);
+  const opts = sec.find((s) => s.name === "emitters").selector.select.options.map((o) => o.value);
+  ok(opts.length === 7 && !opts.some((v) => /radiateur.*radiateur|plancher.*plancher/.test(v)), "éditeur : seules les configurations dessinables sont proposées (" + opts.join(", ") + ")");
+  // détection non dessinable (deux planchers) : signalée, affichage par défaut
+  const two = { ...full, [`sensor.${X}_installation_configuration`]: S("C1 plancher · C2 plancher · ECS",
+    { circuit_1_emetteur: "plancher", circuit_2_emetteur: "plancher", ecs_presente: true, lu_le: "x" }) };
+  ed.setConfig({ type: "custom:pac-synoptique-photo-card" }); ed.hass = { states: two, entities: ents(two) };
+  await tick(); await tick();
+  const sec2 = ed.querySelector("ha-form").schema.find((s) => s.title === "Installation").schema;
+  ok(JSON.stringify(sec2).includes("non dessinable"), "éditeur : configuration détectée non dessinable signalée");
+  $ = show({}, two);
+  ok(patches() === "" && $("#k_c1 h3").textContent.includes("Circuit 1") && $("#k_c2 h3").textContent.includes("Circuit 2"), "deux planchers détectés : affichage par défaut (C1, C2) [" + patches() + "|" + $("#k_c1 h3").textContent + "|" + $("#k_c2 h3").textContent + "]");
   console.log("\nVariantes d'installation OK.");
   process.exit(0);
 })();
