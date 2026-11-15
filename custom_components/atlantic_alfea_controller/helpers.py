@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+import logging
 import re
 import time
 from typing import Any
@@ -16,6 +17,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from .const import BSB_AUTO, BSB_PROTECTION, MODE_COOL, MODE_HEAT, MODE_OFF
 from .discovery import discover_parameter_entity as _discover_parameter_entity
 
+_LOGGER = logging.getLogger(__package__)
 _INVALID_STATES = {"unknown", "unavailable", "none", "---", ""}
 _TRUE_STATES = {"on", "1", "true", "activé", "active", "enabled", "marche"}
 _FALSE_STATES = {"off", "0", "false", "désactivé", "desactive", "disabled", "arrêt"}
@@ -229,6 +231,43 @@ CIRCUIT_MODE_PARAMETERS = {
     "cool_mode_c2": 1201,
 }
 MODE_CONFIRM_TIMEOUT_SECONDS = 30.0
+# Sans confirmation MQTT après ce délai, la même valeur est renvoyée par HTTP /JS (si l'adresse
+# BSB-LAN est configurée) : observé le 2026-11-15, BSB-LAN a reçu la commande MQTT sans l'appliquer.
+MODE_HTTP_FALLBACK_SECONDS = 10.0
+
+
+async def _async_http_mode_fallback(hass: HomeAssistant, entry: ConfigEntry, parameter: int, option: str) -> bool | None:
+    """Write a 700/901/1000/1201 option through BSB-LAN /JS.
+
+    True = accepted by the controller, False = sent but refused/failed, None = not sent.
+    """
+    from .bsb_http import entry_client
+
+    client = entry_client(hass, entry)
+    match = _BSB_STATUS_RE.match(option)
+    if client is None or match is None:
+        _LOGGER.warning(
+            "BSB %s : « %s » non confirmé par MQTT après %.0f s ; renvoi HTTP impossible (%s)",
+            parameter, option, MODE_HTTP_FALLBACK_SECONDS,
+            "adresse BSB-LAN non configurée" if client is None else "valeur illisible",
+        )
+        return None
+    value = match.group(1)
+    _LOGGER.warning(
+        "BSB %s : « %s » non confirmé par MQTT après %.0f s, renvoi par HTTP /JS (valeur %s)",
+        parameter, option, MODE_HTTP_FALLBACK_SECONDS, value,
+    )
+    try:
+        result = await client.post_js({"parameter": parameter, "value": value, "type": 1, "destination": 0})
+    except Exception as err:  # noqa: BLE001 - journalisé, la confirmation reste attendue
+        _LOGGER.warning("BSB %s : renvoi HTTP /JS en échec : %s", parameter, err)
+        return False
+    outcome = result.get(str(parameter)) if isinstance(result, dict) else None
+    if isinstance(outcome, dict) and outcome.get("status") == 1:
+        _LOGGER.info("BSB %s : renvoi HTTP /JS accepté par le régulateur (status 1), valeur %s", parameter, value)
+        return True
+    _LOGGER.warning("BSB %s : renvoi HTTP /JS refusé par le régulateur : %s", parameter, result)
+    return False
 
 
 async def async_write_circuit_mode_confirmed(
@@ -261,14 +300,29 @@ async def async_write_circuit_mode_confirmed(
     await async_select_option(hass, entity_id, option)
     started = time.monotonic()
     next_poll = started + 4.0
+    fallback_done = False
+    http_sent = False
     while time.monotonic() - started < timeout:
         if confirmed():
+            if http_sent:
+                _LOGGER.info("BSB %s : « %s » confirmé après renvoi HTTP", parameter, option)
             return True
+        if (parameter is not None and not fallback_done
+                and time.monotonic() - started >= MODE_HTTP_FALLBACK_SECONDS):
+            fallback_done = True
+            accepted = await _async_http_mode_fallback(hass, entry, parameter, option)
+            http_sent = accepted is not None
+            if accepted:
+                next_poll = time.monotonic()  # relire tout de suite la valeur publiée
         if parameter is not None and time.monotonic() >= next_poll:
             await async_poll_parameters(hass, (parameter,))
             next_poll = time.monotonic() + 6.0
         await asyncio.sleep(0.5)
-    return confirmed()
+    if not confirmed():
+        _LOGGER.error("BSB %s : « %s » non confirmé après %.0f s (MQTT%s)",
+                      parameter, option, timeout, " puis HTTP" if http_sent else " seul")
+        return False
+    return True
 
 
 async def async_set_numeric_entity(hass: HomeAssistant, entity_id: str, value: float) -> None:
