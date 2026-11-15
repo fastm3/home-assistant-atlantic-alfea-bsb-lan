@@ -1,0 +1,8 @@
+This is a photorealistic architectural cutaway visualization of a heat pump installation. Edit ONLY the masked area (the lower cabinet of the indoor unit, which contains the domestic hot water tank).
+
+This installation has NO domestic hot water tank. Remove the whole lower cabinet with the stainless steel tank and its copper coil. The hydraulic module above it stays exactly where it is: it becomes a wall-mounted unit, closed at the bottom by a clean white bottom panel with a subtle shadow on the wall below it.
+- Behind and below, show the same plain light grey plastered wall as the rest of the room, and the same light beige floor tiles with the same tile grid, perspective and lighting as the surrounding floor.
+- The purple refrigerant pipe on the left (outside the masked area) is unchanged. The cyan refrigerant pipe that comes from the wall at the bottom left now runs straight up, vertically, right next to the purple pipe on its right side, and enters the bottom panel of the hydraulic module.
+- Same camera, perspective, night-time lighting (warm interior lights, dark outside) and photographic style as the rest of the image. No text, no logos, no labels.
+
+Do not change anything outside the masked area.

@@ -60,6 +60,23 @@ Les décors `*_double` sont fabriqués sans tout régénérer (`double/`) :
 
 Repères : `FANS_DOUBLE`, `LOGO_DOUBLE_SHIFT`, `EXT_DOUBLE_POS` dans `card_template.js`.
 
+## Variantes d'installation (sans ECS, radiateurs seuls, plancher seul)
+
+La carte pose des « rustines » détourées par-dessus le fond (`variantes/`) :
+
+1. deux éditions masquées du modèle d'image, sur les fonds jour et nuit
+   (`mask_ecs.png` + `prompt_ecs*.txt` : bas de l'unité intérieure sans ballon, module
+   devenu mural ; `mask_plancher.png` + `prompt_plancher*.txt` : sol fini à la place de la
+   coupe du plancher chauffant) ;
+2. `build_patches.py` fabrique pour chacun des 8 décors `patch_sans_ecs`,
+   `patch_sans_plancher` et `patch_sans_radiateur` : tons des éditions IA ajustés au décor,
+   radiateur et tuyaux effacés sur le mur (lumière par interpolation harmonique depuis le
+   pourtour, grain d'un carré de mur propre), collecteur recopié par décalage horizontal ;
+3. `build_frigo_layer.py` produit `calque_frigo_sans_ecs` (tuyaux frigo redessinés).
+
+Repères : `PATCHES` et `FLOWS_SANS_ECS` dans `card_template.js`. Les rustines sont les
+mêmes en groupe simple ou double (intérieur identique).
+
 ## Repères dans l'image (pixels, 2048×1152)
 
 Définis dans `card_template.js` : `RADIATOR` (radiateur, effet de chaleur),

@@ -1,0 +1,9 @@
+This is a photorealistic architectural cutaway visualization of a house heating installation. Edit ONLY the masked area.
+
+This room has NO underfloor heating:
+- Remove the cutaway underfloor heating section (the blue insulation panels with red and blue spiral pipes, and the stepped cut edges around it). Replace it with a normal finished floor: the same light beige floor tiles as the rest of the room, continuing exactly the tile grid, the perspective and the lighting of the surrounding floor.
+- At the front, continue the same smooth concrete slab front edge and steps as on the left part of the image, with the same layers and colors.
+- Remove the brass manifold and its four small vertical pipes standing against the back wall: show the plain light grey plastered wall and the same skirting/floor junction as elsewhere along the wall. No pipes there.
+- Same camera, perspective, daylight and photographic style as the rest of the image. No text, no logos, no labels.
+
+Do not change anything outside the masked area.

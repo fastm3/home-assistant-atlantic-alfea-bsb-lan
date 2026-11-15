@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.2.3";
+const VERSION = "2.3.0";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -16,6 +16,7 @@ const DEVICE_MATCH = {  // clé : [domaine, suffixe de l'entity_id] parmi les en
   ecs_temp: ["sensor", "_ecs_t_ballon"], ecs_confort: ["sensor", "_ecs_t_confort"], ecs_heater: ["water_heater", "_eau_chaude_sanitaire"],
   ecs_pump: ["binary_sensor", "_ecs_pompe"], ecs_appoint: ["binary_sensor", "_ecs_appoint_electrique"], ecs_etat: ["sensor", "_ecs_etat"],
   ecs_cop: ["sensor", "_ecs_cop_session"], ecs_energie: ["sensor", "_ecs_energie_consommee"],
+  install_cfg: ["sensor", "_installation_configuration"],
 };
 // départs circuit : paramètres BSB 8743 / 8773, cherchés dans toute l'installation (appareil BSB-LAN générique)
 const GLOBAL_MATCH = {
@@ -61,6 +62,36 @@ const PANEL_HISTORY = {
   ecs_heater: ["ECS · Ballon", ["ecs_temp", "ecs_confort", "ecs_heater", "ecs_pump", "ecs_appoint", "ecs_etat", "ecs_energie"]],
 };
 const HIST_HOURS = [6, 24, 48, 168];
+// variantes d'installation : rustines posées sur le fond, par décor (x, y, largeur, hauteur en pixels image)
+const PATCHES = { sans_radiateur: [930, 254, 962, 525], sans_plancher: [1051, 292, 997, 860], sans_ecs: [844, 504, 234, 380] };
+// sans ECS : tuyaux frigo redessinés, montant côte à côte jusqu'au module
+const FLOWS_SANS_ECS = {
+  frigo_gaz: "M560,822 L727,822 M846,781 L891,781 L891,526",
+  frigo_liquide: "M915,526 L915,803 L847,803 M728,855 L560,855",
+};
+const EMITTER_LABEL = { radiateur: "radiateurs", plancher: "plancher chauffant", aucun: "aucun" };
+// configuration effective : réglage de la carte, sinon détection de l'intégration (« Installation -
+// Configuration »), sinon présence des entités. Une zone du dessin (radiateur, plancher) suit le
+// circuit qui a ce type d'émetteur ; deux circuits du même type : répartition par défaut (C1, C2).
+function layoutFor(c, hass, e) {
+  const st = (k) => (e && e[k] && hass && hass.states && hass.states[e[k]]) || null;
+  const a = (st("install_cfg") || {}).attributes || {};
+  const known = !!(hass && hass.states);
+  const det = {
+    ecs: a.ecs_presente === true || a.ecs_presente === false ? a.ecs_presente : !known || ["ecs_heater", "ecs_temp", "ecs_pump", "ecs_appoint", "ecs_etat"].some(st),
+    c1: a.circuit_1_present === false ? "aucun" : a.circuit_1_emetteur || (!known || st("c1_climate") ? "radiateur" : "aucun"),
+    c2: a.circuit_2_present === false ? "aucun" : a.circuit_2_emetteur || (!known || st("c2_climate") ? "plancher" : "aucun"),
+    source: st("install_cfg") && a.lu_le ? "intégration" : "entités",
+  };
+  const ecs = c.ecs === "oui" ? true : c.ecs === "non" ? false : det.ecs;
+  const em = (n) => { const v = c[`circuit_${n}_emitter`]; return v && v !== "auto" ? v : det[`c${n}`]; };
+  const e1 = em(1), e2 = em(2);
+  let rad = e1 === "radiateur" ? "c1" : e2 === "radiateur" ? "c2" : null;
+  let floor = e2 === "plancher" ? "c2" : e1 === "plancher" ? "c1" : null;
+  const same = e1 === e2 && e1 !== "aucun";
+  if (same) { rad = "c1"; floor = "c2"; }
+  return { ecs, rad, floor, e1, e2, det, same };
+}
 const LAYERS = ["frigo", "ventilateur", "module", "c1", "c1_radiateur", "c2", "ecs_serpentin", "ecs_resistance"];
 const RADIATOR = [1607, 599, 1852, 734]; // x0,y0,x1,y1 pixels image
 const TANK = [920, 546, 1020, 792];   // intérieur de la cuve ECS x0,y0,x1,y1 (pixels image)
@@ -111,7 +142,7 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 // ---------- éditeur visuel ----------
 const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", circuit_1_name: "", circuit_2_name: "",
   image_path: "/alfea-synoptique/pac_synoptique/", image_set: "auto", debug: false,
-  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple", panel_click: "history", history_hours: "24",
+  weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple", ecs: "auto", circuit_1_emitter: "auto", circuit_2_emitter: "auto", panel_click: "history", history_hours: "24",
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
@@ -122,6 +153,7 @@ const EDITOR_SCHEMA = [
   { type: "grid", name: "", schema: [{ name: "circuit_1_name", selector: { text: {} } }, { name: "circuit_2_name", selector: { text: {} } }] },
   { name: "image_set", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique (soleil)" }, { value: "jour", label: "Jour" }, { value: "nuit", label: "Nuit" }] } } },
   { name: "outdoor_unit", selector: { select: { mode: "dropdown", options: [{ value: "simple", label: "Simple (1 ventilateur)" }, { value: "double", label: "Double (2 blocs, 2 ventilateurs)" }] } } },
+  { type: "expandable", name: "", flatten: true, title: "Installation", icon: "mdi:home-thermometer-outline", schema: [] },
   { type: "expandable", name: "", flatten: true, title: "Logo du groupe extérieur", icon: "mdi:image-outline", schema: [] },
   { type: "expandable", name: "", flatten: true, title: "Météo", icon: "mdi:weather-partly-snowy-rainy", schema: [
       { name: "weather_entity", selector: { entity: { domain: "weather" } } },
@@ -146,6 +178,7 @@ const LABELS = {
   energy_entity: "Énergie électrique PAC (kWh ; vide = compteur des options de l'intégration)",
   title: "Titre", subtitle: "Sous-titre", circuit_1_name: "Nom du circuit 1 (vide = nom défini dans l'intégration)", circuit_2_name: "Nom du circuit 2 (vide = nom défini dans l'intégration)",
   outdoor_unit: "Groupe extérieur",
+  ecs: "Eau chaude sanitaire (ballon)", circuit_1_emitter: "Circuit 1 : émetteurs", circuit_2_emitter: "Circuit 2 : émetteurs",
   logo: "Logo affiché",
   logo_url: "URL de l'image (ex. /local/pac_logos/mon_logo.svg ; un fond blanc disparaît)",
   logos: "Logos proposés dans le menu",
@@ -212,7 +245,20 @@ class PacSynoptiquePhotoCardEditor extends HTMLElement {
         url: { label: "URL de l'image (ex. /local/pac_logos/logo.svg)", required: true, selector: { text: {} } },
         x: num("Position x (pixels de l'image, facultatif)"), y: num("Position y (facultatif)"), largeur: num("Largeur (facultatif)") } } } },
     ];
-    this._form.schema = EDITOR_SCHEMA.map((s) => s.title === "Logo du groupe extérieur" ? { ...s, schema: logoSection } : s);
+    // installation : « Automatique » affiche ce que l'intégration (ou les entités) a détecté
+    const L = layoutFor({}, this._hass, resolveEntities(this._hass, this._config));
+    const src = L.det.source === "intégration" ? "détecté" : "déduit des entités";
+    const emOpts = (n) => [{ value: "auto", label: `Automatique (${src} : ${EMITTER_LABEL[L.det[`c${n}`]]})` },
+      { value: "radiateur", label: "Radiateurs" }, { value: "plancher", label: "Plancher chauffant" }, { value: "aucun", label: "Aucun (circuit absent)" }];
+    const instSection = [
+      { name: "ecs", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: `Automatique (${src} : ${L.det.ecs ? "avec ballon" : "sans ballon"})` },
+        { value: "oui", label: "Avec ballon" }, { value: "non", label: "Sans ballon" }] } } },
+      { type: "grid", name: "", schema: [
+        { name: "circuit_1_emitter", selector: { select: { mode: "dropdown", options: emOpts(1) } } },
+        { name: "circuit_2_emitter", selector: { select: { mode: "dropdown", options: emOpts(2) } } }] },
+    ];
+    this._form.schema = EDITOR_SCHEMA.map((s) => s.title === "Logo du groupe extérieur" ? { ...s, schema: logoSection }
+      : s.title === "Installation" ? { ...s, schema: instSection } : s);
     this._form.data = { ...DEFAULTS, ...this._config, logo, history_hours: String(this._config.history_hours || DEFAULTS.history_hours),
       logos: all.map((l) => ({ name: l.name || "", url: l.url || "", ...(Array.isArray(l.box) && l.box.length === 3 ? { x: l.box[0], y: l.box[1], largeur: l.box[2] } : {}) })) };
   }
@@ -225,6 +271,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   setConfig(config) {
     this._config = { ...DEFAULTS, ...config };
     this._e = resolveEntities(this._hass, this._config);
+    this._L = layoutFor(this._config, this._hass, this._e);
     this._built = false;
     if (this._hass) { this._build(); this._update(); }
   }
@@ -235,8 +282,9 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const first = !this._hass;
     this._hass = hass;
     if (first || this._entReg !== hass.entities) { this._entReg = hass.entities; this._e = resolveEntities(hass, this._config); }
-    const names = this._cname(1) + "|" + this._cname(2);
-    if (this._built && names !== this._namesSig) this._built = false;  // un nom a change dans l'integration
+    this._L = layoutFor(this._config, hass, this._e);
+    const names = this._cname(1) + "|" + this._cname(2) + "|" + [this._L.ecs, this._L.rad, this._L.floor].join(",");
+    if (this._built && names !== this._namesSig) this._built = false;  // un nom ou la configuration a changé
     if (!this._built) { this._namesSig = names; this._build(); }
     this._update();
   }
@@ -322,10 +370,20 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const set = this._imgSet(), dbl = this._config.outdoor_unit === "double";
     let dir = name === "base" && variant ? `${set}_${variant}` : set;
     if (dbl && name === "base") dir += "_double";
-    const file = dbl && name === "calque_ventilateur" ? "calque_ventilateur_double" : name;
+    let file = dbl && name === "calque_ventilateur" ? "calque_ventilateur_double" : name;
+    if (name === "calque_frigo" && this._L && !this._L.ecs) file = "calque_frigo_sans_ecs";
     return `${this._config.image_path}${dir}/${file}.webp?v=${VERSION}`;
   }
   _fans() { return this._config.outdoor_unit === "double" ? FANS_DOUBLE : [FAN]; }
+  // rustines de l'installation (intérieur : même image en groupe simple ou double)
+  _patch(name, variant) {
+    const set = this._imgSet(), dir = variant ? `${set}_${variant}` : set;
+    return `${this._config.image_path}${dir}/patch_${name}.webp?v=${VERSION}`;
+  }
+  _patchOn(name) {
+    const L = this._L || {};
+    return name === "sans_radiateur" ? !L.rad : name === "sans_plancher" ? !L.floor : name === "sans_ecs" ? L.ecs === false : false;
+  }
   // fond + calques selon jour/nuit et météo, sans reconstruire la carte
   _applyImages(wx) {
     const sig = this._imgSet() + "|" + (wx.variant || "");
@@ -335,6 +393,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const bi = r.getElementById("baseImg"); if (bi) bi.src = base;
     const hz = r.getElementById("hazeImg"); if (hz) hz.setAttribute("href", base);
     r.querySelectorAll("img.layer").forEach((el) => { el.src = this._img("calque_" + el.dataset.layer); });
+    r.querySelectorAll("img.patch").forEach((el) => { el.src = this._patch(el.dataset.patch, wx.variant); });
   }
   // effets animés limités au paysage (pluie, neige, brume, orage, vent)
   _applyWxFx(wx) {
@@ -392,10 +451,11 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   _build() {
     if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
     const c = this._config, wx0 = this._wx();
+    const L = this._L || layoutFor(c, this._hass, this._e), cn = (z) => (z === "c2" ? 2 : 1);
     this._imgSig = this._fxSig = null;
     const root = this.shadowRoot || this.attachShadow({ mode: "open" });
     const flows = Object.entries(FLOWS.flows).map(([k, f]) =>
-      `<path class="flow" data-layer="${f.layer}" data-flow="${k}" d="${f.d}" style="--c:${f.color}"/>`).join("");
+      `<path class="flow" data-layer="${f.layer}" data-flow="${k}" d="${(this._L && !this._L.ecs && FLOWS_SANS_ECS[k]) || f.d}" style="--c:${f.color}"/>`).join("");
     // effet chaleur au-dessus du radiateur C1 : air qui ondule (distorsion) + voile chaud + effluves
     // qui montent ; intensité selon la température de départ (--hk, réglée dans _update)
     const [rx0, ry0, rx1, ry1] = RADIATOR, hz = 330, rw = rx1 - rx0, HR = rng(31);
@@ -574,6 +634,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .dbg button.on { background:#2d6a4f; }
   .dbg label { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--mut); }
   .pic img.logo { inset:auto; height:auto; mix-blend-mode:multiply; opacity:.92; }
+  .pic img.patch { inset:auto; }
   /* circulateurs du module : anneau + roue qui tourne */
   .pump { opacity:0; transition:opacity 1s ease; } .pump.on { opacity:1; }
   .pring { fill:none; stroke:#5fd0ff; stroke-width:3; filter:drop-shadow(0 0 4px #5fd0ff); }
@@ -628,11 +689,13 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   <div class="stage">
    <div class="pic">
     <img id="baseImg" src="${this._img("base", wx0.variant)}" alt="">
+    ${Object.entries(PATCHES).filter(([n]) => this._patchOn(n)).map(([n, [px, py, pw, ph]]) =>
+      `<img class="patch" data-patch="${n}" alt="" src="${this._patch(n, wx0.variant)}" style="left:${(px / FLOWS.width * 100).toFixed(3)}%;top:${(py / FLOWS.height * 100).toFixed(3)}%;width:${(pw / FLOWS.width * 100).toFixed(3)}%;height:${(ph / FLOWS.height * 100).toFixed(3)}%">`).join("")}
     ${LAYERS.map((l) => `<img class="layer ${l}" data-layer="${l}" src="${this._img("calque_" + l)}" alt="">`).join("")}
     <svg class="fx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${fan}${heat}${flows}</svg>
     ${logoFor(c) ? (() => { const lg = logoFor(c), [lx, ly, lw] = lg.box;  // image HTML : haut calé, hauteur selon le format du logo
       return `<img class="logo" alt="" src="${String(lg.url).replace(/"/g, "&quot;")}" style="left:${(lx / FLOWS.width * 100).toFixed(3)}%;top:${(ly / FLOWS.height * 100).toFixed(3)}%;width:${(lw / FLOWS.width * 100).toFixed(3)}%">`; })() : ""}
-    <svg class="fx tankfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${tank}</svg>
+    ${L.ecs ? `<svg class="fx tankfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${tank}</svg>` : ""}
     <svg class="fx wxfx" id="wxfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none"></svg>
     <div class="wx" id="wx" hidden><ha-icon id="wx_i"></ha-icon><div><b id="wx_t"></b><span id="wx_l"></span><small id="wx_d"></small></div></div>
    </div>
@@ -651,17 +714,17 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       <div class="row"><span class="k">Puissance élec.</span><span class="v" id="x_pw"></span></div>
       <div class="row"><span class="k">Énergie</span><span class="v" id="x_en"></span></div>
       <div class="chips" id="x_chips"></div></div>
-    <div class="card" id="k_c1" data-more="c1_climate" style="--x:${P_.c1[0]}%;--y:${P_.c1[1]}%;--w:${P_.c1[2]}%;--accent:#ff5a2a">
-      <h3><i></i>Circuit 1 · <span>${this._cname(1)}</span></h3>
+    <div class="card" id="k_c1" data-more="${L.rad || "c1"}_climate" style="--x:${P_.c1[0]}%;--y:${P_.c1[1]}%;--w:${P_.c1[2]}%;--accent:#ff5a2a${L.rad ? "" : ";display:none"}">
+      <h3><i></i>Circuit ${cn(L.rad)} · <span>${this._cname(cn(L.rad))}</span></h3>
       <div class="pair"><div><small>Ambiance</small><b id="c1_t"></b></div><div><small>Consigne</small><b id="c1_c"></b></div></div>
       <div class="row" id="c1_fr"><span class="k" id="c1_fk">Départ circuit</span><span class="v h" id="c1_f"></span></div>
       <div class="chips" id="c1_chips"></div></div>
-    <div class="card" id="k_c2" data-more="c2_climate" style="--x:${P_.c2[0]}%;--y:${P_.c2[1]}%;--w:${P_.c2[2]}%;--accent:#ff5a2a">
-      <h3><i></i>Circuit 2 · <span>${this._cname(2)}</span></h3>
+    <div class="card" id="k_c2" data-more="${L.floor || "c2"}_climate" style="--x:${P_.c2[0]}%;--y:${P_.c2[1]}%;--w:${P_.c2[2]}%;--accent:#ff5a2a${L.floor ? "" : ";display:none"}">
+      <h3><i></i>Circuit ${cn(L.floor || "c2")} · <span>${this._cname(cn(L.floor || "c2"))}</span></h3>
       <div class="pair"><div><small>Ambiance</small><b id="c2_t"></b></div><div><small>Consigne</small><b id="c2_c"></b></div></div>
-      <div class="row" id="c2_fr"><span class="k">Départ circuit</span><span class="v h" id="c2_f"></span></div>
+      <div class="row" id="c2_fr"><span class="k" id="c2_fk">Départ circuit</span><span class="v h" id="c2_f"></span></div>
       <div class="chips" id="c2_chips"></div></div>
-    <div class="card" id="k_ecs" data-more="ecs_heater" style="--x:${P_.ecs[0]}%;--y:${P_.ecs[1]}%;--w:${P_.ecs[2]}%;--accent:#ffb347">
+    <div class="card" id="k_ecs" data-more="ecs_heater" style="--x:${P_.ecs[0]}%;--y:${P_.ecs[1]}%;--w:${P_.ecs[2]}%;--accent:#ffb347${L.ecs ? "" : ";display:none"}">
       <h3><i></i>ECS · Ballon</h3>
       <div class="big" id="e_t"></div>
       <div class="row"><span class="k">Confort</span><span class="v" id="e_conf"></span></div>
@@ -790,13 +853,23 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       pompe_primaire: this._on("c1_pump"), pompe_c2: this._on("c2_pump"),
       ecs_serpentin: ecsMode, ecs_resistance: this._on("ecs_appoint"),
     };
+    // zones du dessin : le radiateur suit le circuit « radiateurs », le plancher le circuit « plancher »
+    const L = this._L;
+    const act = { c1: c1Active || c1Overrun, c2: this._on("c2_pump") }, heat = { c1: c1Active, c2: this._on("c2_pump") };
+    st.c1 = L.rad ? act[L.rad] : false; st.c1_radiateur = L.rad ? heat[L.rad] : false;
+    st.c2 = L.floor ? act[L.floor] : false;
     for (const k of LAYERS) if (f[k]) st[k] = true;
     if (f.c1) st.c1_radiateur = true;
+    // éléments absents de l'installation : jamais allumés (même forcés en debug)
+    if (!L.rad) st.c1 = st.c1_radiateur = false;
+    if (!L.floor) st.c2 = false;
+    if (!L.ecs) st.ecs_serpentin = st.ecs_resistance = false;
+    if (L.e2 === "aucun") st.pompe_c2 = false;
     st.ecs_eau = st.ecs_serpentin || st.ecs_resistance;  // l'eau chauffe par le serpentin (PAC) ou par l'appoint
     const tB = parseFloat(this._v("ecs_temp"));
     r.querySelector(".water")?.style.setProperty("--wheat", isNaN(tB) ? ".85" : Math.max(0.45, Math.min(1, (tB - 20) / 35)).toFixed(2));
     r.querySelectorAll("[data-layer]").forEach((el) => el.classList.toggle("on", !!st[el.dataset.layer]));
-    let tDep = parseFloat(this._v("c1_flow")); if (isNaN(tDep)) tDep = parseFloat(this._v("depart"));
+    let tDep = parseFloat(this._v(`${L.rad || "c1"}_flow`)); if (isNaN(tDep)) tDep = parseFloat(this._v("depart"));
     let hk = isNaN(tDep) ? 0.7 : Math.max(0.3, Math.min(1, (tDep - 25) / 22));  // 30 °C discret -> 47 °C plein
     if (f.c1 || f.c1_radiateur) hk = Math.max(hk, 0.85);  // forçage debug : visible même PAC arrêtée (départ froid)
     r.querySelector(".heat")?.style.setProperty("--hk", hk.toFixed(2));
@@ -838,15 +911,16 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     $("x_chips").innerHTML = `<span class="chip ${/chauff/i.test(this._v("mode") || "") ? "hot" : ""}">${this._v("mode") || "—"}</span><span class="chip">${this._v("pac_etat") || "—"}</span>${prim}`;
     $("x_pw").textContent = isNaN(pw) ? "—" : `${Math.round(pw).toLocaleString("fr-FR")} W`;
     $("x_en").textContent = this._num("energy", 1, this._s("energy")?.attributes?.unit_of_measurement || "kWh");
-    for (const n of ["c1", "c2"]) {
-      $(`${n}_t`).textContent = this._attr(`${n}_climate`, "current_temperature");
-      $(`${n}_c`).textContent = this._attr(`${n}_climate`, "temperature");
+    for (const [z, n] of [["c1", L.rad], ["c2", L.floor]]) {   // z : panneau (zone du dessin), n : circuit
+      if (!n) continue;
+      $(`${z}_t`).textContent = this._attr(`${n}_climate`, "current_temperature");
+      $(`${z}_c`).textContent = this._attr(`${n}_climate`, "temperature");
       const fl = parseFloat(this._v(`${n}_flow`));
       // C1 = circuit direct sans sonde propre : sans valeur 8743, son départ est celui de la PAC
       const direct = n === "c1" && isNaN(fl) && !isNaN(parseFloat(this._v("depart")));
-      $(`${n}_fr`).style.display = isNaN(fl) && !direct ? "none" : "";
-      $(`${n}_f`).textContent = direct ? this._num("depart") : this._num(`${n}_flow`);
-      if (n === "c1") $("c1_fk").textContent = direct ? "Départ (= départ PAC)" : "Départ circuit";
+      $(`${z}_fr`).style.display = isNaN(fl) && !direct ? "none" : "";
+      $(`${z}_f`).textContent = direct ? this._num("depart") : this._num(`${n}_flow`);
+      $(`${z}_fk`).textContent = direct ? "Départ (= départ PAC)" : "Départ circuit";
       const cl = this._v(`${n}_climate`);
       const pumpRaw = this._on(`${n}_pump`), pumpActive = n === "c1" ? c1Active : pumpRaw;
       const pumpChip = pumpRaw && !ecsMode && overrun(n) && !(n === "c1" && c1Active)
@@ -854,7 +928,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
         : pumpActive ? `<span class="chip on">Circulateur en marche</span>`
         : pumpRaw ? `<span class="chip" title="Pompe primaire active mais circuit ${ecsMode ? "court-circuité par la charge ECS" : "à l'arrêt"}">Pompe primaire${ecsMode ? " (charge ECS)" : ""}</span>`
         : `<span class="chip">Circulateur arrêté</span>`;
-      $(`${n}_chips`).innerHTML = `<span class="chip ${cl === "heat" ? "hot" : ""}">${cl === "heat" ? "Chauffe" : cl === "off" ? "OFF" : (cl || "—")}</span>` +
+      $(`${z}_chips`).innerHTML = `<span class="chip ${cl === "heat" ? "hot" : ""}">${cl === "heat" ? "Chauffe" : cl === "off" ? "OFF" : (cl || "—")}</span>` +
         `<span class="chip">${this._v(`${n}_etat`) || "—"}</span>` +
         (n === "c1" ? "" : pumpChip);  // C1 : la pompe primaire (QX1) est affichée dans le panneau PAC, l'état du circuit suffit ici
     }
