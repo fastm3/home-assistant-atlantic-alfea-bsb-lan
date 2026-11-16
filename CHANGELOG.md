@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.6 — Puissance et énergie masquées sans compteur
+
+### Carte PAC Synoptique photo
+
+- Panneau « PAC · Échangeurs » : les lignes **Puissance élec.** et **Énergie du jour** sont
+  masquées quand aucun compteur n'est défini (ni dans la carte, ni dans les options de
+  l'intégration), au lieu d'afficher « — ».
+- Manifest **2.5.6**. Redémarrage de Home Assistant nécessaire.
+
 ## 2.5.5 — Pas des consignes réglable
 
 ### Carte PAC Synoptique photo

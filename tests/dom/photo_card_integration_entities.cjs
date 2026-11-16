@@ -29,5 +29,8 @@ show({ weather_entity: "weather.autre", power_entity: "sensor.autre_w" }, { enti
 ok(card._e.weather === "weather.autre" && card._e.power === "sensor.autre_w", "réglage de la carte prioritaire");
 show({}, {});
 ok(!card._e.weather && !card._e.power, "rien dans l'intégration ni la carte : pas de météo ni de puissance");
+ok(card.shadowRoot.querySelector("#x_pwr").style.display === "none" && card.shadowRoot.querySelector("#x_enr").style.display === "none", "sans compteur : lignes Puissance / Énergie masquées");
+show({}, { entite_puissance: "sensor.pac_w", entite_energie: "sensor.pac_kwh" });
+ok(card.shadowRoot.querySelector("#x_pwr").style.display === "" && card.shadowRoot.querySelector("#x_enr").style.display === "", "avec compteur : lignes affichées");
 console.log("\nEntités de l'intégration OK.");
 process.exit(0);

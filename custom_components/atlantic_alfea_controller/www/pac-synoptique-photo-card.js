@@ -2567,7 +2567,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.5.5";
+const VERSION = "2.5.6";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -3338,8 +3338,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
       <div class="pair"><div><small>Départ</small><b class="h" id="x_dep"></b></div><div><small>Retour</small><b class="c" id="x_ret"></b></div></div>
       <div class="row"><span class="k">Consigne départ</span><span class="v" id="x_cons"></span></div>
       <div class="row"><span class="k">ΔT</span><span class="v" id="x_dt"></span></div>
-      <div class="row"><span class="k">Puissance élec.</span><span class="v" id="x_pw"></span></div>
-      <div class="row"><span class="k" id="x_enk">Énergie du jour</span><span class="v" id="x_en"></span></div>
+      <div class="row" id="x_pwr"><span class="k">Puissance élec.</span><span class="v" id="x_pw"></span></div>
+      <div class="row" id="x_enr"><span class="k" id="x_enk">Énergie du jour</span><span class="v" id="x_en"></span></div>
       <div class="chips" id="x_chips"></div></div>
     <div class="card" id="k_c1" data-more="${L.rad || "c1"}_climate" style="--x:${P_.c1[0]}%;--y:${P_.c1[1]}%;--w:${P_.c1[2]}%;--accent:#ff5a2a${L.rad ? "" : ";display:none"}">
       <h3><i></i>Circuit ${cn(L.rad)} · <span>${this._cname(cn(L.rad))}</span></h3>
@@ -3539,6 +3539,9 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const prim = this._v("c1_pump") === undefined ? "" : `<span class="chip ${this._on("c1_pump") ? "on" : ""}" title="Relais QX1 : circuit direct C1 ou charge ECS selon la V3V">Pompe primaire ${this._on("c1_pump") ? "ON" : "OFF"}${this._on("c1_pump") ? (ecsMode ? " · ECS" : OVERRUN.test(this._v("pac_etat") || "") || c1Overrun ? " · post-circulation" : " · chauffage") : ""}</span>`;
     $("x_chips").innerHTML = `<span class="chip ${/chauff/i.test(this._v("mode") || "") ? "hot" : ""}">${this._v("mode") || "—"}</span><span class="chip">${this._v("pac_etat") || "—"}</span>${prim}`;
     $("x_pw").textContent = isNaN(pw) ? "—" : `${Math.round(pw).toLocaleString("fr-FR")} W`;
+    // sans compteur (carte ou options de l'intégration) : lignes masquées plutôt que « — »
+    $("x_pwr").style.display = this._e.power ? "" : "none";
+    $("x_enr").style.display = this._e.energy ? "" : "none";
     this._energyToday();
     for (const [z, n] of [["c1", L.rad], ["c2", L.floor]]) {   // z : panneau (zone du dessin), n : circuit
       if (!n) continue;
