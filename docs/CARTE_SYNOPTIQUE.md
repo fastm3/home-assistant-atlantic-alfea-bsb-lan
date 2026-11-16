@@ -112,7 +112,7 @@ radiateurs), sinon départ maximal (741 / 1041 : ≤ 40 °C plancher). La raison
 dans les attributs du capteur.
 
 La détection se corrige **dans les options de l'intégration** (Installation — ballon d'eau
-chaude, Installation — émetteurs des circuits) : le capteur publie alors la configuration
+chaude, Installation — émetteurs des circuits, Installation — rafraîchissement) : le capteur publie alors la configuration
 effective, avec la source de chaque valeur, et toutes les cartes la suivent. Seules les
 configurations que le dessin sait représenter sont proposées : C1 radiateurs + C2 plancher,
 C1 plancher + C2 radiateurs, ou un seul circuit (radiateurs ou plancher). Deux circuits du

@@ -171,6 +171,7 @@ def log_report(hass: HomeAssistant, entry: ConfigEntry, json_polled: set[int]) -
     used = mapped_parameters(entry)
     if config is None:
         return {"lu": False, "liste_recommandee": list(RECOMMENDED_LOG),
+                "liste_a_copier": ",".join(map(str, RECOMMENDED_LOG)),
                 "intervalle_recommande_s": RECOMMENDED_LOG_INTERVAL}
     planned = planned_parameters(hass, entry, json_polled)
     fast_needed = [p for p in RECOMMENDED_LOG if p in used]
@@ -193,6 +194,8 @@ def log_report(hass: HomeAssistant, entry: ConfigEntry, json_polled: set[int]) -
         "journalises_inutiles": sorted(p for p in config.parameters if p not in POLL_TARGETS),
         "recommandes_manquants": [p for p in fast_needed if p not in config.parameters],
         "liste_recommandee": fast_needed,
+        # sans espace : BSB-LAN refuse la liste si elle en contient
+        "liste_a_copier": ",".join(map(str, fast_needed)),
         "intervalle_recommande_s": RECOMMENDED_LOG_INTERVAL,
     }
 

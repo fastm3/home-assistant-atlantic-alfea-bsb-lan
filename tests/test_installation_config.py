@@ -69,6 +69,37 @@ class InstallationConfigTest(unittest.TestCase):
         layout = ic.parse_installation(answer(p5715=0))
         self.assertEqual(list(layout["loi_d_eau"]), ["1"])
 
+    def test_cooling_detected_per_circuit(self):
+        layout = ic.effective_layout(ic.parse_installation(answer()), {})   # 5711 = 0, 5716 = 2
+        self.assertFalse(layout["circuit_1_rafraichissement"])
+        self.assertTrue(layout["circuit_2_rafraichissement"])
+        self.assertEqual(layout["circuit_2_rafraichissement_source"], "détection")
+        self.assertEqual(ic.cooling_circuits(layout), {2})
+        self.assertEqual(layout["rafraichissement"], [2])
+
+    def test_cooling_setting_overrides_detection(self):
+        detected = ic.parse_installation(answer())
+        for choice, expected in (("aucun", set()), ("c1", {1}), ("c1_c2", {1, 2}), ("auto", {2})):
+            layout = ic.effective_layout(detected, {ic.OPT_COOLING: choice})
+            self.assertEqual(ic.cooling_circuits(layout), expected, choice)
+        layout = ic.effective_layout(detected, {ic.OPT_COOLING: "c1"})
+        self.assertEqual(layout["circuit_1_rafraichissement_source"], "réglage de l'intégration")
+        self.assertTrue(layout["circuit_2_rafraichissement_detecte"])
+
+    def test_no_cooling_on_absent_circuit(self):
+        detected = ic.parse_installation(answer(p5715=0))
+        self.assertEqual(ic.cooling_circuits(ic.effective_layout(detected, {})), set())
+        # forcé « C1 et C2 » mais C2 absent (émetteurs : C1 seul)
+        forced = {ic.OPT_COOLING: "c1_c2", ic.OPT_EMITTERS: "c1_radiateur"}
+        self.assertEqual(ic.cooling_circuits(ic.effective_layout(detected, forced)), {1})
+
+    def test_unknown_installation_allows_everything(self):
+        self.assertIsNone(ic.cooling_circuits(None))
+        self.assertIsNone(ic.cooling_circuits(ic.effective_layout(None, {})))
+        unreadable = answer()
+        del unreadable["5711"]                            # rafraîchissement C1 illisible
+        self.assertEqual(ic.cooling_circuits(ic.effective_layout(ic.parse_installation(unreadable), {})), {1, 2})
+
     def test_cooling_means_floor_even_with_high_tmax(self):
         self.assertEqual(ic.classify_emitter(2, 1.2, 55)[0], "plancher")
 

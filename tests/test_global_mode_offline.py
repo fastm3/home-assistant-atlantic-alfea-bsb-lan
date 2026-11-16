@@ -64,6 +64,7 @@ class Tests(unittest.TestCase):
 
         namespace = {
             "async_write_circuit_mode_confirmed": write_confirmed,
+            "cooling_allowed": lambda hass, entry: getattr(hass, "cooling", None),
             "MODE_CONFIRM_TIMEOUT_SECONDS": 30.0,
             "asyncio": SimpleNamespace(Lock=asyncio.Lock, sleep=fast_sleep),
             "HomeAssistantError": HomeAssistantError,
@@ -80,8 +81,9 @@ class Tests(unittest.TestCase):
         Fake.async_select_option = namespace["async_select_option"]
         namespace["async_select_option"] = write  # Keep the service mock separate from the entity method
 
-    def execute(self, initial, option, expected, fails=False, **kwargs):
+    def execute(self, initial, option, expected, fails=False, cooling=None, **kwargs):
         inst = Fake(initial, **kwargs)
+        inst.cooling = cooling
         if fails:
             with self.assertRaises(HomeAssistantError):
                 asyncio.run(inst.async_select_option(option))
@@ -92,6 +94,16 @@ class Tests(unittest.TestCase):
 
     def test_off_stops_only_active_circuit(self):
         self.execute(states(h1=True), "Off", [("heat_mode_c1", BSB_PROTECTION)])
+
+    def test_cooling_only_on_equipped_circuit(self):
+        self.execute(states(h1=True, h2=True), "Refroidissement", [
+            ("heat_mode_c1", BSB_PROTECTION), ("heat_mode_c2", BSB_PROTECTION),
+            ("cool_mode_c2", "1 - Automatique")], cooling={2})
+
+    def test_cooling_refused_without_any_cooling(self):
+        self.execute(states(h1=True), "Refroidissement", [], fails=True, cooling=set())
+        self.execute(states(), "Chauffage", [("heat_mode_c1", "1 - Automatique"), ("heat_mode_c2", "1 - Automatique")],
+                     cooling=set())
 
     def test_off_stops_both(self):
         self.execute(states(h1=True,h2=True), "Off", [

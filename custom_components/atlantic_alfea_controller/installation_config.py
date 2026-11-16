@@ -58,6 +58,16 @@ AUTO: Final = "auto"
 # réglages de l'intégration (options) : corrigent la détection, repris par toutes les cartes
 OPT_ECS: Final = "installation_ecs"              # auto / oui / non
 OPT_EMITTERS: Final = "installation_emetteurs"   # auto / une des configurations dessinables
+OPT_COOLING: Final = "installation_rafraichissement"  # auto / circuits équipés du rafraîchissement
+COOLING_CHOICES: Final[dict[str, frozenset[int]]] = {
+    "aucun": frozenset(), "c1": frozenset({1}), "c2": frozenset({2}), "c1_c2": frozenset({1, 2}),
+}
+COOLING_LABELS: Final[dict[str, str]] = {
+    "aucun": "Sans rafraîchissement",
+    "c1": "Rafraîchissement sur C1 seulement",
+    "c2": "Rafraîchissement sur C2 seulement",
+    "c1_c2": "Rafraîchissement sur C1 et C2",
+}
 # configurations que le synoptique sait dessiner (une zone radiateurs, une zone plancher)
 COMBOS: Final[dict[str, tuple[str, str]]] = {
     "c1_radiateur_c2_plancher": (RADIATOR, FLOOR),
@@ -219,6 +229,9 @@ def overrides(options) -> dict:
     combo = (options or {}).get(OPT_EMITTERS, AUTO)
     if combo in COMBOS:
         out[1], out[2] = COMBOS[combo]
+    cooling = (options or {}).get(OPT_COOLING, AUTO)
+    if cooling in COOLING_CHOICES:
+        out["froid"] = COOLING_CHOICES[cooling]
     return out
 
 
@@ -245,7 +258,71 @@ def effective_layout(detected: dict | None, options) -> dict | None:
         layout["ecs_source"] = "réglage de l'intégration"
     else:
         layout["ecs_source"] = "détection" if detected else "inconnue"
+    # rafraîchissement par circuit (5711 / 5716), corrigeable ; jamais sur un circuit absent
+    cooling = forced.get("froid")
+    for n in (1, 2):
+        key = f"circuit_{n}_rafraichissement"
+        layout[f"{key}_detecte"] = (detected or {}).get(key)
+        if cooling is not None:
+            layout[key] = n in cooling and layout.get(f"circuit_{n}_present") is not False
+            layout[f"{key}_source"] = "réglage de l'intégration"
+        else:
+            if layout.get(f"circuit_{n}_present") is False:
+                layout[key] = False
+            layout[f"{key}_source"] = "détection" if detected else "inconnue"
+    layout["rafraichissement"] = sorted(cooling_circuits(layout))
     return layout
+
+
+def cooling_circuits(layout: dict | None) -> set[int] | None:
+    """Circuits that may cool; None while the installation is unknown (everything allowed).
+
+    A circuit whose cooling could not be read stays allowed: only an explicit
+    « no cooling » (5711/5716 = 0, absent circuit or integration setting) removes it.
+    """
+    if not layout:
+        return None
+    return {n for n in (1, 2)
+            if layout.get(f"circuit_{n}_present") is not False
+            and layout.get(f"circuit_{n}_rafraichissement") is not False}
+
+
+def cooling_allowed(hass: HomeAssistant, entry: ConfigEntry) -> set[int] | None:
+    return cooling_circuits(installation_layout(hass, entry))
+
+
+COOLING_REFUSED: Final = (
+    "Pas de rafraîchissement sur le circuit {circuit} (paramètre {parameter} de la PAC ou "
+    "réglage « Installation — rafraîchissement » de l'intégration)."
+)
+
+
+@callback
+def async_sync_cooling_visibility(hass: HomeAssistant, entry: ConfigEntry, entity_id: str | None,
+                                  circuit: int) -> None:
+    """Hide (registry, hidden_by=integration) a cooling-only entity of a circuit without cooling.
+
+    Only entities hidden by the integration are shown again; a user choice is never changed.
+    Nothing is done while the installation is unknown.
+    """
+    allowed = cooling_allowed(hass, entry)
+    if allowed is None or not entity_id:
+        return
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    current = registry.async_get(entity_id)
+    if current is None:
+        return
+    hide = circuit not in allowed
+    if hide and current.hidden_by is None:
+        registry.async_update_entity(entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION)
+    elif not hide and current.hidden_by == er.RegistryEntryHider.INTEGRATION:
+        registry.async_update_entity(entity_id, hidden_by=None)
+
+
+def installation_signal(entry: ConfigEntry) -> str:
+    return f"{DOMAIN}_installation_{entry.entry_id}"
 
 
 def installation_layout(hass: HomeAssistant, entry: ConfigEntry, effective: bool = True) -> dict | None:

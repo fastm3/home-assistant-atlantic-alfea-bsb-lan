@@ -58,8 +58,7 @@ En résumé, dans BSB-LAN :
 - **Parameters** :
 
 ```text
-700,901,1000,1201,1600,8000,8001,8003,8006,8400,8410,8412,8413,8700,
-8740,8741,8743,8760,8770,8771,8773,8820,8821,8830,9031
+700,901,1000,1201,1600,8000,8001,8003,8006,8400,8410,8412,8413,8700,8740,8741,8743,8760,8770,8771,8773,8820,8821,8830,9031
 ```
 
 Avec ce réglage, l'intégration n'a plus rien à interroger chaque minute ;
@@ -117,6 +116,7 @@ les lit à leur propre rythme. De même pour la loi d'eau et la configuration
 | `recommandes_manquants` | paramètres « 1 min » absents du journal |
 | `journalises_inutiles` | paramètres journalisés que l'intégration n'utilise pas |
 | `liste_recommandee`, `intervalle_recommande_s` | réglage conseillé |
+| `liste_a_copier` | la même liste en texte sans espace, à coller telle quelle dans BSB-LAN (*Settings → Logging → Parameters*) |
 
 ## Sécurité
 

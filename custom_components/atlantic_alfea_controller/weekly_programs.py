@@ -64,6 +64,7 @@ def parse_timeprog(value: str) -> list[dict[str, str]]:
     return result
 
 
+NOT_INSTALLED = "Non installé"
 SCHEME_CONSECUTIVE = "consecutif"
 SCHEME_DECIMAL = "decimal"
 
@@ -163,6 +164,15 @@ class WeeklyProgramImporter:
             return base
         return parameter_for_day(key, base, index, await self._detect_scheme(client, key, base))
 
+    def _circuits_without_cooling(self) -> set[int]:
+        entry = self.hass.config_entries.async_get_entry(self.entry_id)
+        if entry is None:
+            return set()
+        from .installation_config import cooling_allowed
+
+        allowed = cooling_allowed(self.hass, entry)
+        return set() if allowed is None else {1, 2} - allowed
+
     def _record_error(self, key, snapshot, err, errors) -> None:
         """Record a failure; cooling schedules are optional on some PACs."""
         if key.startswith("rafraichissement_"):
@@ -183,9 +193,15 @@ class WeeklyProgramImporter:
         errors: dict[str, str] = {}
         async with self._lock:
             client = get_client(self.hass, self.base_url)
+            no_cooling = self._circuits_without_cooling()
             for key, (_name, _icon, base) in PROGRAMS.items():
                 snapshot = self.snapshots[key]
                 days: dict[str, list[dict[str, str]]] = {}
+                if key.startswith("rafraichissement_") and int(key[-1]) in no_cooling:
+                    # circuit sans rafraîchissement : rien à lire
+                    snapshot.status, snapshot.error, snapshot.days = NOT_INSTALLED, None, {}
+                    self._notify()
+                    continue
                 try:
                     for index, weekday in enumerate(WEEKDAYS):
                         parameter = await self._day_parameter(client, key, base, index)

@@ -118,7 +118,7 @@ L'ajout de l'intégration est guidé :
 2. **Équipement**, pré-rempli quand c'est possible : adresse HTTP de BSB-LAN (trouvée
    sur le réseau), entité météo, puissance et énergie de la ligne PAC (compteur proposé
    d'après son type et son nom). Tout reste modifiable plus tard dans les options.
-3. **Configuration de l'installation** : circuits, émetteurs et ballon lus dans la PAC,
+3. **Configuration de l'installation** : circuits, émetteurs, ballon et rafraîchissement lus dans la PAC,
    affichés pour confirmation ; « Automatique » si c'est juste, sinon choisir parmi les
    configurations que le synoptique sait dessiner.
 
@@ -135,6 +135,7 @@ ensuite la météo, la puissance et l'énergie choisies ici : il suffit de les a
 | **Nom du circuit 1 / 2** | Noms affichés des circuits (C1 = paramètres 7xx / programme 501, C2 = 10xx / 521). Exposés dans l'attribut `nom_circuit` des thermostats et des capteurs de programme, et repris par les cartes. Défaut : « Circuit 1 » / « Circuit 2 ». |
 | **Adresse BSB-LAN** | URL HTTP de BSB-LAN (`http://192.168.x.x`). Active les lectures JSON (`/JQ`), les régimes Auto/Éco/Confort, l'historique des défauts, l'import et l'écriture des programmes horaires. |
 | **Compteur d'énergie global** | Compteur électrique précis de la ligne PAC : répartition de l'énergie entre l'ECS et C1+C2, COP des charges ECS ; repris par la carte photo. Vide = capteurs d'énergie désactivés. |
+| **Installation — ECS, émetteurs, rafraîchissement** | « Automatique » : lus dans la PAC (5731, 5711/5716, 720/1020, 741/1041). À corriger si la détection se trompe ; le capteur « Installation - Configuration » indique la valeur retenue et sa source. Sur un circuit sans rafraîchissement, « Refroidissement » n'est plus proposé et les consignes et programme froid sont masqués. |
 | **Q3 = vanne 3 voies ECS confirmée** | À cocher si la sortie Q3 pilote la vanne de dérivation ECS (BSB 5731 = 2) : la position de la vanne est alors déduite de 8820. |
 | **Cycle court — seuil de secours** | Durée de marche du compresseur en dessous de laquelle un cycle est court ; le temps de marche minimum de la PAC (2842) est prioritaire. |
 | **Démarrages fréquents — seuil par heure** | Alarme au-delà de ce nombre de démarrages sur une heure glissante. |
@@ -153,8 +154,7 @@ Réglage recommandé (*Settings → Logging*) : **MQTT**, **60 s**, et ces
 25 paramètres :
 
 ```text
-700,901,1000,1201,1600,8000,8001,8003,8006,8400,8410,8412,8413,8700,
-8740,8741,8743,8760,8770,8771,8773,8820,8821,8830,9031
+700,901,1000,1201,1600,8000,8001,8003,8006,8400,8410,8412,8413,8700,8740,8741,8743,8760,8770,8771,8773,8820,8821,8830,9031
 ```
 
 Inutile d'y ajouter la loi d'eau (720…750, 1020…1050), la configuration de

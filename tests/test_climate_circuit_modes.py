@@ -38,6 +38,8 @@ class Circuit:
                        "h2":"0 - Mode protection","c1":"0 - Mode protection",
                        "c2":"0 - Mode protection", "select.global":"Chauffage" if global_mode == "Chauffage" else global_mode}
         self.writes = []
+    cooling = True
+    def _cooling_allowed(self): return self.cooling
     def _mode(self): return self.season
     def async_write_ha_state(self): pass
 
@@ -52,6 +54,7 @@ async def write_confirmed(hass, entry, eid, option):
 
 namespace = {
     "async_write_circuit_mode_confirmed": write_confirmed,
+    "COOLING_REFUSED": "Pas de rafraîchissement sur le circuit {circuit} ({parameter})",
     "HVACMode": HVAC, "HomeAssistantError": HAError,
     "MODE_HEAT": "heat", "MODE_COOL":"cool", "MODE_OFF":"off",
     "BSB_AUTO":"1 - Automatique", "BSB_PROTECTION":"0 - Mode protection",
@@ -78,6 +81,13 @@ class Tests(unittest.TestCase):
         with self.assertRaises(HAError):
             asyncio.run(circuit.async_set_hvac_mode(HVAC.COOL))
         self.assertEqual(circuit.writes, [])
+    def test_cool_refused_on_circuit_without_cooling(self):
+        circuit=Circuit(season="cool", global_mode="Refroidissement")
+        circuit.cooling=False
+        with self.assertRaisesRegex(HAError,"Pas de rafraîchissement sur le circuit 1 \\(5711\\)"):
+            asyncio.run(circuit.async_set_hvac_mode(HVAC.COOL))
+        self.assertEqual(circuit.writes, [])
+        asyncio.run(circuit.async_set_hvac_mode(HVAC.OFF))   # l'arrêt reste possible
     def test_block_if_global_missing(self):
         circuit=Circuit()
         circuit.values["select.global"]="Off"

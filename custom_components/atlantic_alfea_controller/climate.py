@@ -19,6 +19,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import circuit_name
+from .installation_config import COOLING_REFUSED, cooling_allowed, installation_signal
 from .const import BSB_AUTO, BSB_PROTECTION, DOMAIN, MODE_COOL, MODE_HEAT, MODE_OFF, TEMPERATURE_STEP
 from .helpers import (
     MODE_CONFIRM_TIMEOUT_SECONDS,
@@ -263,10 +264,18 @@ class AlfeaCircuitClimate(ClimateEntity):
             raise HomeAssistantError(f"Commande régime C{self._circuit} non confirmée : {exc}") from exc
         self.async_write_ha_state()
 
+    def _cooling_allowed(self) -> bool:
+        allowed = cooling_allowed(self.hass, self._entry)
+        return allowed is None or self._circuit in allowed
+
     @property
     def hvac_modes(self) -> list[HVACMode]:
-        """Expose the same three circuit choices year-round."""
-        return [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
+        """Off / heat, plus cool when this circuit has cooling (5711/5716 or integration setting)."""
+        modes = [HVACMode.OFF, HVACMode.HEAT]
+        # Un circuit réellement en froid garde l'option, pour que l'état reste cohérent.
+        if self._cooling_allowed() or self.hvac_mode == HVACMode.COOL:
+            modes.append(HVACMode.COOL)
+        return modes
 
     async def _write_circuit_mode_verified(self, entity_id: str, option: str) -> None:
         """Send the known V1.3.3 BSB option and wait for feedback (up to 30 s)."""
@@ -280,6 +289,9 @@ class AlfeaCircuitClimate(ClimateEntity):
         """Act on this circuit only, using the validated BSB protection/auto values."""
         if hvac_mode not in (HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL):
             raise HomeAssistantError("Mode de circuit non pris en charge.")
+        if hvac_mode == HVACMode.COOL and not self._cooling_allowed():
+            raise HomeAssistantError(COOLING_REFUSED.format(
+                circuit=self._circuit, parameter=5711 if self._circuit == 1 else 5716))
         data = self._entry.data
         heat_id = data[f"heat_mode_c{self._circuit}"]
         cool_id = data[f"cool_mode_c{self._circuit}"]
@@ -762,6 +774,9 @@ class AlfeaCircuitClimate(ClimateEntity):
         self.async_on_remove(self._cancel_pending_override)
         self.async_on_remove(async_dispatcher_connect(
             self.hass, f"{DOMAIN}_pump_feedback_{self._entry.entry_id}", self.async_write_ha_state
+        ))
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, installation_signal(self._entry), self.async_write_ha_state
         ))
         data = self._entry.data
         global_select = er.async_get(self.hass).async_get_entity_id(

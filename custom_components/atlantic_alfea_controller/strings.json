@@ -189,7 +189,8 @@
         "description": "Lu dans la PAC : {detection}. Gardez « Automatique » si c'est juste, sinon choisissez votre installation (seules les configurations que le synoptique sait dessiner sont proposées).",
         "data": {
           "installation_ecs": "Ballon d'eau chaude (ECS)",
-          "installation_emetteurs": "Émetteurs des circuits"
+          "installation_emetteurs": "Émetteurs des circuits",
+          "installation_rafraichissement": "Cooling"
         }
       }
     },
@@ -219,6 +220,7 @@
           "circuit_2_name": "Circuit 2 (C2) name",
           "installation_ecs": "Installation — ballon d'eau chaude (ECS)",
           "installation_emetteurs": "Installation — émetteurs des circuits",
+          "installation_rafraichissement": "Installation — cooling",
           "weather_entity": "Entité météo",
           "power_entity": "Puissance électrique de la PAC (W)"
         },
@@ -234,6 +236,7 @@
           "flow_gap_duration_minutes": "How long the gap must stay above the threshold without interruption before the alert. Prevents start-up false alarms; increase for slow underfloor heating.",
           "installation_ecs": "Automatique : selon le paramètre 5731 lu dans la PAC. À forcer si la détection est fausse ; repris par toutes les cartes.",
           "installation_emetteurs": "Automatique : deviné pour chaque circuit d'après le rafraîchissement (5711/5716), la pente de loi d'eau (720/1020) et le départ maximal (741/1041). Seules les configurations que le synoptique sait dessiner sont proposées. Le capteur « Installation - Configuration » indique le choix et sa raison.",
+          "installation_rafraichissement": "Automatic: from parameters 5711 (C1) and 5716 (C2) read from the heat pump. On a circuit without cooling, the thermostat no longer offers Cool and the cooling setpoints and schedule are hidden; without any cooling, the global mode loses Cooling. Used by the cards.",
           "weather_entity": "Reprise par les cartes synoptiques (décor et animations météo, badge) quand elles n'en définissent pas.",
           "power_entity": "Compteur de toute la ligne PAC (Shelly ou autre), repris par les cartes."
         }

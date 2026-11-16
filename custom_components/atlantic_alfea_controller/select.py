@@ -13,6 +13,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import BSB_AUTO, BSB_PROTECTION, DOMAIN, MODE_COOL, MODE_HEAT, MODE_OFF, SELECT_OPTIONS
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+from .installation_config import cooling_allowed, installation_signal
 from .helpers import MODE_CONFIRM_TIMEOUT_SECONDS, async_write_circuit_mode_confirmed, derive_global_mode, is_enabled, is_protection, state_value, track_entities
 
 _OPTION_TO_MODE = {"Off": MODE_OFF, "Chauffage": MODE_HEAT, "Refroidissement": MODE_COOL}
@@ -44,6 +47,13 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
             manufacturer="Atlantic",
             model="Alfea via BSB-LAN",
         )
+
+    @property
+    def options(self) -> list[str]:
+        """« Refroidissement » only when at least one circuit can cool (or the PAC is cooling)."""
+        if cooling_allowed(self.hass, self._entry) == set() and self.current_option != "Refroidissement":
+            return [option for option in SELECT_OPTIONS if option != "Refroidissement"]
+        return list(SELECT_OPTIONS)
 
     @property
     def current_option(self) -> str:
@@ -91,6 +101,12 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
         """Apply a global command to both circuits, confirming BSB feedback."""
         if option not in _OPTION_TO_MODE:
             raise HomeAssistantError(f"Option globale inconnue : {option}")
+        allowed = cooling_allowed(self.hass, self._entry)
+        if option == "Refroidissement" and allowed == set():
+            raise HomeAssistantError(
+                "Installation sans rafraîchissement (paramètres 5711/5716 de la PAC ou réglage "
+                "« Installation — rafraîchissement » de l'intégration)."
+            )
         if self._command_lock.locked():
             raise HomeAssistantError("Une commande de mode global est déjà en cours.")
         async with self._command_lock:
@@ -110,9 +126,11 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
             else:
                 opposite = "cool" if target == MODE_HEAT else "heat"
                 selected = "heat" if target == MODE_HEAT else "cool"
+                # en froid, seuls les circuits équipés passent en automatique
+                targets = (1, 2) if target == MODE_HEAT or allowed is None else sorted(allowed)
                 sequence = (
                     [(f"{opposite}_mode_c{n}", BSB_PROTECTION) for n in (1, 2)]
-                    + [(f"{selected}_mode_c{n}", BSB_AUTO) for n in (1, 2)]
+                    + [(f"{selected}_mode_c{n}", BSB_AUTO) for n in targets]
                 )
             for key, value in sequence:
                 actual = state_value(self.hass, data[key])
@@ -145,3 +163,6 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
                 self.async_write_ha_state,
             )
         )
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, installation_signal(self._entry), self.async_write_ha_state
+        ))

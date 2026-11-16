@@ -1,5 +1,46 @@
 # Changelog
 
+## 2.5.0 — Rafraîchissement selon l'installation
+
+### Intégration
+
+- **Rafraîchissement détecté par circuit** (paramètres 5711 / 5716, déjà lus pour la
+  détection de l'installation) et corrigeable : nouvelle option « Installation —
+  rafraîchissement » (Automatique, sans rafraîchissement, C1 seulement, C2 seulement, C1 et
+  C2), aussi proposée à la première installation.
+- Sur un circuit **sans rafraîchissement** :
+  - son thermostat ne propose plus que Arrêt / Chauffage ; une demande de froid est refusée
+    avec la raison ;
+  - ses consignes froid (902/903 ou 1202/1203) sont masquées et refusent l'écriture ;
+  - son programme de rafraîchissement n'est plus lu (« Non installé ») et est masqué.
+- **Sans rafraîchissement du tout** : le mode global perd « Refroidissement ». Avec un seul
+  circuit équipé, « Refroidissement » n'active que ce circuit.
+- Tant que l'installation n'est pas lue (adresse HTTP absente, BSB-LAN injoignable), rien
+  ne change : tout reste proposé comme avant. Un circuit dont le rafraîchissement est
+  illisible reste autorisé.
+- Le capteur « Installation - Configuration » publie `circuit_N_rafraichissement`, sa source
+  (`…_source`), la valeur détectée (`…_detecte`) et la liste `rafraichissement`.
+- Masquage par le registre des entités (« masqué par l'intégration ») : une entité masquée
+  ou affichée à la main n'est jamais modifiée.
+- **BSB-LAN - Journalisation** : nouvel attribut `liste_a_copier`, la liste recommandée en
+  texte sans espace, à coller telle quelle dans BSB-LAN (qui refuse une liste contenant des
+  espaces).
+
+### Documentation
+
+- Liste des paramètres à journaliser sur **une seule ligne** (README et
+  `docs/BSB_LAN_JOURNALISATION.md`) : le bouton « Copier » ne rajoute plus de retour à la
+  ligne, que BSB-LAN refusait.
+
+### Cartes
+
+- **PAC Synoptique photo (2.5.0)** : bouton « Refroidissement » du mode PAC masqué sans
+  rafraîchissement ; lignes de diagnostic froid masquées pour un circuit sans
+  rafraîchissement.
+- **Programmes** : onglet de rafraîchissement masqué sans message pour un circuit sans
+  rafraîchissement.
+- Manifest **2.5.0**. Redémarrage de Home Assistant nécessaire.
+
 ## 2.4.1 — Programmes horaires et loi d'eau sur toutes les installations
 
 ### Intégration

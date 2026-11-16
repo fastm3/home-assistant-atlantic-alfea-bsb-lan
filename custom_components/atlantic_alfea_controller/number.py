@@ -12,7 +12,10 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
 from .const import DOMAIN
+from .installation_config import COOLING_REFUSED, async_sync_cooling_visibility, cooling_allowed, installation_signal
 from .helpers import async_set_numeric_entity, source_entity, state_float, track_entities
 from .polling import async_poll_parameters
 
@@ -122,6 +125,8 @@ class AlfeaProgrammedSetpointNumber(NumberEntity):
         self._attr_native_max_value = 35.0 if season == "Chauffage" else 30.0
         self._key = key
         self._parameter = parameter
+        self._circuit = circuit
+        self._cooling = season == "Rafraîchissement"
         self._attr_unique_id = f"{entry.entry_id}_control_{key}"
         self._attr_name = f"C{circuit} - {'Rafraîch.' if season == 'Rafraîchissement' else season} T. {'Conf' if profile == 'Confort' else 'Éco'}"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
@@ -147,6 +152,11 @@ class AlfeaProgrammedSetpointNumber(NumberEntity):
         return {"parametre_bsb": self._parameter}
 
     async def async_set_native_value(self, value: float) -> None:
+        if self._cooling:
+            allowed = cooling_allowed(self.hass, self._entry)
+            if allowed is not None and self._circuit not in allowed:
+                raise HomeAssistantError(COOLING_REFUSED.format(
+                    circuit=self._circuit, parameter=5711 if self._circuit == 1 else 5716))
         source = self._source()
         if source is None or source.split(".", 1)[0] not in ("number", "text"):
             raise HomeAssistantError(
@@ -186,3 +196,10 @@ class AlfeaProgrammedSetpointNumber(NumberEntity):
         self.async_on_remove(
             track_entities(self.hass, [self._source()], self.async_write_ha_state)
         )
+        if self._cooling:
+            # consignes froid masquées sur un circuit sans rafraîchissement
+            def sync() -> None:
+                async_sync_cooling_visibility(self.hass, self._entry, self.entity_id, self._circuit)
+
+            sync()
+            self.async_on_remove(async_dispatcher_connect(self.hass, installation_signal(self._entry), sync))

@@ -13,7 +13,15 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
-from .installation_config import COMBO_LABELS
+from .installation_config import COMBO_LABELS, COOLING_LABELS, OPT_COOLING
+
+
+def _cooling_selector() -> selector.SelectSelector:
+    """Rafraîchissement : automatique (5711/5716) ou circuits équipés."""
+    return selector.SelectSelector(selector.SelectSelectorConfig(
+        mode=selector.SelectSelectorMode.DROPDOWN,
+        options=[selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
+                 *[selector.SelectOptionDict(value=key, label=label) for key, label in COOLING_LABELS.items()]]))
 
 from .const import (
     CONF_CIRCUIT_1_NAME,
@@ -300,7 +308,8 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             options = {**self._options,
                        "installation_ecs": user_input.get("installation_ecs", "auto"),
-                       "installation_emetteurs": user_input.get("installation_emetteurs", "auto")}
+                       "installation_emetteurs": user_input.get("installation_emetteurs", "auto"),
+                       OPT_COOLING: user_input.get(OPT_COOLING, "auto")}
             return self.async_create_entry(title="Atlantic Alfea BSB-LAN", data=self._pending_data, options=options)
         schema = vol.Schema({
             vol.Required("installation_ecs", default="auto"): selector.SelectSelector(
@@ -312,6 +321,7 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selector.SelectSelectorConfig(mode=selector.SelectSelectorMode.DROPDOWN, options=[
                     selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
                     *[selector.SelectOptionDict(value=key, label=label) for key, label in COMBO_LABELS.items()]])),
+            vol.Required(OPT_COOLING, default="auto"): _cooling_selector(),
         })
         return self.async_show_form(step_id="installation", data_schema=schema,
                                     description_placeholders={"detection": self._detection})
@@ -445,6 +455,7 @@ class AtlanticAlfeaOptionsFlow(OptionsFlowWithReload):
                     selector.SelectSelectorConfig(mode=selector.SelectSelectorMode.DROPDOWN, options=[
                         selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
                         *[selector.SelectOptionDict(value=key, label=label) for key, label in COMBO_LABELS.items()]])),
+                vol.Required(OPT_COOLING, default=self.config_entry.options.get(OPT_COOLING, "auto")): _cooling_selector(),
                 vol.Optional(
                     CONF_WEATHER_ENTITY,
                     description={"suggested_value": self.config_entry.options.get(CONF_WEATHER_ENTITY) or None},

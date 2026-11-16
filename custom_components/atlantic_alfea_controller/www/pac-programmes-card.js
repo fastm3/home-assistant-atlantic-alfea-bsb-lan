@@ -392,7 +392,8 @@
     _hiddenNote(hidden) {
       if (!hidden.length) return '';
       const absent = hidden.filter(p => this._sensor(p)?.state === 'Non disponible');
-      const failed = hidden.filter(p => !absent.includes(p));
+      // « Non installé » : circuit sans rafraîchissement (réglage de l'installation) -> masqué sans note
+      const failed = hidden.filter(p => !absent.includes(p) && this._sensor(p)?.state !== 'Non installé');
       const names = (list) => list.map(p => esc(this._label(p))).join(', ');
       return (absent.length ? `<div class="foot">${names(absent)} : aucun programme horaire dédié sur cette PAC (fonctionnement sans plage horaire).</div>` : '')
         + (failed.length ? `<div class="foot">${names(failed)} : lecture impossible (capteur en erreur ou indisponible).</div>` : '');
@@ -401,7 +402,7 @@
       return PROGRAMS.filter(program => {
         if (!program.key.startsWith('rafraichissement_')) return true;
         const sensor = this._sensor(program);
-        return !!sensor && !['Erreur', 'Non disponible', 'unavailable', 'unknown'].includes(sensor.state);
+        return !!sensor && !['Erreur', 'Non disponible', 'Non installé', 'unavailable', 'unknown'].includes(sensor.state);
       });
     }
     _render() {

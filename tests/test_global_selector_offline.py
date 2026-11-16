@@ -26,6 +26,7 @@ async def write_confirmed(hass,entry,entity_id,option):
     return is_protection(hass.values[entity_id])==(option=="0 - Mode protection")
 namespace = dict(
     async_write_circuit_mode_confirmed=write_confirmed, MODE_CONFIRM_TIMEOUT_SECONDS=30.0,
+    cooling_allowed=lambda hass, entry: None,
     HomeAssistantError=HAError, MODE_HEAT="heat", MODE_COOL="cool", MODE_OFF="off",
     BSB_PROTECTION="0 - Mode protection",BSB_AUTO="1 - Automatique",
     _OPTION_TO_MODE={"Off":"off","Chauffage":"heat","Refroidissement":"cool"},

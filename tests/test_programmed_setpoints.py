@@ -17,6 +17,10 @@ class Fake:
     def __init__(self, season, initial=20.0, confirm=True):
         self.hass = self
         self._parameter = 710 if season == "Chauffage" else 902
+        self._cooling = season != "Chauffage"
+        self._circuit = 1
+        self._entry = None
+        self.cooling = None
         self.native_min_value = 7.0
         self.native_max_value = 35.0 if season == "Chauffage" else 30.0
         self.current = initial
@@ -37,6 +41,8 @@ async def no_wait(value):
 
 namespace = {
     "HomeAssistantError": HAError,
+    "COOLING_REFUSED": "Pas de rafraîchissement sur le circuit {circuit} ({parameter})",
+    "cooling_allowed": lambda hass, entry: hass.cooling,
     "async_set_numeric_entity": write,
     "async_poll_parameters": poll,
     "state_float":lambda hass, source: hass.current,
@@ -56,6 +62,16 @@ class TestSetpoints(unittest.TestCase):
         f=Fake("Rafraîchissement")
         asyncio.run(f.async_set_native_value(30.0))
         self.assertIn(("write",30.0),f.calls)
+    def test_cooling_setpoint_refused_without_cooling(self):
+        f=Fake("Rafraîchissement")
+        f.cooling={2}
+        with self.assertRaisesRegex(HAError,"circuit 1"):
+            asyncio.run(f.async_set_native_value(24.0))
+        self.assertEqual(f.calls,[])
+        h=Fake("Chauffage")
+        h.cooling=set()
+        asyncio.run(h.async_set_native_value(20.0))      # chauffage non concerné
+        self.assertIn(("write",20.0),h.calls)
     def test_reject_out_of_range_and_step(self):
         for season,value in (("Chauffage",6.5),("Chauffage",35.5),("Rafraîchissement",30.5),("Rafraîchissement",21.3)):
             f=Fake(season)

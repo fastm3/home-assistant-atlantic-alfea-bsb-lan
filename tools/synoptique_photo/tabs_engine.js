@@ -328,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       const st=id?hass.states[id]:null;
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
-        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau];
+        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau,st?.attributes?.circuit_1_rafraichissement,st?.attributes?.circuit_2_rafraichissement];
     }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
@@ -359,6 +359,8 @@ class PacSynoptiqueCard extends HTMLElement {
     return found;
   }
   _s(key){return this._ids?.[key] ? this._hass?.states[this._ids[key]] : null;}
+  // rafraîchissement du circuit (intégration : 5711/5716 ou réglage) ; inconnu = autorisé
+  _coolOk(i){return this._a('installCfg',`circuit_${i}_rafraichissement`)!==false;}
   _v(key){const st=this._s(key);return st&&!isMissing(st.state)?st.state:null;}
   _a(key,attr){const st=this._s(key);return st ? st.attributes?.[attr] : null;}
   _b(key){return bool(this._s(key));}
@@ -1247,7 +1249,7 @@ class PacSynoptiqueCard extends HTMLElement {
       : '—';
     const powerChip=powerEntity?`<div class="ctl-power" title="${html(powerState?.attributes?.friendly_name||powerEntity)}"><span>⚡ Puissance PAC</span><strong>${html(powerText)}</strong></div>`:'';
     return `<section class="controls" aria-label="Commandes PAC">
-      <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${globalBtn('Refroidissement','cool')}</div></div>
+      <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${(this._coolOk(1)||this._coolOk(2)||mode==='cool')?globalBtn('Refroidissement','cool'):''}</div></div>
       ${circuit(c1,1)}${circuit(c2,2)}${ecsGroup}${powerChip}
     </section>`;
   }
@@ -1413,7 +1415,7 @@ class PacSynoptiqueCard extends HTMLElement {
         [`C${i} — Départ cible chauffage (non mesuré)`,`heatFlowTarget${i}`,'°C'],
         [`C${i} — Chauffage Confort`,`heatComfort${i}`,'°C'],[`C${i} — Chauffage Éco`,`heatEco${i}`,'°C'],
         [`C${i} — Rafraîchissement Confort`,`coolComfort${i}`,'°C'],[`C${i} — Rafraîchissement Éco`,`coolEco${i}`,'°C']
-      ])
+      ].filter(([,key])=>!/^cool/.test(key)||this._coolOk(i)))
     ].map(([name,key,unit])=>this._detailRow(name,key,unit)).join(''));
     const diagActivity=`<section class="diag-group diag-activity-panel"><h4>Activité</h4>${this._activityHtml()}${ecsHistoryHtml}</section>`;
     this.shadowRoot.innerHTML=`<style>

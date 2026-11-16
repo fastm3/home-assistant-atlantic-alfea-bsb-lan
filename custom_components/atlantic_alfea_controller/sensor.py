@@ -1018,6 +1018,13 @@ class AlfeaWeeklyProgramSensor(SensorEntity):
         importer = self._importer()
         if importer is None or not importer.configured:
             return "À configurer"
+        if self._key.startswith("rafraichissement_"):
+            from .installation_config import cooling_allowed
+            from .weekly_programs import NOT_INSTALLED
+
+            allowed = cooling_allowed(self.hass, self._entry)
+            if allowed is not None and self._circuit not in allowed:
+                return NOT_INSTALLED   # même si l'import du démarrage a précédé la détection
         return importer.snapshots[self._key].status
 
     @property
@@ -1044,6 +1051,16 @@ class AlfeaWeeklyProgramSensor(SensorEntity):
             f"{DOMAIN}_weekly_programs_{self._entry.entry_id}",
             self.async_write_ha_state,
         ))
+        if self._key.startswith("rafraichissement_"):
+            from .installation_config import async_sync_cooling_visibility, installation_signal
+
+            # programme de rafraîchissement masqué sur un circuit sans rafraîchissement
+            def sync() -> None:
+                async_sync_cooling_visibility(self.hass, self._entry, self.entity_id, self._circuit)
+                self.async_write_ha_state()
+
+            sync()
+            self.async_on_remove(async_dispatcher_connect(self.hass, installation_signal(self._entry), sync))
 
 
 class AlfeaV3VCommandSensor(SensorEntity):

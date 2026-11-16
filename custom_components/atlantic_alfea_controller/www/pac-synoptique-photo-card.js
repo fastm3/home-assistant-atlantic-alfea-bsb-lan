@@ -328,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       const st=id?hass.states[id]:null;
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
-        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau];
+        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau,st?.attributes?.circuit_1_rafraichissement,st?.attributes?.circuit_2_rafraichissement];
     }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
@@ -359,6 +359,8 @@ class PacSynoptiqueCard extends HTMLElement {
     return found;
   }
   _s(key){return this._ids?.[key] ? this._hass?.states[this._ids[key]] : null;}
+  // rafraîchissement du circuit (intégration : 5711/5716 ou réglage) ; inconnu = autorisé
+  _coolOk(i){return this._a('installCfg',`circuit_${i}_rafraichissement`)!==false;}
   _v(key){const st=this._s(key);return st&&!isMissing(st.state)?st.state:null;}
   _a(key,attr){const st=this._s(key);return st ? st.attributes?.[attr] : null;}
   _b(key){return bool(this._s(key));}
@@ -1247,7 +1249,7 @@ class PacSynoptiqueCard extends HTMLElement {
       : '—';
     const powerChip=powerEntity?`<div class="ctl-power" title="${html(powerState?.attributes?.friendly_name||powerEntity)}"><span>⚡ Puissance PAC</span><strong>${html(powerText)}</strong></div>`:'';
     return `<section class="controls" aria-label="Commandes PAC">
-      <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${globalBtn('Refroidissement','cool')}</div></div>
+      <div class="ctl-group"><span class="ctl-label">Mode PAC</span><div class="ctl-buttons">${globalBtn('Off')}${globalBtn('Chauffage','heat')}${(this._coolOk(1)||this._coolOk(2)||mode==='cool')?globalBtn('Refroidissement','cool'):''}</div></div>
       ${circuit(c1,1)}${circuit(c2,2)}${ecsGroup}${powerChip}
     </section>`;
   }
@@ -1413,7 +1415,7 @@ class PacSynoptiqueCard extends HTMLElement {
         [`C${i} — Départ cible chauffage (non mesuré)`,`heatFlowTarget${i}`,'°C'],
         [`C${i} — Chauffage Confort`,`heatComfort${i}`,'°C'],[`C${i} — Chauffage Éco`,`heatEco${i}`,'°C'],
         [`C${i} — Rafraîchissement Confort`,`coolComfort${i}`,'°C'],[`C${i} — Rafraîchissement Éco`,`coolEco${i}`,'°C']
-      ])
+      ].filter(([,key])=>!/^cool/.test(key)||this._coolOk(i)))
     ].map(([name,key,unit])=>this._detailRow(name,key,unit)).join(''));
     const diagActivity=`<section class="diag-group diag-activity-panel"><h4>Activité</h4>${this._activityHtml()}${ecsHistoryHtml}</section>`;
     this.shadowRoot.innerHTML=`<style>
@@ -2547,7 +2549,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.4.1";
+const VERSION = "2.5.0";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
