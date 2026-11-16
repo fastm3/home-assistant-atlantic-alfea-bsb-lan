@@ -31,5 +31,15 @@ ok(diag(root).includes("C1 — Chauffage Confort"), "diagnostics chauffage du C1
 root = show({ [CFG]: cfg(false, false) });
 ok(!coolBtn(root), "sans rafraîchissement : bouton Refroidissement masqué");
 ok(!diag(root).includes("Rafraîchissement Confort"), "sans rafraîchissement : aucun diagnostic froid");
+// en mode froid : circuit non équipé sans commandes
+const coolStates = (c1, c2) => ({ [CFG]: cfg(c1, c2), "select.pac_mode_global": S("Refroidissement", { friendly_name: "Atlantic Alfea BSB-LAN Mode global", options: ["Off", "Chauffage", "Refroidissement"] }) });
+root = show(coolStates(false, true));
+const groups = [...root.querySelectorAll(".controls .ctl-group")];
+const nocool = root.querySelectorAll(".ctl-nocool");
+ok(nocool.length === 1 && nocool[0].textContent.includes("pas de rafraîchissement"), "mode froid : C1 non équipé affiché « pas de rafraîchissement »");
+ok(!nocool[0].querySelector("button"), "mode froid : aucun bouton sur le circuit non équipé");
+ok(root.querySelectorAll('[data-pac-action="hvac"][data-circuit="2"]').length === 1, "mode froid : commandes du C2 conservées");
+root = show({ [CFG]: cfg(false, true) });
+ok(!root.querySelector(".ctl-nocool"), "mode chauffage : les deux circuits gardent leurs commandes");
 console.log("\nRafraîchissement selon l'installation OK.");
 process.exit(0);

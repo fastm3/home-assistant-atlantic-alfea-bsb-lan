@@ -51,6 +51,7 @@ class Fake:
         self._last_known_mode="heat"
         self._selected_mode="heat"
         self._command_lock=asyncio.Lock()
+        self._season_memory={}
         self.writes=[]
     def async_write_ha_state(self):pass
 

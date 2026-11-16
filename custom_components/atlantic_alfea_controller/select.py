@@ -39,6 +39,8 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
         self._entry = entry
         self._last_known_mode: str | None = None
         self._selected_mode: str | None = None
+        # circuits actifs (Auto) laissés dans chaque saison, remis au retour dans cette saison
+        self._season_memory: dict[str, list[int]] = {}
         self._command_lock = asyncio.Lock()
         self._attr_unique_id = f"{entry.entry_id}_global_mode"
         self._attr_device_info = DeviceInfo(
@@ -71,12 +73,14 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
         return _MODE_TO_OPTION[mode if mode != MODE_OFF else (MODE_OFF if self._selected_mode == MODE_OFF else self._selected_mode or self._last_known_mode or MODE_OFF)]
 
     @property
-    def extra_state_attributes(self) -> dict[str, str]:
+    def extra_state_attributes(self) -> dict:
+        memory = {_MODE_TO_OPTION[mode]: circuits for mode, circuits in self._season_memory.items()}
         if self._observed_mode() != MODE_OFF:
-            return {"source_saison": "BSB-LAN"}
+            return {"source_saison": "BSB-LAN", "circuits_memorises": memory}
         if self._selected_mode == MODE_OFF:
-            return {"source_saison": "arrêt global demandé dans Home Assistant"}
-        return {"source_saison": "choix HA / dernier mode connu (non confirmé)" if (self._selected_mode or self._last_known_mode) else "inconnu"}
+            return {"source_saison": "arrêt global demandé dans Home Assistant", "circuits_memorises": memory}
+        return {"source_saison": "choix HA / dernier mode connu (non confirmé)" if (self._selected_mode or self._last_known_mode) else "inconnu",
+                "circuits_memorises": memory}
 
     def _observed_mode(self) -> str:
         data = self._entry.data
@@ -120,14 +124,24 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
             if heat_active and cool_active:
                 raise HomeAssistantError("Modes chaud et froid simultanément actifs : commande refusée.")
             target = _OPTION_TO_MODE[option]
+            current = MODE_HEAT if heat_active else MODE_COOL if cool_active else None
+            # mémorise les circuits actifs de la saison quittée
+            if current is not None and current != target:
+                prefix = "heat" if current == MODE_HEAT else "cool"
+                self._season_memory[current] = [n for n in (1, 2) if is_enabled(readings[f"{prefix}_mode_c{n}"])]
             if target == MODE_OFF:
                 sequence = [(f"{prefix}_mode_c{n}", BSB_PROTECTION)
                             for n in (1, 2) for prefix in ("heat", "cool")]
             else:
                 opposite = "cool" if target == MODE_HEAT else "heat"
                 selected = "heat" if target == MODE_HEAT else "cool"
+                # circuits laissés actifs lors du dernier passage dans cette saison (sinon tous) ;
                 # en froid, seuls les circuits équipés passent en automatique
-                targets = (1, 2) if target == MODE_HEAT or allowed is None else sorted(allowed)
+                # (re-sélectionner la saison en cours réactive tous les circuits)
+                remembered = self._season_memory.get(target) if current != target else None
+                targets = list(remembered or (1, 2))
+                if target == MODE_COOL and allowed is not None:
+                    targets = [n for n in targets if n in allowed] or sorted(allowed)
                 sequence = (
                     [(f"{opposite}_mode_c{n}", BSB_PROTECTION) for n in (1, 2)]
                     + [(f"{selected}_mode_c{n}", BSB_AUTO) for n in targets]
@@ -146,6 +160,12 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         previous = await self.async_get_last_state()
         if previous is not None:
+            for option, circuits in (previous.attributes.get("circuits_memorises") or {}).items():
+                mode = _OPTION_TO_MODE.get(option)
+                if mode in (MODE_HEAT, MODE_COOL) and isinstance(circuits, list):
+                    kept = [n for n in circuits if n in (1, 2)]
+                    if kept:
+                        self._season_memory[mode] = kept
             restored = _OPTION_TO_MODE.get(previous.state)
             if restored in (MODE_HEAT, MODE_COOL):
                 self._last_known_mode = restored

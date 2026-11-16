@@ -1190,6 +1190,8 @@ class PacSynoptiqueCard extends HTMLElement {
     };
     const circuit=(c,i)=>{
       const name=this._circuitName(i);
+      // en rafraîchissement, un circuit non équipé n'a aucune commande
+      if(mode==='cool' && !this._coolOk(i)) return `<div class="ctl-group ctl-nocool"><span class="ctl-label">${html(name)}</span><span class="ctl-nocool-note">pas de rafraîchissement</span></div>`;
       const auto=mode==='heat'||mode==='cool';
       const offActive=c.mode==='off';
       const preset=String(c.presetMode||'');
@@ -1690,6 +1692,8 @@ class PacSynoptiqueCard extends HTMLElement {
       .eg-col small{font-size:9px;opacity:.7}
       .eg-note{margin:0;font-size:10.5px;color:var(--sub);opacity:.85}
       .graph-note{padding:12px 0;font-size:12px;opacity:.7}
+      .ctl-nocool{opacity:.55}
+      .ctl-nocool-note{font-size:12px;font-style:italic}
       .curve-panel{margin-top:8px;padding:12px 13px 8px;background:var(--surface);border:1px solid var(--panel-line);border-radius:12px}
       .curve-head{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:600}
       .curve-head small{font-weight:400;opacity:.65}

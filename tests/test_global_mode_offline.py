@@ -37,6 +37,7 @@ class Fake:
         self._entry = SimpleNamespace(data={k:k for k in states})
         self._command_lock = asyncio.Lock()
         self._last_known_mode = MODE_HEAT
+        self._season_memory = {}
         self.writes = []
         self.fail_at = fail_at
         self.confirm = confirm
@@ -104,6 +105,16 @@ class Tests(unittest.TestCase):
         self.execute(states(h1=True), "Refroidissement", [], fails=True, cooling=set())
         self.execute(states(), "Chauffage", [("heat_mode_c1", "1 - Automatique"), ("heat_mode_c2", "1 - Automatique")],
                      cooling=set())
+
+    def test_season_memory_restores_circuits(self):
+        # chauffage : seul C1 actif -> refroidissement -> retour chauffage : C2 reste à l'arrêt
+        inst = self.execute(states(h1=True), "Refroidissement",
+                            [("heat_mode_c1", BSB_PROTECTION), ("cool_mode_c2", "1 - Automatique")], cooling={2})
+        self.assertEqual(inst._season_memory, {MODE_HEAT: [1]})
+        inst.writes = []
+        asyncio.run(inst.async_select_option("Chauffage"))
+        self.assertEqual(inst.writes, [("cool_mode_c2", BSB_PROTECTION), ("heat_mode_c1", "1 - Automatique")])
+        self.assertEqual(inst._season_memory, {MODE_HEAT: [1], MODE_COOL: [2]})
 
     def test_off_stops_both(self):
         self.execute(states(h1=True,h2=True), "Off", [

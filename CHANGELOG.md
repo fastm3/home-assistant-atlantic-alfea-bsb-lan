@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.5.3 — Écritures avec BSB-LAN 5.1, circuits mémorisés par saison
+
+### Intégration
+
+- **Écritures MQTT compatibles BSB-LAN 5.1** : consignes 710 / 712 / 1010 / 1012 / 1202 / 1203,
+  ECS (mode 1600, consignes 1610 / 1612), mode de rafraîchissement 1201 et forçage ECS 5072
+  sont envoyés sur `BSB-LAN/0/<catégorie>/<paramètre>/set` (valeur seule). BSB-LAN 5.1 ignore
+  désormais l'ancienne forme (sujet `BSB-LAN`, message `S1010=21.5`) : la consigne n'arrivait
+  pas à la PAC (« Consigne BSB 1010 envoyée mais non confirmée après 30 secondes »).
+  Forme acceptée depuis BSB-LAN 5.0.
+- **Configuration de l'installation** : si la lecture échoue (BSB-LAN occupé, par exemple
+  pendant le relevé de la liste de paramètres, ou injoignable au démarrage), nouvel essai
+  toutes les 2 minutes au lieu d'attendre 6 heures. Avant, l'installation restait « Non lue »
+  et le rafraîchissement, la loi d'eau et le masquage des cartes suivaient les valeurs par
+  défaut jusqu'à la lecture suivante.
+- **Mode global : état des circuits mémorisé par saison.** En changeant de saison, les
+  circuits actifs de la saison quittée sont retenus ; au retour, seuls ceux-là repassent en
+  Auto (un circuit laissé sur Off en chauffage le reste après un passage en
+  rafraîchissement). Avant, le retour mettait toujours les deux circuits en Auto. Mémoire
+  conservée après un redémarrage (attribut `circuits_memorises` du mode global). Premier
+  passage ou re-sélection de la saison en cours : tous les circuits (équipés) en Auto,
+  comme avant.
+
+### Carte PAC Synoptique photo (2.5.3)
+
+- **Commandes en mode rafraîchissement** : un circuit sans rafraîchissement n'affiche plus
+  ses boutons (Off / Auto / Confort / Réduit, ±), seulement « pas de rafraîchissement ».
+- Manifest **2.5.3**. Redémarrage de Home Assistant nécessaire.
+
 ## 2.5.2 — Consigne du thermostat avec BSB-LAN 5.1
 
 ### Intégration

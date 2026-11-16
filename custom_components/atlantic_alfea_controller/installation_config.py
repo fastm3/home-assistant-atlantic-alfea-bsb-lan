@@ -26,7 +26,7 @@ from typing import Final
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .bsb_http import entry_client
@@ -34,6 +34,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 _REFRESH = timedelta(hours=6)
+_RETRY = timedelta(minutes=2)   # lecture en échec (BSB-LAN occupé ou injoignable) : nouvel essai rapide
 CONFIG_PARAMETERS: Final = (5710, 5711, 5715, 5716, 5731, 720, 1020, 741, 1041)
 CIRCUITS: Final = {1: (5710, 5711, 720, 741), 2: (5715, 5716, 1020, 1041)}
 # Loi d'eau complète (carte « Loi d'eau ») : lue avec la configuration, toutes les 6 h,
@@ -338,14 +339,29 @@ async def async_start_installation_watch(hass: HomeAssistant, entry: ConfigEntry
         store.pop(entry.entry_id, None)
         return lambda: None
 
+    retry_cancel = None
+
+    def schedule_retry() -> None:
+        nonlocal retry_cancel
+        if retry_cancel is None:
+            retry_cancel = async_call_later(hass, _RETRY, on_retry)
+
+    @callback
+    def on_retry(_now) -> None:
+        nonlocal retry_cancel
+        retry_cancel = None
+        hass.async_create_task(refresh())
+
     async def refresh() -> None:
         try:
             layout = parse_installation(await client.get_jq(READ_PARAMETERS, timeout=30))
         except Exception as err:  # noqa: BLE001 - keep the previous knowledge
             _LOGGER.warning("Lecture de la configuration de l'installation impossible : %r", err)
+            schedule_retry()
             return
         if layout is None:
             _LOGGER.warning("Configuration de l'installation illisible (paramètres %s)", CONFIG_PARAMETERS)
+            schedule_retry()
             return
         previous = store.get(entry.entry_id)
         store[entry.entry_id] = layout
@@ -372,6 +388,8 @@ async def async_start_installation_watch(hass: HomeAssistant, entry: ConfigEntry
     def stop() -> None:
         unsubscribe()
         first.cancel()
+        if retry_cancel is not None:
+            retry_cancel()
         store.pop(entry.entry_id, None)
 
     return stop

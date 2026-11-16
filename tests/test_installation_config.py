@@ -17,6 +17,7 @@ def _load():
     core = sys.modules["homeassistant.core"]; core.HomeAssistant = object; core.callback = lambda f: f
     sys.modules["homeassistant.helpers.dispatcher"].async_dispatcher_send = lambda *a: None
     sys.modules["homeassistant.helpers.event"].async_track_time_interval = lambda *a: None
+    sys.modules["homeassistant.helpers.event"].async_call_later = lambda *a: None
     import datetime
     dtm = types.ModuleType("homeassistant.util.dt"); dtm.now = lambda: datetime.datetime(2026, 11, 15, 21, 0)
     sys.modules["homeassistant.util.dt"] = dtm; sys.modules["homeassistant.util"].dt = dtm

@@ -107,20 +107,22 @@ class AlfeaForceEcsCycleButton(ButtonEntity):
                 await self._reset_task
             except asyncio.CancelledError:
                 pass
-        await self._publish("S5072=1")
+        await self._publish("1")
         self._reset_task = self.hass.async_create_task(self._reset_after_delay())
 
     async def _reset_after_delay(self) -> None:
         try:
             await asyncio.sleep(10)
         finally:
-            await self._publish("S5072=0")
+            await self._publish("0")
 
     async def _publish(self, payload: str) -> None:
         try:
+            # 5072 « DHW push », catégorie 22 ; forme BSB-LAN ≥ 5.0 (la forme « S5072=1 » sur
+            # le sujet « BSB-LAN » est ignorée par BSB-LAN 5.1)
             await async_publish(
                 self.hass,
-                "BSB-LAN",
+                "BSB-LAN/0/22/5072/set",
                 payload,
                 qos=1,
                 retain=False,
