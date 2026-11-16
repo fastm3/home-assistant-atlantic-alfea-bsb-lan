@@ -124,9 +124,23 @@
         (s.attributes?.friendly_name || '').includes('Programmes natifs - Actualiser')
       ) || null;
     }
+    // capteur « Installation - Configuration » de l'intégration (libération ECS 1620)
+    _installation() {
+      return Object.values(this._hass?.states || {}).find(s =>
+        s.entity_id.startsWith('sensor.') && s.attributes && 'ecs_liberation_code' in s.attributes) || null;
+    }
+    _releaseNote(program) {
+      if (program.key !== 'ecs') return '';
+      const code = this._installation()?.attributes?.ecs_liberation_code;
+      if (code === null || code === undefined || code === 2 || code === 4) return '';
+      const label = this._installation()?.attributes?.ecs_liberation || String(code);
+      return `<div class="warning">Programme ECS non utilisé par la PAC : libération ECS (1620) = ${esc(label)}. `
+        + `Il ne s'applique que si 1620 est réglé sur « programme ECS ».</div>`;
+    }
     _signature() {
       if (!this._hass) return '';
-      const parts = [this._selected, this._refreshing ? '1' : '0', this._lastError || '', this._circuitName(1), this._circuitName(2)];
+      const parts = [this._selected, this._refreshing ? '1' : '0', this._lastError || '', this._circuitName(1), this._circuitName(2),
+        String(this._installation()?.attributes?.ecs_liberation_code ?? '')];
       for (const program of PROGRAMS) {
         const sensor = this._sensor(program);
         parts.push(program.key, sensor?.state || '', sensor?.attributes?.derniere_importation || '',
@@ -542,6 +556,7 @@
             <span>${updated ? 'Dernière importation : '+esc(updated.replace('T',' ')) : 'Aucune importation'}</span>
             ${pendingNote ? `<span class="pending">${pendingNote}</span>` : ''}
           </div>
+          ${this._releaseNote(selected)}
           ${this._setpointHtml(selected)}
           ${editing ? this._editHtml(selected) : `<div class="scale"><span></span><div class="ticks"><span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>24h</span></div></div>
           <div class="days">${rows}</div>`}

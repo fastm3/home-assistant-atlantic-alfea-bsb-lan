@@ -190,7 +190,8 @@ def clock_is_writable(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 CLOCK_REFUSED_HINT = (
     "Le régulateur de la PAC refuse le réglage de l'horloge envoyé par BSB-LAN. "
-    "Réglez la date et l'heure directement sur l'interface de la PAC."
+    "Avec BSB-LAN 5.0.x, ce refus est connu sur le RVS21 : mettre BSB-LAN à jour (5.1 ou plus, "
+    "réglage accepté), sinon régler la date et l'heure directement sur l'interface de la PAC."
 )
 CLOCK_TOLERANCE_SECONDS = 20
 

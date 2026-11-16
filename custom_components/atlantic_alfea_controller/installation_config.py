@@ -44,7 +44,16 @@ CURVE_FIELDS: Final = {
     "t_depart_min": (740, 1040), "t_depart_max": (741, 1041), "influence_ambiance": (750, 1050),
 }
 CURVE_PARAMETERS: Final = tuple(sorted({p for pair in CURVE_FIELDS.values() for p in pair} - set(CONFIG_PARAMETERS)))
-READ_PARAMETERS: Final = CONFIG_PARAMETERS + CURVE_PARAMETERS
+# 1620 « libération ECS » : le programme horaire ECS (561…567) n'est suivi qu'en valeur 2 ou 4
+ECS_RELEASE: Final = 1620
+ECS_RELEASE_LABELS: Final = {
+    0: "24 h/24 (programme ECS non utilisé)",
+    1: "programmes des circuits de chauffage",
+    2: "programme ECS",
+    3: "heures creuses",
+    4: "programme ECS ou heures creuses",
+}
+READ_PARAMETERS: Final = CONFIG_PARAMETERS + CURVE_PARAMETERS + (ECS_RELEASE,)
 
 # Heating curve slopes: underfloor heating is flat, radiators are steep.
 SLOPE_FLOOR_MAX: Final = 0.6
@@ -163,6 +172,11 @@ def parse_installation(data: object) -> dict | None:
         if curve["pente"] is not None:
             curves[str(n)] = curve
     result["loi_d_eau"] = curves
+    release = _number(data, ECS_RELEASE)
+    code = None if release is None else int(release)
+    result["ecs_liberation_code"] = code
+    result["ecs_liberation"] = None if code is None else ECS_RELEASE_LABELS.get(code, f"valeur {code}")
+    result["ecs_programme_utilise"] = None if code is None else code in (2, 4)
     # réponse brute du régulateur (nom, valeur, libellé) : à joindre pour corriger la détection
     brut = {}
     for p in READ_PARAMETERS:

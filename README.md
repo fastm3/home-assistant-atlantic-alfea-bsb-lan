@@ -31,15 +31,16 @@ de les modifier, mais ne les remplace pas par des automatisations.
 
 ## Matériel validé
 
-Atlantic Alféa Extensa Duo, régulateur **RVS21.831F** (famille 211,
-variante 127), BSB-LAN 5.x sur ESP32. D'autres variantes Siemens RVS peuvent
-fonctionner mais ne sont pas validées.
+Atlantic Alféa Extensa / Excellia Duo, régulateur **RVS21.831F** (famille 211,
+variante 127), BSB-LAN **5.1** (5.1.42) sur ESP32. D'autres variantes Siemens RVS
+peuvent fonctionner mais ne sont pas validées.
 
 ## Prérequis
 
 - Home Assistant avec **MQTT** opérationnel.
-- Une passerelle **BSB-LAN** qui publie ses paramètres sur MQTT (découverte
-  automatique Home Assistant active).
+- Une passerelle **BSB-LAN 5.1 ou plus récente** (recommandée ; 5.0 au minimum) qui
+  publie ses paramètres sur MQTT (découverte automatique Home Assistant active).
+  Voir [Version de BSB-LAN](#version-de-bsb-lan).
 - L'**adresse HTTP de BSB-LAN** (ex. `http://192.168.1.88`) à renseigner dans les
   options de l'intégration : elle active les lectures JSON, les régimes
   Auto/Éco/Confort, l'historique des défauts et l'import des programmes.
@@ -145,6 +146,40 @@ Chaque option est expliquée dans le formulaire.
 
 ## Configuration de BSB-LAN
 
+### Version de BSB-LAN
+
+**BSB-LAN 5.1 est recommandé**, avec l'intégration **2.5.3 ou plus récente**.
+
+| | BSB-LAN 5.0.x | BSB-LAN 5.1 |
+|---|---|---|
+| Lecture, modes, consignes, programmes | oui | oui |
+| Réglage de l'horloge de la PAC (RVS21) | refusé (« set failed ») | **oui** |
+| Reconnexion après une coupure Wi-Fi complète | non garantie | corrigée |
+| `/JI` : indicateur `buswritable` | toujours 0 (bug d'affichage) | juste |
+
+Avant BSB-LAN 5.0, la structure des sujets MQTT est différente (pas de `…/status` ni
+`…/set`) : non pris en charge.
+
+**Points d'attention lors du passage en 5.1** (voir le ChangeLog de BSB-LAN) :
+
+1. **Réglages remis à zéro** : la disposition de l'EEPROM change. Au premier démarrage,
+   les réglages faits dans l'interface web sont remplacés par ceux de `BSB_LAN_config.h`.
+   Noter avant la mise à jour : réseau, MQTT (broker, identifiants), journalisation
+   (paramètres, intervalle), et surtout **Write access** (à remettre sur *Standard* ou
+   *Complete*, sinon toutes les commandes de l'intégration sont refusées).
+2. **MQTT chiffré hors port 1883** : la 5.1 utilise TLS pour un broker sur un autre port
+   que 1883. Un broker local sans certificat (port 2883, 8883…) n'est alors plus joint :
+   compiler avec `#define NO_TLS` dans `BSB_LAN_config.h`, ou utiliser le port 1883.
+3. **Nouvelles entités** : la 5.1 republie l'auto-découverte MQTT, y compris des
+   sous-paramètres décimaux (`701.1`, `1001.2`…). L'intégration 2.5.1 et plus les ignore ;
+   une version antérieure croyait une dérogation active.
+4. **Commandes MQTT** : la 5.1 ignore l'ancienne forme de commande (sujet `BSB-LAN`,
+   message `S1010=21.5`). L'intégration 2.5.3 et plus utilise
+   `BSB-LAN/0/<catégorie>/<paramètre>/set` ; avec une version antérieure, les consignes
+   et réglages ECS ne sont plus appliqués.
+
+### Journalisation
+
 BSB-LAN publie sur MQTT jusqu'à 40 paramètres avec un intervalle commun.
 L'intégration lit cette configuration (`/JI`, lecture seule) et n'interroge
 elle-même que ce qui n'est pas déjà publié assez souvent : aucun paramètre
@@ -181,7 +216,7 @@ comme erreur.
 | Dérogation temporaire native | consigne du `climate` + durée `number` + bouton *Annuler dérogation* | 701/1001, 10990–10993 |
 | ECS : mode et consignes | `water_heater` *Eau chaude sanitaire* | 1600, 1610, 1612 |
 | Forçage d'un cycle ECS | bouton *Forçage cycle ECS* | — |
-| Horloge de la PAC | bouton *Horloge PAC - Synchroniser* (entité texte BSB-LAN, sinon HTTP `/JS` avec relecture ; certains régulateurs refusent ce réglage : le bouton l'indique, régler alors l'heure sur la PAC) | 0 |
+| Horloge de la PAC | bouton *Horloge PAC - Synchroniser* : envoie l'heure de Home Assistant (entité texte BSB-LAN, sinon HTTP `/JS`), puis la relit. Fonctionne sur le RVS21.831F avec **BSB-LAN 5.1** ; avec BSB-LAN 5.0.x, le réglage était refusé (« set failed ») : mettre BSB-LAN à jour, ou régler l'heure sur la PAC. En cas de refus, le bouton l'indique | 0 |
 | Programmes horaires chauffage C1/C2 et ECS | service `set_weekly_program`, mode édition de la carte Programmes | 501–507, 521–527, 561–567 |
 
 Garde-fous :

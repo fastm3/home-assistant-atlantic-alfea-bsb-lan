@@ -328,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       const st=id?hass.states[id]:null;
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
-        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau,st?.attributes?.circuit_1_rafraichissement,st?.attributes?.circuit_2_rafraichissement];
+        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau,st?.attributes?.circuit_1_rafraichissement,st?.attributes?.circuit_2_rafraichissement,st?.attributes?.ecs_liberation_code];
     }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
@@ -359,6 +359,14 @@ class PacSynoptiqueCard extends HTMLElement {
     return found;
   }
   _s(key){return this._ids?.[key] ? this._hass?.states[this._ids[key]] : null;}
+  // libération ECS (1620, lue par l'intégration) : le programme ECS est-il suivi ?
+  _ecsReleaseChip(){
+    const code=this._a('installCfg','ecs_liberation_code');
+    if(code===null||code===undefined) return '';
+    const text={0:'Programme ECS non utilisé · 24 h/24',1:'ECS · programmes chauffage',2:'Programme ECS actif',3:'ECS · heures creuses',4:'Programme ECS ou heures creuses'}[code]||`Libération ECS ${code}`;
+    const tip=`Libération ECS (1620) : ${this._a('installCfg','ecs_liberation')||code}`;
+    return `<span title="${html(tip)}">${chip(text,code===2||code===4?'heat':'dim')}</span>`;
+  }
   // rafraîchissement du circuit (intégration : 5711/5716 ou réglage) ; inconnu = autorisé
   _coolOk(i){return this._a('installCfg',`circuit_${i}_rafraichissement`)!==false;}
   _v(key){const st=this._s(key);return st&&!isMissing(st.state)?st.state:null;}
@@ -1241,6 +1249,7 @@ class PacSynoptiqueCard extends HTMLElement {
       ${ecsModeButtons}${ecsForceButton}
       <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong>${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
       ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
+      ${this._ecsReleaseChip()}
     </div></div>`:'';
     const powerEntity=typeof this._config.power_entity==='string'?this._config.power_entity.trim():'';
     const powerState=powerEntity?this._hass?.states[powerEntity]:null;
@@ -2553,7 +2562,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.5.3";
+const VERSION = "2.5.4";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------

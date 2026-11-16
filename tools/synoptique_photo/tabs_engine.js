@@ -328,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       const st=id?hass.states[id]:null;
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
-        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau,st?.attributes?.circuit_1_rafraichissement,st?.attributes?.circuit_2_rafraichissement];
+        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau,st?.attributes?.circuit_1_rafraichissement,st?.attributes?.circuit_2_rafraichissement,st?.attributes?.ecs_liberation_code];
     }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
@@ -359,6 +359,14 @@ class PacSynoptiqueCard extends HTMLElement {
     return found;
   }
   _s(key){return this._ids?.[key] ? this._hass?.states[this._ids[key]] : null;}
+  // libération ECS (1620, lue par l'intégration) : le programme ECS est-il suivi ?
+  _ecsReleaseChip(){
+    const code=this._a('installCfg','ecs_liberation_code');
+    if(code===null||code===undefined) return '';
+    const text={0:'Programme ECS non utilisé · 24 h/24',1:'ECS · programmes chauffage',2:'Programme ECS actif',3:'ECS · heures creuses',4:'Programme ECS ou heures creuses'}[code]||`Libération ECS ${code}`;
+    const tip=`Libération ECS (1620) : ${this._a('installCfg','ecs_liberation')||code}`;
+    return `<span title="${html(tip)}">${chip(text,code===2||code===4?'heat':'dim')}</span>`;
+  }
   // rafraîchissement du circuit (intégration : 5711/5716 ou réglage) ; inconnu = autorisé
   _coolOk(i){return this._a('installCfg',`circuit_${i}_rafraichissement`)!==false;}
   _v(key){const st=this._s(key);return st&&!isMissing(st.state)?st.state:null;}
@@ -1241,6 +1249,7 @@ class PacSynoptiqueCard extends HTMLElement {
       ${ecsModeButtons}${ecsForceButton}
       <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong>${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
       ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
+      ${this._ecsReleaseChip()}
     </div></div>`:'';
     const powerEntity=typeof this._config.power_entity==='string'?this._config.power_entity.trim():'';
     const powerState=powerEntity?this._hass?.states[powerEntity]:null;

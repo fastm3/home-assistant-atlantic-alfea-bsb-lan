@@ -101,6 +101,15 @@ class InstallationConfigTest(unittest.TestCase):
         del unreadable["5711"]                            # rafraîchissement C1 illisible
         self.assertEqual(ic.cooling_circuits(ic.effective_layout(ic.parse_installation(unreadable), {})), {1, 2})
 
+    def test_ecs_release_1620(self):
+        for value, used in ((0, False), (1, False), (2, True), (4, True)):
+            data = answer(); data.update(jq(**{"1620": value}))
+            layout = ic.parse_installation(data)
+            self.assertEqual(layout["ecs_liberation_code"], value)
+            self.assertIs(layout["ecs_programme_utilise"], used)
+        self.assertEqual(ic.parse_installation(answer())["ecs_programme_utilise"], None)   # 1620 non lu
+        self.assertIn(1620, ic.READ_PARAMETERS)
+
     def test_cooling_means_floor_even_with_high_tmax(self):
         self.assertEqual(ic.classify_emitter(2, 1.2, 55)[0], "plancher")
 

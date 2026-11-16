@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.5.4 — Programme ECS utilisé ou non, BSB-LAN 5.1 recommandé
+
+### Intégration
+
+- **Libération ECS (1620)** lue avec la configuration de l'installation : attributs
+  `ecs_liberation`, `ecs_liberation_code` et `ecs_programme_utilise` du capteur
+  « Installation - Configuration ». Le programme horaire ECS (561…567) n'est suivi par la
+  PAC que si 1620 vaut « programme ECS » (ou « programme ECS ou heures creuses ») ; en
+  24 h/24, il est affiché mais ignoré.
+
+### Cartes
+
+- **PAC Synoptique photo (2.5.4)** : pastille dans le groupe ECS du panneau de commande
+  (« Programme ECS non utilisé · 24 h/24 », « Programme ECS actif »…).
+- **Programmes** : sur l'onglet Eau chaude sanitaire, avertissement quand le programme
+  n'est pas utilisé par la PAC.
+- Manifest **2.5.4**. Redémarrage de Home Assistant nécessaire.
+
+### Documentation
+
+- **Horloge de la PAC** : la synchronisation fonctionne sur le RVS21.831F avec BSB-LAN 5.1
+  (vérifiée : heure envoyée par le bouton, relue à 1 s près). Le refus (« set failed ») venait
+  de BSB-LAN 5.0.x. README et message du bouton / de l'alarme en cas de refus mis à jour
+  (mettre BSB-LAN à jour, sinon régler l'heure sur la PAC).
+- **BSB-LAN 5.1 recommandé** (README, section « Version de BSB-LAN ») : comparaison 5.0 / 5.1
+  et points d'attention lors de la mise à jour (réglages remis à zéro dont Write access,
+  TLS hors port 1883 et `NO_TLS`, sous-paramètres décimaux, nouvelle forme des commandes
+  MQTT, intégration 2.5.3 minimum).
+
 ## 2.5.3 — Écritures avec BSB-LAN 5.1, circuits mémorisés par saison
 
 ### Intégration
