@@ -44,6 +44,19 @@ fonctionner mais ne sont pas validées.
   options de l'intégration : elle active les lectures JSON, les régimes
   Auto/Éco/Confort, l'historique des défauts et l'import des programmes.
 
+> **Pour exploiter l'intégration à 100 %**, deux entités extérieures sont
+> nécessaires en plus de BSB-LAN :
+>
+> - une **entité météo** (`weather.*`, par exemple Météo-France) : décor et
+>   animations météo de la carte synoptique, badge météo ;
+> - un **compteur électrique de la ligne de la PAC** (Shelly EM/Pro EM, compteur
+>   modulaire, prise mesurée selon la puissance…) fournissant une entité
+>   **puissance** (W) et une entité **énergie** (kWh) pour l'ensemble de la PAC
+>   (groupe extérieur + module + appoint) : puissance et énergie du jour sur la
+>   carte, répartition ECS / chauffage, COP des charges ECS.
+>
+> Sans elles, l'intégration fonctionne, mais ces fonctions restent vides.
+
 ## Installation
 
 ### HACS (dépôt personnalisé)

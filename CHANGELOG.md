@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.1 — Horloge de la PAC, prérequis
+
+### Intégration
+
+- **Horloge PAC - Synchroniser** : utilisable même quand BSB-LAN publie le paramètre 0
+  en simple capteur (écriture par HTTP `/JS`), avec relecture de l'heure. Un refus du
+  régulateur (statut 0) ou une heure non appliquée est signalé clairement (message,
+  journal, attributs du bouton et de l'alarme horloge) avec le conseil de régler l'heure
+  sur la PAC. Constaté sur un régulateur Atlantic : le réglage de l'heure par le bus est
+  refusé.
+- README : prérequis pour exploiter l'intégration à 100 % (entité météo, compteur
+  électrique puissance + énergie de l'ensemble de la PAC).
+- Manifest **2.3.1**. Redémarrage de Home Assistant nécessaire.
+
 ## 2.3.0 — Configuration de l'installation détectée, variantes du synoptique
 
 ### Intégration
