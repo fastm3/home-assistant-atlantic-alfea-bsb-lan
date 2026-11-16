@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.4.0 — Première installation guidée
+
+### Intégration
+
+- **Installation guidée** : après la détection des entités BSB-LAN, un écran
+  « Équipement » pré-rempli (adresse BSB-LAN trouvée sur le réseau, entité météo,
+  puissance et énergie de la ligne PAC proposées d'après leur type et leur nom), puis un
+  écran « Configuration de l'installation » qui affiche ce qui a été lu dans la PAC
+  (circuits, émetteurs, ballon) et permet de le corriger.
+- **Découverte réseau** : BSB-LAN trouvé avant toute installation → Home Assistant
+  propose directement l'intégration, adresse pré-remplie (auparavant : seulement mise à
+  jour de l'adresse d'une intégration existante).
+- **Options** : entité météo et puissance électrique de la PAC, à côté du compteur
+  d'énergie. Publiées par le capteur « Installation - Configuration » (attributs
+  `entite_meteo`, `entite_puissance`, `entite_energie`).
+
+### Carte PAC Synoptique photo (2.4.0)
+
+- Météo, puissance et énergie reprises des options de l'intégration quand la carte n'en
+  définit pas : une carte ajoutée sans réglage est complète. Le réglage de la carte reste
+  prioritaire.
+- Manifest **2.4.0**. Redémarrage de Home Assistant nécessaire.
+
 ## 2.3.1 — Horloge de la PAC, prérequis
 
 ### Intégration

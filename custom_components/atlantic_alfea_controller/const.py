@@ -57,6 +57,9 @@ CONF_COMPRESSOR_MODULATION: Final = "compressor_modulation"
 CONF_ENERGY_TOTAL: Final = "energy_total"
 # Global electrical energy meter of the heat pump line (option).
 CONF_ENERGY_ENTITY: Final = "ecs_cop_energy_entity"
+# entités extérieures de l'installation, reprises par les cartes (réglables dans les options)
+CONF_WEATHER_ENTITY: Final = "weather_entity"
+CONF_POWER_ENTITY: Final = "power_entity"
 # Former implicit default, kept only when that entity exists (upgrade path).
 LEGACY_ENERGY_ENTITY: Final = "sensor.phase_a_diff_pac_energy"
 CONF_FLOW_TEMP: Final = "flow_temp"

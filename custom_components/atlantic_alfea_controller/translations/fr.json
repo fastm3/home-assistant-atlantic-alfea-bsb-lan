@@ -1,6 +1,7 @@
 {
   "title": "Atlantic Alfea BSB-LAN",
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Détection automatique BSB-LAN",
@@ -27,6 +28,29 @@
       "reconfigure_manual_v125": {
         "title": "Compléter les entités requises",
         "description": "La détection automatique n’a pas pu associer ces paramètres : {parameters}."
+      },
+      "equipment": {
+        "title": "Équipement de l'installation",
+        "description": "Trouvé automatiquement : {found}. Ces entités complètent BSB-LAN : l'adresse HTTP de BSB-LAN active les lectures JSON, les régimes et l'import des programmes ; la météo anime la carte synoptique ; le compteur électrique de la ligne PAC (Shelly ou autre) donne la puissance, l'énergie du jour, la répartition ECS / chauffage et le COP des charges ECS. Tout reste modifiable plus tard dans les options.",
+        "data": {
+          "bsb_base_url": "Adresse BSB-LAN (ex. http://192.168.1.88)",
+          "weather_entity": "Entité météo",
+          "power_entity": "Puissance électrique de la PAC (W)",
+          "ecs_cop_energy_entity": "Énergie électrique de la PAC (kWh)"
+        },
+        "data_description": {
+          "bsb_base_url": "Pré-remplie quand BSB-LAN a été trouvé sur le réseau. Vide : fonctions HTTP désactivées.",
+          "power_entity": "Compteur de toute la ligne PAC : groupe extérieur, module et appoint.",
+          "ecs_cop_energy_entity": "Compteur cumulé (kWh) de la même ligne."
+        }
+      },
+      "installation": {
+        "title": "Configuration de l'installation",
+        "description": "Lu dans la PAC : {detection}. Gardez « Automatique » si c'est juste, sinon choisissez votre installation (seules les configurations que le synoptique sait dessiner sont proposées).",
+        "data": {
+          "installation_ecs": "Ballon d'eau chaude (ECS)",
+          "installation_emetteurs": "Émetteurs des circuits"
+        }
       }
     },
     "abort": {
@@ -35,6 +59,9 @@
       "no_entry": "Aucune entrée Atlantic Alfea BSB-LAN n'existe encore. Ajoutez d'abord l'intégration.",
       "multiple_entries": "Plusieurs entrées Atlantic Alfea BSB-LAN existent ; mettez à jour l'adresse BSB-LAN manuellement.",
       "discovery_updated": "Adresse BSB-LAN mise à jour automatiquement."
+    },
+    "error": {
+      "invalid_url": "Adresse invalide : saisir par exemple http://192.168.1.88"
     }
   },
   "options": {
@@ -53,7 +80,9 @@
           "circuit_1_name": "Nom du circuit 1 (C1)",
           "circuit_2_name": "Nom du circuit 2 (C2)",
           "installation_ecs": "Installation — ballon d'eau chaude (ECS)",
-          "installation_emetteurs": "Installation — émetteurs des circuits"
+          "installation_emetteurs": "Installation — émetteurs des circuits",
+          "weather_entity": "Entité météo",
+          "power_entity": "Puissance électrique de la PAC (W)"
         },
         "data_description": {
           "circuit_1_name": "Nom affiché du circuit 1 (paramètres BSB 7xx, programme 501). Repris par les cartes et les programmes natifs.",
@@ -66,7 +95,9 @@
           "flow_gap_degrees": "Écart toléré entre la température de départ PAC mesurée (BSB 8412) et la consigne de départ (BSB 8411), compresseur en marche, hors dégivrage et hors charge ECS.",
           "flow_gap_duration_minutes": "Durée pendant laquelle l'écart doit rester au-dessus du seuil, sans interruption, avant de déclencher l'alarme « Écart de température anormal ». Évite les fausses alarmes au démarrage ; à allonger avec un plancher chauffant à forte inertie.",
           "installation_ecs": "Automatique : selon le paramètre 5731 lu dans la PAC. À forcer si la détection est fausse ; repris par toutes les cartes.",
-          "installation_emetteurs": "Automatique : deviné pour chaque circuit d'après le rafraîchissement (5711/5716), la pente de loi d'eau (720/1020) et le départ maximal (741/1041). Seules les configurations que le synoptique sait dessiner sont proposées. Le capteur « Installation - Configuration » indique le choix et sa raison."
+          "installation_emetteurs": "Automatique : deviné pour chaque circuit d'après le rafraîchissement (5711/5716), la pente de loi d'eau (720/1020) et le départ maximal (741/1041). Seules les configurations que le synoptique sait dessiner sont proposées. Le capteur « Installation - Configuration » indique le choix et sa raison.",
+          "weather_entity": "Reprise par les cartes synoptiques (décor et animations météo, badge) quand elles n'en définissent pas.",
+          "power_entity": "Compteur de toute la ligne PAC (Shelly ou autre), repris par les cartes."
         }
       }
     }

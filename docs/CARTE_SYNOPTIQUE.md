@@ -136,7 +136,7 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | Option | Valeurs | Défaut | Rôle |
 |---|---|---|---|
 | `device` | appareil | détection auto | appareil PAC de l'intégration |
-| `power_entity` | entity_id (W) | — | puissance électrique de la PAC (entête, panneau PAC, onglet Commandes) |
+| `power_entity` | entity_id (W) | options de l'intégration | puissance électrique de la PAC (entête, panneau PAC, onglet Commandes) |
 | `energy_entity` | entity_id (kWh) | options de l'intégration | compteur d'énergie électrique de la PAC : le panneau PAC affiche l'énergie du jour (statistiques de HA, depuis minuit), le total en infobulle |
 | `title`, `subtitle` | texte | Alfea Duo, Pompe à chaleur Air/Eau | entête |
 | `circuit_1_name`, `circuit_2_name` | texte | options de l'intégration | libellés des circuits |
@@ -146,7 +146,7 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `emitters` | `auto`, `c1_radiateur_c2_plancher`, `c1_plancher_c2_radiateur`, `c1_radiateur`, `c1_plancher`, `c2_radiateur`, `c2_plancher` | `auto` | émetteurs des circuits, parmi les configurations que le dessin sait représenter (une zone radiateurs à l'étage, une zone plancher au rez-de-chaussée ; chaque zone suit son circuit, une zone sans circuit est effacée). `auto` suit l'intégration |
 | `panel_click` | `history`, `more-info` | `history` | clic sur un panneau : popup d'historique de ses entités (températures, modulation, puissance, états, circulateurs) ou fiche de l'entité principale |
 | `history_hours` | `6`, `24`, `48`, `168` | `24` | durée affichée à l'ouverture du popup (boutons 6 h / 24 h / 48 h / 7 j dans le popup) |
-| `weather_entity` | entity_id `weather.*` | — | active la météo |
+| `weather_entity` | entity_id `weather.*` | options de l'intégration | active la météo |
 | `show_weather` | booléen | `true` | encart météo dans le ciel |
 | `weather_sync` | booléen | `true` | fond neige / pluie / brouillard |
 | `weather_anim` | booléen | `true` | animations météo |

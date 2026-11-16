@@ -2536,7 +2536,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -2576,11 +2576,15 @@ function resolveEntities(hass, config) {
   const r = { ...DEFAULT_ENTITIES, ...autoEntities(hass, config.device || findPacDevice(hass)), ...custom };
   // compteur d'énergie : config de la carte, sinon celui choisi dans les options de l'intégration
   // (publié dans l'attribut energy_entity des capteurs ECS)
-  const fromIntegration = [r.ecs_cop, r.ecs_energie].map((id) => hass?.states?.[id]?.attributes?.energy_entity).find(Boolean);
+  // entités extérieures choisies dans l'intégration (capteur « Installation - Configuration »)
+  const ia = (r.install_cfg && hass?.states?.[r.install_cfg]?.attributes) || {};
+  const fromIntegration = [r.ecs_cop, r.ecs_energie].map((id) => hass?.states?.[id]?.attributes?.energy_entity).find(Boolean) || ia.entite_energie;
   if (config.energy_entity) r.energy = config.energy_entity;
   else if (!custom.energy && fromIntegration) r.energy = fromIntegration;
-  // puissance : uniquement l'entité choisie dans la carte (aucune déduction)
+  // puissance : entité de la carte, sinon celle des options de l'intégration (aucune déduction)
   if (config.power_entity) r.power = config.power_entity;
+  else if (!custom.power && ia.entite_puissance) r.power = ia.entite_puissance;
+  r.weather = config.weather_entity || ia.entite_meteo || "";
   return r;
 }
 function findPacDevice(hass) {
@@ -2723,7 +2727,7 @@ const EDITOR_SCHEMA = [
 ];
 const LABELS = {
   device: "Appareil PAC (Atlantic Alfea BSB-LAN)",
-  power_entity: "Puissance électrique PAC (W)",
+  power_entity: "Puissance électrique PAC (W ; vide = celle des options de l'intégration)",
   energy_entity: "Énergie électrique PAC (kWh ; vide = compteur des options de l'intégration)",
   title: "Titre", subtitle: "Sous-titre", circuit_1_name: "Nom du circuit 1 (vide = nom défini dans l'intégration)", circuit_2_name: "Nom du circuit 2 (vide = nom défini dans l'intégration)",
   outdoor_unit: "Groupe extérieur",
@@ -2735,7 +2739,7 @@ const LABELS = {
   show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Consommation énergétique",
   show_curve: "Loi d'eau", show_controls: "Commandes (mode, consignes)",
   panel_click: "Clic sur un panneau", history_hours: "Durée de l'historique",
-  weather_entity: "Entité météo (optionnelle)", show_weather: "Afficher la météo dans le paysage",
+  weather_entity: "Entité météo (vide = celle des options de l'intégration)", show_weather: "Afficher la météo dans le paysage",
   weather_sync: "Fond synchronisé (neige, pluie, brouillard)", weather_anim: "Animations météo (pluie, neige, vent…)",
   positions: "Positions des panneaux [x %, y %, largeur %] (ext, pac, c1, c2, ecs)",
 };
@@ -2830,7 +2834,12 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
-    if (first || this._entReg !== hass.entities) { this._entReg = hass.entities; this._e = resolveEntities(hass, this._config); }
+    // entités extérieures de l'intégration (météo, puissance, énergie) : re-résolues si elles changent
+    const ia = (this._e?.install_cfg && hass.states[this._e.install_cfg]?.attributes) || {};
+    const iaSig = [ia.entite_meteo, ia.entite_puissance, ia.entite_energie].join("|");
+    if (first || this._entReg !== hass.entities || iaSig !== this._iaSig) {
+      this._entReg = hass.entities; this._iaSig = iaSig; this._e = resolveEntities(hass, this._config);
+    }
     this._L = layoutFor(this._config, hass, this._e);
     if (this._built && this._sig() !== this._namesSig) this._built = false;  // un nom ou la configuration a changé
     if (!this._built) this._build();
@@ -2933,7 +2942,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   }
   // météo : condition (ou forçage debug), variante d'image, effet animé, vent en km/h
   _wx() {
-    const c = this._config, s = c.weather_entity && this._hass && this._hass.states[c.weather_entity];
+    const c = this._config, wid = this._e?.weather, s = wid && this._hass && this._hass.states[wid];
     const cond = this._wxForce || (s && s.state);
     const info = WX[cond];
     const a = (s && s.attributes) || {};
@@ -3343,7 +3352,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const wsel = root.getElementById("dbg_wx");
     if (wsel) { wsel.value = this._wxForce || ""; wsel.addEventListener("change", () => { this._wxForce = wsel.value || undefined; this._update(); }); }
     root.getElementById("wx").addEventListener("click", () => {
-      const id = c.weather_entity; if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: id } })); });
+      const id = this._e?.weather; if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: id } })); });
     this._root = root; this._built = true;
     this._mountTabs();
     this._startFan();

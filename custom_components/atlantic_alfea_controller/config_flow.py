@@ -19,6 +19,8 @@ from .const import (
     CONF_CIRCUIT_1_NAME,
     CONF_CIRCUIT_2_NAME,
     CONF_ENERGY_ENTITY,
+    CONF_POWER_ENTITY,
+    CONF_WEATHER_ENTITY,
     CONF_FLOW_GAP_DEGREES,
     CONF_FLOW_GAP_DURATION_MINUTES,
     CONF_FREQUENT_STARTS_PER_HOUR,
@@ -102,6 +104,9 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovery: DiscoveryResult | None = None
         self._pending_data: dict[str, str] = {}
         self._reconfigure_entry = None
+        self._zeroconf_url: str | None = None
+        self._options: dict[str, Any] = {}
+        self._detection = ""
 
     @staticmethod
     @callback
@@ -119,7 +124,12 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         entries = self.hass.config_entries.async_entries(DOMAIN)
         if not entries:
-            return self.async_abort(reason="no_entry")
+            # première installation : BSB-LAN trouvé sur le réseau, adresse pré-remplie
+            await self.async_set_unique_id("atlantic_alfea_bsblan")
+            self._abort_if_unique_id_configured()
+            self._zeroconf_url = base_url
+            self.context["title_placeholders"] = {"name": f"BSB-LAN ({host})"}
+            return await self.async_step_user()
         if len(entries) > 1:
             return self.async_abort(reason="multiple_entries")
 
@@ -151,10 +161,7 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if user_input.get(CONF_CONFIRM_MANUAL, False):
                 return await self.async_step_mapping_v125()
-            return self.async_create_entry(
-                title="Atlantic Alfea BSB-LAN",
-                data=self._pending_data,
-            )
+            return await self.async_step_equipment()
 
         return self.async_show_form(
             step_id="user",
@@ -181,10 +188,7 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._pending_data.update(_clean_mapping(user_input))
-            return self.async_create_entry(
-                title="Atlantic Alfea BSB-LAN",
-                data=self._pending_data,
-            )
+            return await self.async_step_equipment()
 
         defaults = {
             key: self._discovery.unresolved[key][0]
@@ -215,7 +219,8 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self._reconfigure_entry,
                     data=data,
                 )
-            return self.async_create_entry(title="Atlantic Alfea BSB-LAN", data=data)
+            self._pending_data = data
+            return await self.async_step_equipment()
 
         defaults = dict(self._pending_data)
         if self._reconfigure_entry is not None:
@@ -228,6 +233,88 @@ class AtlanticAlfeaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 defaults,
             ),
         )
+
+    async def async_step_equipment(self, user_input: dict[str, Any] | None = None):
+        """Première installation : adresse BSB-LAN, météo, puissance et énergie de la PAC (pré-remplies)."""
+        from .onboarding import async_probe_bsb_lan, suggest_meter, suggest_weather
+        from .regime_api import valid_base_url
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            address = str(user_input.get("bsb_base_url", "") or "").strip().rstrip("/")
+            if address and not valid_base_url(address):
+                errors["base"] = "invalid_url"
+            else:
+                self._options = {
+                    "bsb_base_url": address,
+                    CONF_WEATHER_ENTITY: user_input.get(CONF_WEATHER_ENTITY) or "",
+                    CONF_POWER_ENTITY: user_input.get(CONF_POWER_ENTITY) or "",
+                    CONF_ENERGY_ENTITY: user_input.get(CONF_ENERGY_ENTITY) or "",
+                }
+                self._detection = await self._async_detect(address)
+                return await self.async_step_installation()
+
+        url = self._zeroconf_url or await async_probe_bsb_lan(self.hass) or ""
+        suggested = {
+            "bsb_base_url": url,
+            CONF_WEATHER_ENTITY: suggest_weather(self.hass),
+            CONF_POWER_ENTITY: suggest_meter(self.hass, "power"),
+            CONF_ENERGY_ENTITY: suggest_meter(self.hass, "energy"),
+        }
+        schema = vol.Schema({
+            vol.Optional("bsb_base_url", description={"suggested_value": suggested["bsb_base_url"] or None}):
+                selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
+            vol.Optional(CONF_WEATHER_ENTITY, description={"suggested_value": suggested[CONF_WEATHER_ENTITY]}):
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="weather")),
+            vol.Optional(CONF_POWER_ENTITY, description={"suggested_value": suggested[CONF_POWER_ENTITY]}):
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
+            vol.Optional(CONF_ENERGY_ENTITY, description={"suggested_value": suggested[CONF_ENERGY_ENTITY]}):
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
+        })
+        found = [label for key, label in (("bsb_base_url", "adresse BSB-LAN"), (CONF_WEATHER_ENTITY, "météo"),
+                                          (CONF_POWER_ENTITY, "puissance"), (CONF_ENERGY_ENTITY, "énergie"))
+                 if suggested[key]]
+        return self.async_show_form(
+            step_id="equipment", data_schema=schema, errors=errors,
+            description_placeholders={"found": ", ".join(found) or "rien (à compléter si disponible)"},
+        )
+
+    async def _async_detect(self, address: str) -> str:
+        """Résumé de la configuration lue dans la PAC (circuits, émetteurs, ECS)."""
+        if not address:
+            return "non lue (adresse BSB-LAN absente) : choisissez la configuration ci-dessous si besoin"
+        from .bsb_http import get_client
+        from .installation_config import CONFIG_PARAMETERS, details, parse_installation, summary
+
+        client = get_client(self.hass, address)
+        try:
+            layout = parse_installation(await client.get_jq(CONFIG_PARAMETERS, timeout=20)) if client else None
+        except Exception as err:  # noqa: BLE001 - affiché tel quel à l'utilisateur
+            return f"lecture impossible ({err.__class__.__name__}) : vérifiez l'adresse BSB-LAN"
+        if not layout:
+            return "réponse illisible du régulateur"
+        return f"{summary(layout)} — {details(layout)}"
+
+    async def async_step_installation(self, user_input: dict[str, Any] | None = None):
+        """Première installation : configuration détectée, corrigeable (configurations dessinables seulement)."""
+        if user_input is not None:
+            options = {**self._options,
+                       "installation_ecs": user_input.get("installation_ecs", "auto"),
+                       "installation_emetteurs": user_input.get("installation_emetteurs", "auto")}
+            return self.async_create_entry(title="Atlantic Alfea BSB-LAN", data=self._pending_data, options=options)
+        schema = vol.Schema({
+            vol.Required("installation_ecs", default="auto"): selector.SelectSelector(
+                selector.SelectSelectorConfig(mode=selector.SelectSelectorMode.DROPDOWN, options=[
+                    selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
+                    selector.SelectOptionDict(value="oui", label="Avec ballon d'eau chaude"),
+                    selector.SelectOptionDict(value="non", label="Sans ballon d'eau chaude")])),
+            vol.Required("installation_emetteurs", default="auto"): selector.SelectSelector(
+                selector.SelectSelectorConfig(mode=selector.SelectSelectorMode.DROPDOWN, options=[
+                    selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
+                    *[selector.SelectOptionDict(value=key, label=label) for key, label in COMBO_LABELS.items()]])),
+        })
+        return self.async_show_form(step_id="installation", data_schema=schema,
+                                    description_placeholders={"detection": self._detection})
 
     async def async_step_manual_all(self, user_input: dict[str, Any] | None = None):
         """Compatibility alias for flows started by an earlier release."""
@@ -339,6 +426,8 @@ class AtlanticAlfeaOptionsFlow(OptionsFlowWithReload):
                 return self.async_show_form(step_id="init", errors={"base": "invalid_url"})
             # Keep an explicit empty value: it means "no global meter".
             user_input[CONF_ENERGY_ENTITY] = user_input.get(CONF_ENERGY_ENTITY) or ""
+            user_input[CONF_WEATHER_ENTITY] = user_input.get(CONF_WEATHER_ENTITY) or ""
+            user_input[CONF_POWER_ENTITY] = user_input.get(CONF_POWER_ENTITY) or ""
             return self.async_create_entry(data=user_input)
 
         schema = vol.Schema(
@@ -356,6 +445,14 @@ class AtlanticAlfeaOptionsFlow(OptionsFlowWithReload):
                     selector.SelectSelectorConfig(mode=selector.SelectSelectorMode.DROPDOWN, options=[
                         selector.SelectOptionDict(value="auto", label="Automatique (détection)"),
                         *[selector.SelectOptionDict(value=key, label=label) for key, label in COMBO_LABELS.items()]])),
+                vol.Optional(
+                    CONF_WEATHER_ENTITY,
+                    description={"suggested_value": self.config_entry.options.get(CONF_WEATHER_ENTITY) or None},
+                ): selector.EntitySelector(selector.EntitySelectorConfig(domain="weather")),
+                vol.Optional(
+                    CONF_POWER_ENTITY,
+                    description={"suggested_value": self.config_entry.options.get(CONF_POWER_ENTITY) or None},
+                ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
                 vol.Optional(
                     CONF_ENERGY_ENTITY,
                     description={"suggested_value": energy_entity(self.hass, self.config_entry) or None},

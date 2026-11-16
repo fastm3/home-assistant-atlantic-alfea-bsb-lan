@@ -109,6 +109,23 @@ La 2.0.0 est une version majeure :
 
 Correspondance des options : [docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md#depuis-la-15x).
 
+## Première installation
+
+L'ajout de l'intégration est guidé :
+
+1. **Détection BSB-LAN** : les entités MQTT de BSB-LAN sont associées automatiquement
+   (association complète consultable si besoin).
+2. **Équipement**, pré-rempli quand c'est possible : adresse HTTP de BSB-LAN (trouvée
+   sur le réseau), entité météo, puissance et énergie de la ligne PAC (compteur proposé
+   d'après son type et son nom). Tout reste modifiable plus tard dans les options.
+3. **Configuration de l'installation** : circuits, émetteurs et ballon lus dans la PAC,
+   affichés pour confirmation ; « Automatique » si c'est juste, sinon choisir parmi les
+   configurations que le synoptique sait dessiner.
+
+Quand BSB-LAN est trouvé sur le réseau avant toute installation, Home Assistant propose
+directement l'intégration (« Découvert »), adresse pré-remplie. Les cartes reprennent
+ensuite la météo, la puissance et l'énergie choisies ici : il suffit de les ajouter.
+
 ## Options de l'intégration
 
 **Paramètres → Appareils et services → Atlantic Alfea BSB-LAN → Configurer.**

@@ -688,9 +688,16 @@ class AlfeaInstallationConfigSensor(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
+        from .const import CONF_POWER_ENTITY, CONF_WEATHER_ENTITY
+        from .helpers import energy_entity
         from .installation_config import installation_layout
 
-        return dict(installation_layout(self.hass, self._entry) or {})
+        attributes = dict(installation_layout(self.hass, self._entry) or {})
+        # entités extérieures de l'installation (options) : reprises par les cartes sans réglage
+        attributes["entite_meteo"] = self._entry.options.get(CONF_WEATHER_ENTITY) or None
+        attributes["entite_puissance"] = self._entry.options.get(CONF_POWER_ENTITY) or None
+        attributes["entite_energie"] = energy_entity(self.hass, self._entry) or None
+        return attributes
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
