@@ -157,6 +157,11 @@ Réglage recommandé (*Settings → Logging*) : **MQTT**, **60 s**, et ces
 8740,8741,8743,8760,8770,8771,8773,8820,8821,8830,9031
 ```
 
+Inutile d'y ajouter la loi d'eau (720…750, 1020…1050), la configuration de
+l'installation (5710…5731) ou les programmes horaires : avec l'adresse HTTP
+de BSB-LAN dans les options, l'intégration les lit elle-même (toutes les 6 h,
+ou à la demande pour les programmes).
+
 Le capteur **BSB-LAN - Journalisation** indique ce qui est couvert, ce que
 l'intégration lit en plus et ce qui manque. Explications et charge du bus :
 [docs/BSB_LAN_JOURNALISATION.md](docs/BSB_LAN_JOURNALISATION.md).

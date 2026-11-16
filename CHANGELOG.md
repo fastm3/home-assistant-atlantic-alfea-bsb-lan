@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.4.1 — Programmes horaires et loi d'eau sur toutes les installations
+
+### Intégration
+
+- **Programmes horaires natifs** : selon la version de BSB-LAN et la liste de paramètres
+  du régulateur, les jours mardi → dimanche sont numérotés 502…507 (522…, 562…) ou
+  501.1…501.6 (521.1…, 561.1…). La numérotation est maintenant détectée pour chaque
+  programme, en lecture comme en écriture. Corrige l'import en erreur
+  « Réponse BSB-LAN invalide pour 502: None » sur certaines installations.
+- **Loi d'eau lue par l'intégration** : pente, décalage, bascule été/hiver, départ
+  min/max et influence ambiante des deux circuits (720…750, 1020…1050) sont lus avec la
+  configuration de l'installation, au démarrage puis toutes les 6 h, et publiés dans
+  l'attribut `loi_d_eau` du capteur « Installation - Configuration ». Plus besoin de les
+  journaliser dans BSB-LAN.
+
+### Carte PAC Synoptique photo (2.4.1)
+
+- **Loi d'eau** : quand BSB-LAN ne publie pas 720/1020 en MQTT (paramètres absents du
+  journal, ou BSB-LAN réglé dans une autre langue que l'anglais), la carte utilise les
+  valeurs lues par l'intégration au lieu d'afficher « Loi d'eau indisponible ».
+- Manifest **2.4.1**. Redémarrage de Home Assistant nécessaire.
+
+### Documentation
+
+- `docs/BSB_LAN_JOURNALISATION.md` : réglages BSB-LAN en trois points, et liste des
+  paramètres lus par l'intégration qu'il est inutile de journaliser.
+
 ## 2.4.0 — Première installation guidée
 
 ### Intégration

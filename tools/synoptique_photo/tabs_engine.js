@@ -75,6 +75,7 @@ const FIELDS = {
   coolSetpointC2:  ['number','C2 - Rafraîch. T. Conf'],
   coolReducedSetpointC1: ['number','C1 - Consigne rafraîchissement réduite (903)'],
   coolReducedSetpointC2: ['number','C2 - Consigne rafraîchissement réduite (1203)'],
+  installCfg:   ['sensor','Installation - Configuration'],
   curveSlope1:  ['sensor','720 - Heating curve slope'],
   curveOffset1: ['sensor','721 - Heating curve parallel displacement'],
   curveMin1:    ['sensor','740 - Flow temp min limitation'],
@@ -327,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       const st=id?hass.states[id]:null;
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
-        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique];
+        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau];
     }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
@@ -1010,18 +1011,28 @@ class PacSynoptiqueCard extends HTMLElement {
       <p class="eg-note">Compteur global réparti par l’intégration : ECS pendant une charge ECS (8003), sinon C1+C2.</p>
     </div>`;
   }
+  // loi d'eau : capteur MQTT BSB-LAN s'il est publié, sinon valeur lue par l'intégration (/JQ toutes les 6 h)
+  _curveValue(key){
+    const mqtt=nvalue(this._v(key));
+    if(mqtt!==null) return mqtt;
+    const m=/^curve(Slope|Offset|Min|Max|Gain|Winter)([12])$/.exec(key);
+    if(!m) return null;
+    const field={Slope:'pente',Offset:'decalage',Min:'t_depart_min',Max:'t_depart_max',Gain:'influence_ambiance',Winter:'bascule_ete_hiver'}[m[1]];
+    const curve=this._a('installCfg','loi_d_eau')?.[m[2]];
+    return curve ? nvalue(curve[field]) : null;
+  }
   _curveHtml(){
     const read=circuit=>{
-      const slope=nvalue(this._v(`curveSlope${circuit}`));
+      const slope=this._curveValue(`curveSlope${circuit}`);
       if(slope===null) return null;
-      const offset=nvalue(this._v(`curveOffset${circuit}`))??0;
-      const min=nvalue(this._v(`curveMin${circuit}`))??15;
-      const max=nvalue(this._v(`curveMax${circuit}`))??65;
-      const gain=nvalue(this._v(`curveGain${circuit}`));
+      const offset=this._curveValue(`curveOffset${circuit}`)??0;
+      const min=this._curveValue(`curveMin${circuit}`)??15;
+      const max=this._curveValue(`curveMax${circuit}`)??65;
+      const gain=this._curveValue(`curveGain${circuit}`);
       return {circuit,slope,offset,min,max,gain};
     };
     const curves=[read(1),read(2)].filter(Boolean);
-    if(!curves.length) return '<div class="graph-note">Loi d’eau indisponible : paramètres 720/1020 non publiés.</div>';
+    if(!curves.length) return '<div class="graph-note">Loi d’eau indisponible : pentes 720/1020 ni publiées par BSB-LAN, ni lues par l’intégration (adresse HTTP de BSB-LAN à renseigner dans ses options).</div>';
     const W=420,H=220,left=36,right=12,top=12,bottom=28;
     const plotW=W-left-right,plotH=H-top-bottom;
     const x=t=>left+(t+10)/30*plotW;
@@ -1040,7 +1051,7 @@ class PacSynoptiqueCard extends HTMLElement {
       return `<line x1="${left}" y1="${y(curve.max)}" x2="${left+plotW}" y2="${y(curve.max)}" stroke="${color}" stroke-width="1" stroke-dasharray="5 5" opacity=".35"/><line x1="${left}" y1="${y(curve.min)}" x2="${left+plotW}" y2="${y(curve.min)}" stroke="${color}" stroke-width="1" stroke-dasharray="2 4" opacity=".35"/><polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linejoin="round"/>`;
     }).join('');
     const value=(key,digits,unit='')=>{
-      const raw=nvalue(this._v(key));
+      const raw=this._curveValue(key);
       return raw===null?'—':html(raw.toFixed(digits).replace('.',','))+(unit?`<small>${unit}</small>`:'');
     };
     const row=(circuit,slope,offset,minimum,maximum,gain,winter)=>`<div class="curve-table-row"><strong><i class="c${circuit}"></i>C${circuit}</strong><span>${value(slope,2)}</span><span>${value(offset,1,' °C')}</span><span>${value(minimum,1,' °C')}</span><span>${value(maximum,1,' °C')}</span><span>${value(gain,0,' %')}</span><span>${value(winter,1,' °C')}</span></div>`;

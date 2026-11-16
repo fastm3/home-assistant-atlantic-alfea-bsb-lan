@@ -15,6 +15,9 @@ paramètre par paramètre. Ce qui soulage réellement le bus, c'est :
 
 - Au démarrage puis toutes les 6 h, elle lit `/JI` (lecture seule) :
   mode de journalisation, intervalle et liste des paramètres journalisés.
+- Au même rythme, elle lit en une requête `/JQ` la configuration de
+  l'installation et la loi d'eau (voir plus bas) : ces valeurs n'ont pas
+  besoin d'être journalisées.
 - Chaque paramètre utilisé a une **période cible** :
   - **1 min** : états (8000, 8001, 8003, 8006, 8400, 8820, 8821),
     circulateurs (8760, 9031), modes (700, 901, 1000, 1201, 1600),
@@ -40,6 +43,14 @@ paramètre par paramètre. Ce qui soulage réellement le bus, c'est :
 
 ## Réglage recommandé de BSB-LAN
 
+En résumé, dans BSB-LAN :
+
+1. **Settings → Logging** : mode MQTT, intervalle 60 s, liste ci-dessous ;
+2. **adresse HTTP de BSB-LAN** renseignée dans les options de l'intégration
+   (programmes horaires, loi d'eau, configuration de l'installation, horloge) ;
+3. **droits d'écriture** (*Write access*) sur *Standard* ou *Complete* pour
+   modifier modes, consignes et programmes depuis Home Assistant.
+
 *Settings → Logging* :
 
 - **Logging mode** : MQTT ;
@@ -59,6 +70,24 @@ Un intervalle de 30 s reste possible : il double simplement la charge du bus
 pour ces 25 paramètres. Au-delà de 60 s, ces paramètres ne sont plus
 considérés comme couverts et l'intégration les lit elle-même chaque minute.
 
+### Lus par l'intégration : inutile de les journaliser
+
+Avec l'adresse HTTP de BSB-LAN configurée, l'intégration lit elle-même, au
+démarrage puis toutes les 6 h :
+
+| Paramètres | Usage |
+|---|---|
+| 5710, 5711, 5715, 5716, 5731 | circuits présents, rafraîchissement, ballon ECS (détection de l'installation) |
+| 720, 721, 730, 740, 741, 750 | loi d'eau C1 : pente, décalage, bascule été/hiver, départ min/max, influence ambiante |
+| 1020, 1021, 1030, 1040, 1041, 1050 | loi d'eau C2 (mêmes réglages) |
+| 501…507, 521…527, 561…567 (ou 501.1…501.6, etc.) | programmes horaires, sur demande |
+
+La carte « Loi d'eau » utilise les capteurs MQTT de ces paramètres s'ils
+existent, sinon les valeurs lues par l'intégration. **Sans adresse HTTP**,
+ajoutez `720,721,730,740,741,750,1020,1021,1030,1040,1041,1050` au journal :
+la carte ne reconnaît alors ces capteurs que sous leur nom anglais
+(« 720 - Heating curve slope »…), BSB-LAN doit donc être réglé en anglais.
+
 ### Paramètres à retirer du journal
 
 Ils ne sont pas utilisés par l'intégration. Gardez-les seulement si vos
@@ -70,7 +99,8 @@ propres tableaux de bord ou automatisations les utilisent :
 
 Les consignes et compteurs (710, 712, 902, 1010, 1012, 1202, 1610, 1612,
 3113, 8411, 8703, 8744) peuvent aussi quitter le journal : l'intégration
-les lit à leur propre rythme.
+les lit à leur propre rythme. De même pour la loi d'eau et la configuration
+(720…750, 1020…1050, 5710…5731) quand l'adresse HTTP est configurée.
 
 ## Capteur de diagnostic
 

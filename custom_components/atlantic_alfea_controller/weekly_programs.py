@@ -20,7 +20,9 @@ from .bsb_http import get_client, valid_base_url
 
 _LOGGER = logging.getLogger(__name__)
 WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
-# Heating/ECS: Monday is the base, following days use .1 through .6.
+# Heating/ECS: Monday is the base. Depending on the BSB-LAN version / device
+# parameter list, the following days are either consecutive (502-507) or decimal
+# sub-parameters (501.1-501.6); the importer detects which one answers.
 # Cooling: custom BSB-LAN parameters 11000-11006 / 11010-11016 are consecutive.
 PROGRAMS = {
     "chauffage_c1": ("Chauffage C1", "mdi:calendar-clock", "501"),
@@ -62,11 +64,41 @@ def parse_timeprog(value: str) -> list[dict[str, str]]:
     return result
 
 
-def parameter_for_day(key: str, base: str, index: int) -> str:
+SCHEME_CONSECUTIVE = "consecutif"
+SCHEME_DECIMAL = "decimal"
+
+
+def parameter_for_day(key: str, base: str, index: int, scheme: str = SCHEME_CONSECUTIVE) -> str:
     """Return the exact BSB-LAN JSON parameter for a weekday (Monday = 0)."""
     if not 0 <= index < len(WEEKDAYS):
         raise ValueError(f"Jour invalide : {index}")
+    if scheme == SCHEME_DECIMAL and index:
+        return f"{base}.{index}"
     return str(int(base) + index)
+
+
+def response_item(data, parameter: str):
+    """Entry for ``parameter`` in a /JQ answer (keys may be written 502 or 502.0)."""
+    if not isinstance(data, dict):
+        return None
+    if parameter in data:
+        return data[parameter]
+    try:
+        wanted = float(parameter)
+    except ValueError:
+        return None
+    for key, item in data.items():
+        try:
+            if float(key) == wanted:
+                return item
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def js_parameter(parameter: str):
+    """/JS expects a number: 501 stays an int, 501.1 is sent as a float."""
+    return float(parameter) if "." in parameter else int(parameter)
 
 
 @dataclass
@@ -86,6 +118,7 @@ class WeeklyProgramImporter:
         self.entry_id = entry_id
         self.base_url = base_url.strip().rstrip("/")
         self.snapshots = {key: ProgramSnapshot() for key in PROGRAMS}
+        self.schemes: dict[str, str] = {}
         self._lock = asyncio.Lock()
 
     @property
@@ -97,7 +130,7 @@ class WeeklyProgramImporter:
 
     async def _read_day(self, client, parameter: str) -> list[dict[str, str]]:
         data = await client.get_jq(parameter, timeout=10)
-        item = data.get(parameter) if isinstance(data, dict) else None
+        item = response_item(data, parameter)
         if not isinstance(item, dict) or str(item.get("error")) != "0":
             raise ValueError(f"Réponse BSB-LAN invalide pour {parameter}: {item!r}")
         if item.get("dataType_name") not in (None, "TIMEPROG"):
@@ -106,6 +139,29 @@ class WeeklyProgramImporter:
         if not isinstance(value, str):
             raise ValueError(f"Plages horaires absentes pour {parameter}")
         return parse_timeprog(value)
+
+    async def _detect_scheme(self, client, key: str, base: str) -> str:
+        """Find how this PAC numbers Tuesday-Sunday (cached per program)."""
+        if key in self.schemes:
+            return self.schemes[key]
+        if key.startswith("rafraichissement_"):
+            return SCHEME_CONSECUTIVE
+        errors = []
+        for scheme in (SCHEME_CONSECUTIVE, SCHEME_DECIMAL):
+            try:
+                await self._read_day(client, parameter_for_day(key, base, 1, scheme))
+            except (ValueError, asyncio.TimeoutError, OSError) as err:
+                errors.append(str(err))
+                continue
+            self.schemes[key] = scheme
+            _LOGGER.debug("Programme %s : numérotation %s", key, scheme)
+            return scheme
+        raise ValueError(" ; ".join(errors))
+
+    async def _day_parameter(self, client, key: str, base: str, index: int) -> str:
+        if index == 0:
+            return base
+        return parameter_for_day(key, base, index, await self._detect_scheme(client, key, base))
 
     def _record_error(self, key, snapshot, err, errors) -> None:
         """Record a failure; cooling schedules are optional on some PACs."""
@@ -132,7 +188,7 @@ class WeeklyProgramImporter:
                 days: dict[str, list[dict[str, str]]] = {}
                 try:
                     for index, weekday in enumerate(WEEKDAYS):
-                        parameter = parameter_for_day(key, base, index)
+                        parameter = await self._day_parameter(client, key, base, index)
                         days[weekday] = await self._read_day(client, parameter)
                 except (ValueError, asyncio.TimeoutError, OSError) as err:
                     self._record_error(key, snapshot, err, errors)
@@ -201,12 +257,12 @@ def format_timeprog_write(slots: list[dict[str, str]]) -> str:
 
 
 async def _post_with_ack(client, parameter: str, value: str) -> None:
-    payload = {"parameter": int(parameter), "value": value, "type": 1, "destination": 0}
+    payload = {"parameter": js_parameter(parameter), "value": value, "type": 1, "destination": 0}
     result = outcome = None
     for attempt in range(3):
         await asyncio.sleep(0.25 if attempt == 0 else 0.6)
         result = await client.post_js(payload)
-        outcome = result.get(str(parameter)) if isinstance(result, dict) else None
+        outcome = response_item(result, str(parameter))
         if isinstance(outcome, dict) and outcome.get("status") == 1:
             return
     raise ValueError(f"BSB-LAN n'a pas acquitté l'écriture de {parameter} : {result!r}")
@@ -229,7 +285,7 @@ async def async_write_program_days(importer: "WeeklyProgramImporter", key: str,
         client = get_client(importer.hass, importer.base_url)
         snapshot = importer.snapshots[key]
         for day, slots in wanted.items():
-            parameter = parameter_for_day(key, base, WEEKDAYS.index(day))
+            parameter = await importer._day_parameter(client, key, base, WEEKDAYS.index(day))
             before = await importer._read_day(client, parameter)
             if before == slots:
                 results[day] = "inchangé"

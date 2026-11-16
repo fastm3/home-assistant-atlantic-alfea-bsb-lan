@@ -37,7 +37,10 @@ def load_function(name, extra=None):
 
 PROGRAMS = load_literal("PROGRAMS")
 WEEKDAYS = load_literal("WEEKDAYS")
-parameter_for_day = load_function("parameter_for_day", {"WEEKDAYS": WEEKDAYS})
+SCHEMES = {"SCHEME_CONSECUTIVE": load_literal("SCHEME_CONSECUTIVE"), "SCHEME_DECIMAL": load_literal("SCHEME_DECIMAL")}
+parameter_for_day = load_function("parameter_for_day", {"WEEKDAYS": WEEKDAYS, **SCHEMES})
+response_item = load_function("response_item")
+js_parameter = load_function("js_parameter")
 parse_timeprog = load_function(
     "parse_timeprog",
     {"_SLOT_RE": re.compile(r"(\d{2}:\d{2}|##:##)-(\d{2}:\d{2}|##:##)")},
@@ -66,6 +69,23 @@ class TestCoolingWeeklyPrograms(unittest.TestCase):
                 [parameter_for_day(key, first, day) for day in range(7)],
                 [str(int(first) + day) for day in range(7)],
             )
+
+    def test_heating_decimal_numbering(self):
+        """BSB-LAN numbering 501, 501.1 ... 501.6 (other versions / device lists)."""
+        self.assertEqual(
+            [parameter_for_day("chauffage_c2", "521", day, "decimal") for day in range(7)],
+            ["521"] + [f"521.{day}" for day in range(1, 7)],
+        )
+        self.assertEqual(js_parameter("501.3"), 501.3)
+        self.assertEqual(js_parameter("502"), 502)
+
+    def test_response_item_key_forms(self):
+        item = {"error": 0}
+        self.assertIs(response_item({"502": item}, "502"), item)
+        self.assertIs(response_item({"502.0": item}, "502"), item)
+        self.assertIs(response_item({"501.1": item}, "501.1"), item)
+        self.assertIsNone(response_item({"501": item}, "502"))
+        self.assertIsNone(response_item(None, "502"))
 
     def test_cooling_failure_is_optional(self):
         self.assertIn('snapshot.status = "Non disponible"', TEXT)

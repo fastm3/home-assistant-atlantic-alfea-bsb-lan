@@ -36,6 +36,14 @@ _LOGGER = logging.getLogger(__name__)
 _REFRESH = timedelta(hours=6)
 CONFIG_PARAMETERS: Final = (5710, 5711, 5715, 5716, 5731, 720, 1020, 741, 1041)
 CIRCUITS: Final = {1: (5710, 5711, 720, 741), 2: (5715, 5716, 1020, 1041)}
+# Loi d'eau complète (carte « Loi d'eau ») : lue avec la configuration, toutes les 6 h,
+# pour ne pas dépendre du journal MQTT de BSB-LAN.
+CURVE_FIELDS: Final = {
+    "pente": (720, 1020), "decalage": (721, 1021), "bascule_ete_hiver": (730, 1030),
+    "t_depart_min": (740, 1040), "t_depart_max": (741, 1041), "influence_ambiance": (750, 1050),
+}
+CURVE_PARAMETERS: Final = tuple(sorted({p for pair in CURVE_FIELDS.values() for p in pair} - set(CONFIG_PARAMETERS)))
+READ_PARAMETERS: Final = CONFIG_PARAMETERS + CURVE_PARAMETERS
 
 # Heating curve slopes: underfloor heating is flat, radiators are steep.
 SLOPE_FLOOR_MAX: Final = 0.6
@@ -136,9 +144,17 @@ def parse_installation(data: object) -> dict | None:
     result["ecs_presente"] = None if q3 is None else q3 != 0
     result["ecs_confiance"] = UNKNOWN if q3 is None else HIGH
     result["parametres"] = {str(p): v for p, v in values.items()}
+    curves = {}
+    for n in (1, 2):
+        if result[f"circuit_{n}_present"] is False:
+            continue
+        curve = {field: _number(data, pair[n - 1]) for field, pair in CURVE_FIELDS.items()}
+        if curve["pente"] is not None:
+            curves[str(n)] = curve
+    result["loi_d_eau"] = curves
     # réponse brute du régulateur (nom, valeur, libellé) : à joindre pour corriger la détection
     brut = {}
-    for p in CONFIG_PARAMETERS:
+    for p in READ_PARAMETERS:
         item = data.get(str(p))
         if isinstance(item, dict):
             brut[str(p)] = {k: item.get(k) for k in ("name", "value", "desc", "unit", "error")}
@@ -247,7 +263,7 @@ async def async_start_installation_watch(hass: HomeAssistant, entry: ConfigEntry
 
     async def refresh() -> None:
         try:
-            layout = parse_installation(await client.get_jq(CONFIG_PARAMETERS, timeout=20))
+            layout = parse_installation(await client.get_jq(READ_PARAMETERS, timeout=30))
         except Exception as err:  # noqa: BLE001 - keep the previous knowledge
             _LOGGER.warning("Lecture de la configuration de l'installation impossible : %r", err)
             return

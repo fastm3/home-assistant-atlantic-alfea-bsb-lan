@@ -52,6 +52,23 @@ class InstallationConfigTest(unittest.TestCase):
         self.assertEqual(layout["brut"]["5731"]["value"], "2")
         self.assertIn("C2: plancher (rafraîchissement actif", ic.details(layout))
 
+    def test_heating_curve_read_with_configuration(self):
+        data = answer()
+        data.update(jq(**{"721": 1.5, "730": 17, "740": 20, "750": 50, "1021": 0, "1030": 18, "1040": 15}))
+        data["1050"] = {"error": 7, "value": ""}            # paramètre absent du régulateur
+        layout = ic.parse_installation(data)
+        self.assertEqual(layout["loi_d_eau"]["1"], {"pente": 1.0, "decalage": 1.5, "bascule_ete_hiver": 17.0,
+                                                    "t_depart_min": 20.0, "t_depart_max": 45.0, "influence_ambiance": 50.0})
+        self.assertIsNone(layout["loi_d_eau"]["2"]["influence_ambiance"])
+        self.assertEqual(layout["brut"]["721"]["value"], "1.5")
+        for p in (721, 1021, 730, 1030, 740, 1040, 750, 1050):
+            self.assertIn(p, ic.READ_PARAMETERS)
+        self.assertEqual(len(set(ic.READ_PARAMETERS)), len(ic.READ_PARAMETERS))
+
+    def test_heating_curve_skips_disabled_circuit(self):
+        layout = ic.parse_installation(answer(p5715=0))
+        self.assertEqual(list(layout["loi_d_eau"]), ["1"])
+
     def test_cooling_means_floor_even_with_high_tmax(self):
         self.assertEqual(ic.classify_emitter(2, 1.2, 55)[0], "plancher")
 

@@ -75,6 +75,7 @@ const FIELDS = {
   coolSetpointC2:  ['number','C2 - Rafraîch. T. Conf'],
   coolReducedSetpointC1: ['number','C1 - Consigne rafraîchissement réduite (903)'],
   coolReducedSetpointC2: ['number','C2 - Consigne rafraîchissement réduite (1203)'],
+  installCfg:   ['sensor','Installation - Configuration'],
   curveSlope1:  ['sensor','720 - Heating curve slope'],
   curveOffset1: ['sensor','721 - Heating curve parallel displacement'],
   curveMin1:    ['sensor','740 - Flow temp min limitation'],
@@ -327,7 +328,7 @@ class PacSynoptiqueCard extends HTMLElement {
       const st=id?hass.states[id]:null;
       return [key,id,st?.state,st?.attributes?.hvac_action,st?.attributes?.current_temperature,
         st?.attributes?.temperature,st?.attributes?.production,st?.attributes?.regime_consigne,
-        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique];
+        st?.attributes?.phase_apprentissage,st?.attributes?.pompe_ecs,st?.attributes?.appoint_electrique,st?.attributes?.loi_d_eau];
     }).concat([['power_entity',this._config.power_entity,hass.states[this._config.power_entity]?.state]]));  // tuile « Puissance PAC » à jour
     if(changed||signature!==this._lastSignature){this._lastSignature=signature;this._render();}
   }
@@ -1010,18 +1011,28 @@ class PacSynoptiqueCard extends HTMLElement {
       <p class="eg-note">Compteur global réparti par l’intégration : ECS pendant une charge ECS (8003), sinon C1+C2.</p>
     </div>`;
   }
+  // loi d'eau : capteur MQTT BSB-LAN s'il est publié, sinon valeur lue par l'intégration (/JQ toutes les 6 h)
+  _curveValue(key){
+    const mqtt=nvalue(this._v(key));
+    if(mqtt!==null) return mqtt;
+    const m=/^curve(Slope|Offset|Min|Max|Gain|Winter)([12])$/.exec(key);
+    if(!m) return null;
+    const field={Slope:'pente',Offset:'decalage',Min:'t_depart_min',Max:'t_depart_max',Gain:'influence_ambiance',Winter:'bascule_ete_hiver'}[m[1]];
+    const curve=this._a('installCfg','loi_d_eau')?.[m[2]];
+    return curve ? nvalue(curve[field]) : null;
+  }
   _curveHtml(){
     const read=circuit=>{
-      const slope=nvalue(this._v(`curveSlope${circuit}`));
+      const slope=this._curveValue(`curveSlope${circuit}`);
       if(slope===null) return null;
-      const offset=nvalue(this._v(`curveOffset${circuit}`))??0;
-      const min=nvalue(this._v(`curveMin${circuit}`))??15;
-      const max=nvalue(this._v(`curveMax${circuit}`))??65;
-      const gain=nvalue(this._v(`curveGain${circuit}`));
+      const offset=this._curveValue(`curveOffset${circuit}`)??0;
+      const min=this._curveValue(`curveMin${circuit}`)??15;
+      const max=this._curveValue(`curveMax${circuit}`)??65;
+      const gain=this._curveValue(`curveGain${circuit}`);
       return {circuit,slope,offset,min,max,gain};
     };
     const curves=[read(1),read(2)].filter(Boolean);
-    if(!curves.length) return '<div class="graph-note">Loi d’eau indisponible : paramètres 720/1020 non publiés.</div>';
+    if(!curves.length) return '<div class="graph-note">Loi d’eau indisponible : pentes 720/1020 ni publiées par BSB-LAN, ni lues par l’intégration (adresse HTTP de BSB-LAN à renseigner dans ses options).</div>';
     const W=420,H=220,left=36,right=12,top=12,bottom=28;
     const plotW=W-left-right,plotH=H-top-bottom;
     const x=t=>left+(t+10)/30*plotW;
@@ -1040,7 +1051,7 @@ class PacSynoptiqueCard extends HTMLElement {
       return `<line x1="${left}" y1="${y(curve.max)}" x2="${left+plotW}" y2="${y(curve.max)}" stroke="${color}" stroke-width="1" stroke-dasharray="5 5" opacity=".35"/><line x1="${left}" y1="${y(curve.min)}" x2="${left+plotW}" y2="${y(curve.min)}" stroke="${color}" stroke-width="1" stroke-dasharray="2 4" opacity=".35"/><polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linejoin="round"/>`;
     }).join('');
     const value=(key,digits,unit='')=>{
-      const raw=nvalue(this._v(key));
+      const raw=this._curveValue(key);
       return raw===null?'—':html(raw.toFixed(digits).replace('.',','))+(unit?`<small>${unit}</small>`:'');
     };
     const row=(circuit,slope,offset,minimum,maximum,gain,winter)=>`<div class="curve-table-row"><strong><i class="c${circuit}"></i>C${circuit}</strong><span>${value(slope,2)}</span><span>${value(offset,1,' °C')}</span><span>${value(minimum,1,' °C')}</span><span>${value(maximum,1,' °C')}</span><span>${value(gain,0,' %')}</span><span>${value(winter,1,' °C')}</span></div>`;
@@ -2536,7 +2547,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.4.0";
+const VERSION = "2.4.1";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
