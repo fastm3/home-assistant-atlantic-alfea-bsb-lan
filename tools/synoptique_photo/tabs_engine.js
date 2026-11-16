@@ -359,6 +359,11 @@ class PacSynoptiqueCard extends HTMLElement {
     return found;
   }
   _s(key){return this._ids?.[key] ? this._hass?.states[this._ids[key]] : null;}
+  // pas des boutons ± : setpoint_step (circuits, défaut 0,5 °C), dhw_setpoint_step (ECS, défaut 1 °C)
+  _step(dhw){
+    const v=Number(String(this._config?.[dhw?'dhw_setpoint_step':'setpoint_step']??'').replace(',','.'));
+    return Number.isFinite(v)&&v>=0.1&&v<=5?v:(dhw?1:0.5);
+  }
   // libération ECS (1620, lue par l'intégration) : le programme ECS est-il suivi ?
   _ecsReleaseChip(){
     const code=this._a('installCfg','ecs_liberation_code');
@@ -565,7 +570,7 @@ class PacSynoptiqueCard extends HTMLElement {
         if(current===null) return;
         const base=Number.isFinite(this._pendingTemp[entity])?this._pendingTemp[entity]:current;
         const delta=Number(target.dataset.delta);
-        const next=season==='cool'?Math.max(7,Math.min(30,base+delta)):Math.max(7,Math.min(35,base+delta));
+        const next=Math.round((season==='cool'?Math.max(7,Math.min(30,base+delta)):Math.max(7,Math.min(35,base+delta)))*10)/10;
         this._pendingTemp[entity]=next;
         this._render();
         this._queueTempWrite(`circuit${circuit}`,()=>this._setCircuitTarget(circuit,next));
@@ -577,8 +582,8 @@ class PacSynoptiqueCard extends HTMLElement {
         if(base===null) return;
         const delta=Number(target.dataset.delta);
         const ecoDelta=Math.max(0,Math.min(15,Number(this._config?.ecs_eco_delta ?? 3)));
-        const comfortValue=Math.round(Math.max(40,Math.min(65,base+delta)));
-        const ecoValue=Math.round(Math.max(5,Math.min(65,comfortValue-ecoDelta)));
+        const comfortValue=Math.round(Math.max(40,Math.min(65,base+delta))*10)/10;
+        const ecoValue=Math.round(Math.max(5,Math.min(65,comfortValue-ecoDelta))*10)/10;
         this._pendingEcs={comfort:comfortValue,eco:ecoValue};
         this._render();
         this._queueTempWrite('ecs',()=>this._setEcs(comfortValue));
@@ -1235,7 +1240,7 @@ class PacSynoptiqueCard extends HTMLElement {
         <button type="button" class="ctl-btn${!offActive&&(regimePending||selectorMode)==='Auto'?' active':''}" data-pac-action="regime" data-circuit="${i}" data-value="Auto"${auto&&!regimeBusy?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Auto</button>
         <button type="button" class="ctl-btn${!offActive&&(regimePending||selectorMode)==='Confort'?' active':''}" data-pac-action="regime" data-circuit="${i}" data-value="Confort"${auto&&!regimeBusy?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Confort</button>
         <button type="button" class="ctl-btn${!offActive&&(regimePending||selectorMode)==='Réduit'?' active':''}" data-pac-action="regime" data-circuit="${i}" data-value="Réduit"${auto&&!regimeBusy?'':' disabled title="Choisir d’abord Chauffage ou Refroidissement"'}>Réduit</button>
-        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="-0.5" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong>${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="0.5" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
+        <span class="ctl-temp"><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="${-this._step(false)}" aria-label="Baisser la consigne ${html(name)}"${tempEnabled?'':' disabled title="'+html(tempTitle)+'"'}>−</button><strong>${html(temp(c.programmed ?? c.target))}</strong><button type="button" data-pac-action="temp" data-circuit="${i}" data-delta="${this._step(false)}" aria-label="Augmenter la consigne ${html(name)}"${plusEnabled?'':' disabled title="'+html(plusTitle)+'"'}>+</button></span>
       </div>${simControl}${regimeError?`<div class="ctl-error">${html(regimeError)}</div>`:''}</div>`;
     };
     const ecsModeEntity=this._ecsWaterHeater();
@@ -1247,7 +1252,7 @@ class PacSynoptiqueCard extends HTMLElement {
     const ecsForceButton=this._ids?.ecsForceCycle?`<button type="button" class="ctl-btn${ecsForceActive?' active':''}" data-pac-action="ecs-force-cycle" title="Forcer un cycle ECS pendant 10 secondes">${ecsForceActive?'⚡ Forçage actif':'⚡ Forçage'}</button>`:'';
     const ecsGroup=ecs?.comfortSetpoint?`<div class="ctl-group"><span class="ctl-label">ECS · Ballon</span><div class="ctl-buttons">
       ${ecsModeButtons}${ecsForceButton}
-      <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="-1" aria-label="Baisser la consigne ECS">−</button><strong>${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="1" aria-label="Augmenter la consigne ECS">+</button></span>
+      <span class="ctl-temp"><button type="button" data-pac-action="ecs" data-delta="${-this._step(true)}" aria-label="Baisser la consigne ECS">−</button><strong>${html(temp(ecs.comfortSetpoint))}</strong><button type="button" data-pac-action="ecs" data-delta="${this._step(true)}" aria-label="Augmenter la consigne ECS">+</button></span>
       ${ecs.ecoSetpoint?chip('Éco '+temp(ecs.ecoSetpoint),'dim'):''}
       ${this._ecsReleaseChip()}
     </div></div>`:'';

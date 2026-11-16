@@ -143,6 +143,8 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `image_set` | `auto`, `jour`, `nuit` | `auto` | décor ; `auto` suit le soleil |
 | `outdoor_unit` | `simple`, `double` | `simple` | groupe extérieur simple ou double (deux blocs empilés, deux ventilateurs animés) ; en double, le panneau « Unité extérieure » remonte et le logo passe sur le bloc du haut |
 | `ecs` | `auto`, `oui`, `non` | `auto` | ballon d'eau chaude : `non` retire le bas de l'unité intérieure (module mural), le panneau ECS et ses effets. `auto` suit l'intégration, sinon la présence des entités ECS |
+| `setpoint_step` | `0.1`, `0.2`, `0.5`, `1` | `0.5` | pas des boutons ± des consignes de circuit dans les commandes |
+| `dhw_setpoint_step` | `0.5`, `1`, `2`, `5` | `1` | pas des boutons ± de la consigne ECS dans les commandes |
 | `emitters` | `auto`, `c1_radiateur_c2_plancher`, `c1_plancher_c2_radiateur`, `c1_radiateur`, `c1_plancher`, `c2_radiateur`, `c2_plancher` | `auto` | émetteurs des circuits, parmi les configurations que le dessin sait représenter (une zone radiateurs à l'étage, une zone plancher au rez-de-chaussée ; chaque zone suit son circuit, une zone sans circuit est effacée). `auto` suit l'intégration |
 | `panel_click` | `history`, `more-info` | `history` | clic sur un panneau : popup d'historique de ses entités (températures, modulation, puissance, états, circulateurs) ou fiche de l'entité principale |
 | `history_hours` | `6`, `24`, `48`, `168` | `24` | durée affichée à l'ouverture du popup (boutons 6 h / 24 h / 48 h / 7 j dans le popup) |
@@ -226,7 +228,9 @@ title: Programmes PAC
 Les capteurs de programme sont trouvés automatiquement. Options facultatives :
 `chauffage_c1`, `chauffage_c2`, `ecs`, `rafraichissement_c1`,
 `rafraichissement_c2` (capteurs), `refresh_button`, `circuit_1_name`,
-`circuit_2_name`.
+`circuit_2_name`, `setpoint_step` (pas des boutons ± des consignes chauffage et
+rafraîchissement, défaut 0,5 °C) et `dhw_setpoint_step` (pas des consignes ECS,
+défaut 1 °C), aussi réglables dans l'éditeur visuel.
 
 ## Dépannage
 

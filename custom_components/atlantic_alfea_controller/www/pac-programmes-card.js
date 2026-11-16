@@ -167,8 +167,16 @@
       const value = raw === '' ? NaN : Number(raw);
       return {state, value: Number.isFinite(value) ? value : null};
     }
+    // pas des boutons ± : options setpoint_step (chauffage / rafraîchissement, défaut 0,5 °C)
+    // et dhw_setpoint_step (ECS, défaut 1 °C)
+    _step(program) {
+      const key = program?.key === 'ecs' ? 'dhw_setpoint_step' : 'setpoint_step';
+      const value = Number(String(this._config?.[key] ?? '').replace(',', '.'));
+      return Number.isFinite(value) && value >= 0.1 && value <= 5 ? value : (program?.key === 'ecs' ? 1 : 0.5);
+    }
     _setpointHtml(program) {
       if (!program?.setpoints) return '';
+      const step = this._step(program);
       const [comfortParam, reducedParam] = program.setpoints;
       const isDhw = program.key === 'ecs';
       const isCooling = program.key.startsWith('rafraichissement_');
@@ -177,9 +185,9 @@
       const comfort = this._setpointValue(comfortParam);
       const reduced = this._setpointValue(reducedParam);
       const item = (name, data) => `<span class="sp-item"><span>${name}</span>
-        <button type="button" data-sp="${data.state?.entity_id || ''}" data-delta="-1" ${data.state ? '' : 'disabled'} aria-label="Diminuer ${name} ${circuit}">−</button>
+        <button type="button" data-sp="${data.state?.entity_id || ''}" data-delta="${-step}" ${data.state ? '' : 'disabled'} aria-label="Diminuer ${name} ${circuit} de ${step} °C">−</button>
         <strong>${data.value === null ? '—' : data.value.toFixed(1).replace('.', ',')} °C</strong>
-        <button type="button" data-sp="${data.state?.entity_id || ''}" data-delta="1" ${data.state ? '' : 'disabled'} aria-label="Augmenter ${name} ${circuit}">+</button></span>`;
+        <button type="button" data-sp="${data.state?.entity_id || ''}" data-delta="${step}" ${data.state ? '' : 'disabled'} aria-label="Augmenter ${name} ${circuit} de ${step} °C">+</button></span>`;
       return `<div class="setpoints"><div class="sp-head"><span>Consignes · ${esc(this._label(program))}</span><small>${isDhw ? 'ECS' : isCooling ? 'rafraîchissement' : 'chauffage'}</small></div>
         <div class="sp-circuit"><strong>${circuit}</strong>${item(labels[0], comfort)}${item(labels[1], reduced)}</div></div>`;
     }
@@ -591,10 +599,14 @@
           title: 'Titre',
           circuit_1_name: 'Nom du circuit 1 (vide = nom défini dans l’intégration)',
           circuit_2_name: 'Nom du circuit 2 (vide = nom défini dans l’intégration)',
+          setpoint_step: 'Pas des consignes chauffage / rafraîchissement (°C)',
+          dhw_setpoint_step: 'Pas des consignes ECS (°C)',
         })[s.name] || s.name;
         this._form.addEventListener('value-changed', (ev) => {
           const v = { ...ev.detail.value };
           for (const k of ['title', 'circuit_1_name', 'circuit_2_name']) if (!String(v[k] || '').trim()) delete v[k];
+          if (v.setpoint_step === '0.5') delete v.setpoint_step;          // valeurs par défaut : non écrites
+          if (v.dhw_setpoint_step === '1') delete v.dhw_setpoint_step;
           this._config = { type: this._config.type, ...v };
           this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
         });
@@ -604,8 +616,14 @@
       this._form.schema = [
         { name: 'title', selector: { text: {} } },
         { type: 'grid', name: '', schema: [{ name: 'circuit_1_name', selector: { text: {} } }, { name: 'circuit_2_name', selector: { text: {} } }] },
+        { type: 'grid', name: '', schema: [
+          { name: 'setpoint_step', selector: { select: { mode: 'dropdown', options: ['0.1', '0.2', '0.5', '1'].map(v => ({ value: v, label: v.replace('.', ',') + ' °C' })) } } },
+          { name: 'dhw_setpoint_step', selector: { select: { mode: 'dropdown', options: ['0.5', '1', '2', '5'].map(v => ({ value: v, label: v.replace('.', ',') + ' °C' })) } } },
+        ] },
       ];
-      this._form.data = { ...this._config };
+      this._form.data = { setpoint_step: '0.5', dhw_setpoint_step: '1', ...this._config,
+        ...(this._config.setpoint_step != null ? { setpoint_step: String(this._config.setpoint_step) } : {}),
+        ...(this._config.dhw_setpoint_step != null ? { dhw_setpoint_step: String(this._config.dhw_setpoint_step) } : {}) };
     }
   }
   if (!customElements.get('pac-programmes-card-editor')) customElements.define('pac-programmes-card-editor', PacProgrammesCardEditor);

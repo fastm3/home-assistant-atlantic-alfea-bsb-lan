@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.5.5 — Pas des consignes réglable
+
+### Carte PAC Synoptique photo
+
+- **Pas des consignes réglable dans les commandes** : mêmes options `setpoint_step`
+  (circuits, défaut 0,5 °C) et `dhw_setpoint_step` (ECS, défaut 1 °C), dans l'éditeur
+  (section « Onglets sous l'image »). La consigne ECS accepte maintenant les demi-degrés.
+
+- Manifest **2.5.5**. Redémarrage de Home Assistant nécessaire.
+
+### Carte Programmes
+
+- **Pas des consignes réglable** : boutons ± par pas de **0,5 °C** pour le chauffage et le
+  rafraîchissement (au lieu de 1 °C), 1 °C pour l'ECS. Options `setpoint_step` et
+  `dhw_setpoint_step`, aussi dans l'éditeur visuel (0,1 / 0,2 / 0,5 / 1 °C et 0,5 / 1 / 2 /
+  5 °C).
+
 ## 2.5.4 — Programme ECS utilisé ou non, BSB-LAN 5.1 recommandé
 
 ### Intégration

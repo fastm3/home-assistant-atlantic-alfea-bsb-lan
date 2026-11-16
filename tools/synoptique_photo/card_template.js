@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.5.4";
+const VERSION = "2.5.5";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -161,6 +161,7 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 const DEFAULTS = { title: "Alfea Duo", subtitle: "Pompe à chaleur Air/Eau", circuit_1_name: "", circuit_2_name: "",
   image_path: "/alfea-synoptique/pac_synoptique/", image_set: "auto", debug: false,
   weather_entity: "", show_weather: true, weather_sync: true, weather_anim: true, logo_url: "", logo: NO_LOGO, outdoor_unit: "simple", ecs: "auto", emitters: "auto", panel_click: "history", history_hours: "24",
+  setpoint_step: "0.5", dhw_setpoint_step: "1",
   show_controls: false, show_alarms: true, show_diagnostics: true, show_graphs: true, show_curve: true };
 const EDITOR_SCHEMA = [
   { name: "device", selector: { device: { integration: PAC_PLATFORM } } },
@@ -182,7 +183,10 @@ const EDITOR_SCHEMA = [
       { type: "grid", name: "", schema: [
         { name: "show_alarms", selector: { boolean: {} } }, { name: "show_diagnostics", selector: { boolean: {} } },
         { name: "show_graphs", selector: { boolean: {} } }, { name: "show_curve", selector: { boolean: {} } },
-        { name: "show_controls", selector: { boolean: {} } }] }] },
+        { name: "show_controls", selector: { boolean: {} } }] },
+      { type: "grid", name: "", schema: [
+        { name: "setpoint_step", selector: { select: { mode: "dropdown", options: ["0.1", "0.2", "0.5", "1"].map((v) => ({ value: v, label: v.replace(".", ",") + " °C" })) } } },
+        { name: "dhw_setpoint_step", selector: { select: { mode: "dropdown", options: ["0.5", "1", "2", "5"].map((v) => ({ value: v, label: v.replace(".", ",") + " °C" })) } } }] }] },
   { type: "expandable", name: "", flatten: true, title: "Avancé", icon: "mdi:tune", schema: [
       { name: "debug", selector: { boolean: {} } },
       { name: "panel_click", selector: { select: { mode: "dropdown", options: [{ value: "history", label: "Historique des entités du panneau" }, { value: "more-info", label: "Fiche de l'entité principale" }] } } },
@@ -204,6 +208,7 @@ const LABELS = {
   show_alarms: "Alarmes et surveillance", show_diagnostics: "Diagnostics et capteurs", show_graphs: "Consommation énergétique",
   show_curve: "Loi d'eau", show_controls: "Commandes (mode, consignes)",
   panel_click: "Clic sur un panneau", history_hours: "Durée de l'historique",
+  setpoint_step: "Pas des consignes chauffage / rafraîchissement (commandes)", dhw_setpoint_step: "Pas de la consigne ECS (commandes)",
   weather_entity: "Entité météo (vide = celle des options de l'intégration)", show_weather: "Afficher la météo dans le paysage",
   weather_sync: "Fond synchronisé (neige, pluie, brouillard)", weather_anim: "Animations météo (pluie, neige, vent…)",
   positions: "Positions des panneaux [x %, y %, largeur %] (ext, pac, c1, c2, ecs)",
@@ -278,6 +283,7 @@ class PacSynoptiquePhotoCardEditor extends HTMLElement {
     this._form.schema = EDITOR_SCHEMA.map((s) => s.title === "Logo du groupe extérieur" ? { ...s, schema: logoSection }
       : s.title === "Installation" ? { ...s, schema: instSection } : s);
     this._form.data = { ...DEFAULTS, ...this._config, logo, history_hours: String(this._config.history_hours || DEFAULTS.history_hours),
+      setpoint_step: String(this._config.setpoint_step ?? DEFAULTS.setpoint_step), dhw_setpoint_step: String(this._config.dhw_setpoint_step ?? DEFAULTS.dhw_setpoint_step),
       logos: all.map((l) => ({ name: l.name || "", url: l.url || "", ...(Array.isArray(l.box) && l.box.length === 3 ? { x: l.box[0], y: l.box[1], largeur: l.box[2] } : {}) })) };
   }
 }
@@ -871,6 +877,8 @@ class PacSynoptiquePhotoCard extends HTMLElement {
         power_entity: this._e.power, energy_entity: this._e.energy,
         show_controls: !!c.show_controls, show_diagnostics: !!c.show_diagnostics, show_graphs: !!c.show_graphs,
         show_curve: !!c.show_curve, show_simulation: !!c.show_controls,
+        ...(c.setpoint_step != null ? { setpoint_step: c.setpoint_step } : {}),
+        ...(c.dhw_setpoint_step != null ? { dhw_setpoint_step: c.dhw_setpoint_step } : {}),
       });
     } catch (e) { console.warn("pac-synoptique-photo-card: onglets indisponibles", e); return; }
     const css = new CSSStyleSheet();
