@@ -29,7 +29,7 @@ assert(Card&&Editor,"card and editor must register");
 const originalMap=src.match(/const FIELDS = \{([\s\S]*?)\n\};/);
 assert(originalMap,"field mapping missing");
 const mapped=(originalMap[1].match(/^\s+[A-Za-z_][\w]*\s*:/gm)||[]);
-assert.equal(mapped.length,97,"97 entity mappings must remain");
+assert.equal(mapped.length,98,"98 entity mappings must remain");
 assert(src.includes("ALERTS.filter"),"alarm monitoring unchanged");
 assert(!/<img\b/i.test(ENGINE),"external images prohibited");
 assert(!/<image\b/i.test(ENGINE),"external SVG image prohibited");
