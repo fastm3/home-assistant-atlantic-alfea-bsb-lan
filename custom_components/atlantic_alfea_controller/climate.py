@@ -640,6 +640,16 @@ class AlfeaCircuitClimate(ClimateEntity):
             self._pending_base_temperature = None
             self.async_write_ha_state()
 
+    def _native_override_writable(self) -> bool:
+        """Native override needs writable offset and duration entities for this circuit."""
+        for item in ("override_offset", "override_duration"):
+            entity = self._source(*_PARAM[self._circuit][item])
+            if not entity or entity.split(".", 1)[0] not in {"number", "text"}:
+                return False
+            if self.hass.states.get(entity) is None:
+                return False
+        return True
+
     async def _async_write_programmed_setpoint(self, temperature: float) -> None:
         """Write the programmed Comfort setpoint when 701/1001 are unavailable.
 
@@ -706,10 +716,10 @@ class AlfeaCircuitClimate(ClimateEntity):
                 "Une dérogation native est déjà active. Annule-la avec le bouton du "
                 "circuit avant de choisir une nouvelle consigne."
             )
-        if override_active is None:
-            # 701/1001 or 10991/10990 are not writable on this installation.
-            # Fall back to the programmed Comfort setpoint so the user can
-            # still adjust the target from the card.
+        if override_active is None or not self._native_override_writable():
+            # 701/1001 unreadable, or offset/duration (10991/10990, 10993/10992) not
+            # exposed as writable entities (custom BSB-LAN parameters): fall back to
+            # the programmed Comfort setpoint so the user can still adjust the target.
             await self._async_write_programmed_setpoint(temperature)
             return
 

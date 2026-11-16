@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.5.2 — Consigne du thermostat avec BSB-LAN 5.1
+
+### Intégration
+
+- **Consigne depuis le thermostat ou la carte (+ / −)** : la dérogation native de la PAC n'est
+  tentée que si l'écart et la durée (10991/10990 pour C1, 10993/10992 pour C2, paramètres
+  « custom » de BSB-LAN) existent en entités modifiables. Sinon, la consigne confort
+  programmée (710 / 1010) est écrite, comme avant. Avec BSB-LAN 5.1, l'état 701/1001 devenait
+  lisible et la 2.5.1 tentait la voie native sans ces paramètres : la consigne n'était pas
+  envoyée (seulement une ligne dans le journal).
+- La dérogation temporaire reste disponible par **Simulation dérogation** (carte), gérée par
+  Home Assistant : consigne mémorisée, modifiée, puis restaurée après la durée choisie.
+
+Cartes inchangées (2.5.0).
+
 ## 2.5.1 — Compatibilité BSB-LAN 5.1
 
 ### Intégration
