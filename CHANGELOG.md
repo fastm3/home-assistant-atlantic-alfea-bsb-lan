@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.5.1 — Compatibilité BSB-LAN 5.1
+
+### Intégration
+
+- **Sous-paramètres décimaux ignorés** lors de la recherche des entités BSB-LAN : BSB-LAN 5.1
+  publie aussi `701.1` / `701.2` / `1001.1` / `1001.2` (« Temporarily warmer / cooler »), que
+  l'intégration confondait avec 701 / 1001. Elle lisait alors « 0 - Cooler » et croyait une
+  **dérogation native active** sur C1 et C2, ce qui bloquait les changements de régime et de
+  consigne. La recherche n'associe plus que le paramètre exact (entité `…_1001_warmer_cooler`).
+- Testé avec BSB-LAN 5.1.42. À la mise à jour de BSB-LAN en 5.1 : la disposition de l'EEPROM
+  change (réglages de l'interface web relus depuis `BSB_LAN_config.h`, y compris « Write access »
+  à remettre sur Standard ou Complete) et un broker MQTT sur un port autre que 1883 est contacté
+  en TLS, sauf avec `#define NO_TLS`.
+
+Carte synoptique et carte Programmes inchangées (2.5.0).
+
 ## 2.5.0 — Rafraîchissement selon l'installation
 
 ### Intégration

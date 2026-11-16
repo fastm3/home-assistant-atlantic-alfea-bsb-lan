@@ -47,8 +47,10 @@ class _Candidate:
 def _matches_parameter(entity_id: str, friendly_name: str, parameter: int) -> tuple[bool, bool]:
     """Return exact entity-id and friendly-name matches for a parameter."""
     object_id = entity_id.split(".", 1)[-1]
-    id_match = re.search(rf"(?:^|_){parameter}(?:_|$)", object_id) is not None
-    name_match = re.search(rf"(?<!\d){parameter}(?!\d)", friendly_name) is not None
+    # Decimal sub-parameters (BSB-LAN 5.1 publishes e.g. « 1001.1 - Temporarily warmer »,
+    # object id « …_1001_1_temporarily_warmer ») are other parameters: never match them.
+    id_match = re.search(rf"(?:^|_){parameter}(?:_(?!\d+(?:_|$))|$)", object_id) is not None
+    name_match = re.search(rf"(?<![\d.]){parameter}(?!\d)(?!\.\d)", friendly_name) is not None
     return id_match, name_match
 
 
