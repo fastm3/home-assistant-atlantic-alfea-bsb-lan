@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from typing import Final, Mapping
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
@@ -19,6 +19,7 @@ from .parameters import (
 )
 
 _INVALID_STATES: Final = {"unknown", "unavailable", "none", "---", ""}
+_BSB_MARKERS: Final = ("bsb_lan", "bsblan", "bsb-lan", "bsb lan")
 
 
 @dataclass(slots=True)
@@ -29,6 +30,8 @@ class DiscoveryResult:
     unresolved: dict[str, list[str]]
     missing_required: list[str]
     missing_optional: list[str]
+    # stored sources that are not BSB-LAN entities (to be forgotten)
+    stale: list[str] = field(default_factory=list)
 
     @property
     def found_count(self) -> int:
@@ -52,6 +55,49 @@ def _matches_parameter(entity_id: str, friendly_name: str, parameter: int) -> tu
     id_match = re.search(rf"(?:^|_){parameter}(?:_(?!\d+(?:_|$))|$)", object_id) is not None
     name_match = re.search(rf"(?<![\d.]){parameter}(?!\d)(?!\.\d)", friendly_name) is not None
     return id_match, name_match
+
+
+def _has_bsb_marker(hass: HomeAssistant, entity_id: str, friendly_name: str, platform: str) -> bool:
+    """Return whether an entity visibly comes from BSB-LAN.
+
+    Matching the parameter number alone is not enough: « sensor.prise_output_0_… »
+    (a Shelly plug) would otherwise be taken for BSB parameter 0.
+    """
+    if platform in {"bsblan", "bsb_lan"}:
+        return True
+    text = f"{entity_id} {friendly_name}".lower()
+    if any(marker in text for marker in _BSB_MARKERS):
+        return True
+    registry_entry = er.async_get(hass).async_get(entity_id)
+    if registry_entry is not None and registry_entry.device_id:
+        device = dr.async_get(hass).async_get(registry_entry.device_id)
+        if device is not None:
+            device_text = " ".join(
+                str(v) for v in (device.name, device.name_by_user, device.manufacturer, device.model) if v
+            ).lower()
+            if any(marker in device_text for marker in _BSB_MARKERS):
+                return True
+    return False
+
+
+def is_foreign_mapping(hass: HomeAssistant, spec: ParameterSpec, entity_id: str | None) -> bool:
+    """Return whether a stored source was picked by number but is not a BSB-LAN entity.
+
+    Such a mapping comes from an older, too permissive discovery.  A source chosen by
+    hand without the parameter number in its id (template sensor…) is kept.
+    """
+    if not entity_id:
+        return False
+    state = hass.states.get(entity_id)
+    if state is None:
+        return False
+    friendly_name = str(state.attributes.get("friendly_name", ""))
+    id_match, _ = _matches_parameter(entity_id, friendly_name, spec.parameter)
+    if not id_match:
+        return False
+    registry_entry = er.async_get(hass).async_get(entity_id)
+    platform = registry_entry.platform if registry_entry is not None else ""
+    return not _has_bsb_marker(hass, entity_id, friendly_name, platform)
 
 
 def _domain_priority(spec: ParameterSpec, domain: str) -> int:
@@ -86,6 +132,8 @@ def _candidate_score(
     registry_entry = registry.async_get(entity_id)
     platform = registry_entry.platform if registry_entry is not None else ""
     if platform == DOMAIN:
+        return None
+    if not _has_bsb_marker(hass, entity_id, friendly_name, platform):
         return None
 
     object_id = entity_id.split(".", 1)[-1].lower()
@@ -157,7 +205,11 @@ def discover_parameter_entity(
 
     if current_entity and hass.states.get(current_entity) is not None:
         current_domain = current_entity.split(".", 1)[0]
-        if current_domain in spec.domains and spec.group == GROUP_COMMANDS:
+        if (
+            current_domain in spec.domains
+            and spec.group == GROUP_COMMANDS
+            and not is_foreign_mapping(hass, spec, current_entity)
+        ):
             # Writable mappings remain pinned once validated so an automatic
             # refresh can never redirect a command to another entity.
             return current_entity
@@ -196,9 +248,13 @@ def discover_mapping(
     unresolved: dict[str, list[str]] = {}
     missing_required: list[str] = []
     missing_optional: list[str] = []
+    stale: list[str] = []
 
     for spec in PARAMETER_SPECS:
         current_entity = current.get(spec.key)
+        if is_foreign_mapping(hass, spec, current_entity):
+            stale.append(spec.key)
+            current_entity = None
         selected = discover_parameter_entity(
             hass,
             spec.parameter,
@@ -216,4 +272,4 @@ def discover_mapping(
         else:
             missing_optional.append(spec.key)
 
-    return DiscoveryResult(mapping, unresolved, missing_required, missing_optional)
+    return DiscoveryResult(mapping, unresolved, missing_required, missing_optional, stale)

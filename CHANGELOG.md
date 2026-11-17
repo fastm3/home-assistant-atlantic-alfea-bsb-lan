@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.7 — Découverte limitée à BSB-LAN, version BSB-LAN dans les diagnostics
+
+### Intégration
+
+- **Découverte limitée aux entités BSB-LAN** : une entité ne devient source d'un paramètre
+  que si elle vient visiblement de BSB-LAN (identifiant, nom, appareil ou intégration).
+  Avant, le seul numéro suffisait : une prise Shelly `…_output_0_facteur_de_puissance`
+  pouvait être prise pour l'horloge (paramètre 0). Une telle association, déjà enregistrée,
+  est oubliée au démarrage. Une source choisie à la main sans le numéro dans son
+  identifiant (capteur template…) est conservée.
+- **Diagnostics : version de BSB-LAN** (nouvelle section `bsb_lan`, lue par `/JI`) : version,
+  matériel, bus et droit d'écriture, régulateur détecté, journalisation, RAM libre et durée de
+  marche. Ni adresse MAC ni numéro de série.
+
 ## 2.5.6 — Puissance et énergie masquées sans compteur
 
 ### Carte PAC Synoptique photo

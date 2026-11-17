@@ -114,6 +114,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for legacy_key in ("clock_time", "clock_day_month", "clock_year", "compressor_min_run_enforcement", "compressor_power", "energy_heating", "energy_dhw", "energy_cooling"):
         data.pop(legacy_key, None)
     discovered = discover_mapping(hass, data)
+    for key in discovered.stale:
+        data.pop(key, None)
     data.update(discovered.mapping)
     replacements = {
         "number.temp_consigne_confort_etage": "number.atlantic_alfea_bsb_lan_c1_consigne_confort_710",
@@ -143,6 +145,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for legacy_key in ("clock_time", "clock_day_month", "clock_year", "compressor_min_run_enforcement", "compressor_power", "energy_heating", "energy_dhw", "energy_cooling"):
         data.pop(legacy_key, None)
     discovered = discover_mapping(hass, data)
+    for key in discovered.stale:
+        data.pop(key, None)
     data.update(discovered.mapping)
     _remove_obsolete_energy_entities(hass, entry)
     if data != dict(entry.data) or entry.title != "Atlantic Alfea BSB-LAN":
