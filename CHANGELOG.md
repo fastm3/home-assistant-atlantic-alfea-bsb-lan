@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.5.8 — Effet chaleur plancher, historique 1 h et noms courts, compatibilité
+
+### Documentation
+
+- README : nouvelle section **Compatibilité** (PAC à régulateur Siemens RVS21 / RVS61,
+  statut par marque, points à vérifier) ; modèle validé corrigé en **Alféa Excellia
+  Duo A.I.** (et non Extensa Duo).
+- Modèle des appareils de l'intégration affiché « Alféa (RVS21) » : appareil MQTT (entités ECS
+  et consignes publiées par l'intégration, auparavant « Alféa Extensa Duo ») et appareil
+  principal (climat, nombres, sélecteurs, interrupteurs, auparavant « Alfea via BSB-LAN »).
+
+### Carte PAC Synoptique photo
+
+- **Historique sur 1 h** : nouveau choix « 1 h » dans la fenêtre d'historique des panneaux
+  (avec 6 h, 24 h, 2 j et 7 j) et dans l'option `history_hours` de l'éditeur.
+- **Noms courts dans l'historique** : les courbes ne répètent plus le nom de l'appareil
+  (« Atlantic Alfea BSB-LAN … ») ni le préfixe BSB-LAN (« BSB-LAN 00-31 … - 8412 - »), qui
+  tronquaient les libellés.
+- **Effet chaleur sur le plancher chauffant** : quand la pompe du circuit plancher tourne, voile
+  tiède sur la dalle et larges effluves lentes superposés à l'image (le plancher ne se déforme pas),
+  plus diffus que l'effet du radiateur ; intensité selon la température de départ du circuit (après
+  la vanne mélangeuse).
+
 ## 2.5.7 — Découverte limitée à BSB-LAN, version BSB-LAN dans les diagnostics
 
 ### Intégration

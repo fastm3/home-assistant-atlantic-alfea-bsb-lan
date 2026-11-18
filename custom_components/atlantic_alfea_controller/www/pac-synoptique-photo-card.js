@@ -2567,7 +2567,7 @@ if(!customElements.get(TAG)) customElements.define(TAG,PacSynoptiqueCard);
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.5.6";
+const VERSION = "2.5.8";
 const FLOWS = {"width": 2048, "height": 1152, "flows": {"frigo_gaz": {"layer": "frigo", "color": "#c06bff", "d": "M560,822 L727,822 M850,779 L870,779 L870,525 L888,522"}, "frigo_liquide": {"layer": "frigo", "color": "#3ff2ff", "d": "M882,805 L847,805 M728,855 L560,855"}, "c1_depart": {"layer": "c1", "color": "#ff5a2a", "d": "M950,286 L950,270 L1579,270 L1579,613 L1604,613"}, "c1_retour": {"layer": "c1", "color": "#3aa0ff", "d": "M1604,716 L1564,716 L1564,289 L1061,289"}, "c2_depart": {"layer": "c2", "color": "#ff5a2a", "d": "M1062,306 L1331,306 L1331,659 L1440,659 M1387,659 L1387,809 M1433,659 L1433,809"}, "c2_retour": {"layer": "c2", "color": "#3aa0ff", "d": "M1374,809 L1374,706 M1419,809 L1419,706 L1313,706 L1313,324 L1070,324"}}, "pulses": {}, "anchors": {"ext_temp": [370, 625], "pac_depart": [1210, 248], "pac_retour": [1210, 345], "ecs_ballon": [966, 560], "c1_ambiance": [1735, 560], "c2_ambiance": [1700, 840], "compresseur": [305, 905]}};
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -2631,7 +2631,7 @@ const PANEL_HISTORY = {
   c2_climate: [null, ["c2_climate", "c2_flow", "c2_pump", "c2_etat"]],
   ecs_heater: ["ECS · Ballon", ["ecs_temp", "ecs_confort", "ecs_heater", "ecs_pump", "ecs_appoint", "ecs_etat", "ecs_energie"]],
 };
-const HIST_HOURS = [6, 24, 48, 168];
+const HIST_HOURS = [1, 6, 24, 48, 168];
 // variantes d'installation : rustines posées sur le fond, par décor (x, y, largeur, hauteur en pixels image)
 const PATCHES = { sans_radiateur: [930, 254, 962, 525], sans_plancher: [1051, 292, 997, 860], sans_ecs: [844, 504, 234, 380] };
 // sans ECS : tuyaux frigo redessinés, montant côte à côte jusqu'au module
@@ -2680,6 +2680,8 @@ const LAYERS = ["frigo", "ventilateur", "module", "c1", "c1_radiateur", "c2", "e
 const RADIATOR = [1607, 599, 1852, 734]; // x0,y0,x1,y1 pixels image
 const TANK = [920, 546, 1020, 792];   // intérieur de la cuve ECS x0,y0,x1,y1 (pixels image)
 const HEATER = [975, 730, 790];       // tige de la résistance : x, haut, bas
+// plancher chauffant (dalle en coupe et sol de la pièce) : zone de l'effet chaleur diffus x0,y0,x1,y1
+const FLOOR = [1160, 780, 2048, 1050];
 const PUMPS = { pompe_primaire: [1018, 393, 15], pompe_c2: [1018, 447, 15] };  // circulateurs du module : x, y, rayon
 // groupe extérieur double (deux blocs empilés) : hélices, décalage du logo, panneau remonté
 const FANS_DOUBLE = [[303, 562, 96], [303, 784, 96]];
@@ -2931,6 +2933,17 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     const entityId = this._e[key]; if (!entityId) return;
     this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId } }));
   }
+  // nom court dans l'historique : sans le nom de l'appareil (« Atlantic Alfea BSB-LAN … »)
+  // ni le préfixe BSB-LAN « BSB-LAN 00-31 Catégorie - 8412 - »
+  _histName(id) {
+    const st = this._hass.states[id]; let n = String(st?.attributes?.friendly_name || id);
+    const dev = this._hass.devices?.[this._hass.entities?.[id]?.device_id];
+    for (const p of [dev?.name_by_user, dev?.name]) if (p && n.toLowerCase().startsWith(p.toLowerCase() + " ")) { n = n.slice(p.length + 1); break; }
+    n = n.replace(/^atlantic alf[eé]a bsb-lan\s+/i, "");
+    const m = n.match(/^(?:BSB-LAN\s+)?\d+-\d+\s+.+?\s-\s(\d+(?:\.\d+)?)\s-\s(.+)$/i);  // préfixe déjà retiré avec le nom de l'appareil « BSB-LAN »
+    if (m) n = `${m[2]} (${m[1]})`;
+    return n.trim() || id;
+  }
   _histEntities(key) {
     const ids = (PANEL_HISTORY[key]?.[1] || [key]).filter((k) => !(k === "depart" && key === "c1_climate" && this._e.c1_flow))
       .map((k) => this._e[k]).filter((id) => id && this._hass.states[id]);
@@ -2946,7 +2959,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     box.querySelectorAll("[data-h]").forEach((b) => b.classList.toggle("on", +b.dataset.h === hours));
     box.hidden = false;
     if (!this._onKey) { this._onKey = (e) => { if (e.key === "Escape") this._closeHistory(); }; window.addEventListener("keydown", this._onKey); }
-    const conf = { type: "history-graph", entities, hours_to_show: hours };
+    const conf = { type: "history-graph", entities: entities.map((id) => ({ entity: id, name: this._histName(id) })), hours_to_show: hours };
     let el;
     try { const h = await window.loadCardHelpers?.(); el = h ? await h.createCardElement(conf) : null; } catch (e) { el = null; }
     if (!el) { el = document.createElement("hui-history-graph-card"); el.setConfig?.(conf); }
@@ -3134,6 +3147,23 @@ class PacSynoptiquePhotoCard extends HTMLElement {
         <rect class="veil" x="${rx0 - 70}" y="${ry0 - hz}" width="${rw + 140}" height="${hz - 8}" fill="url(#veilGrad)" mask="url(#veilMask)"/>
         ${ribbons}
       </g>`;
+    // effet chaleur du plancher : plus diffus que le radiateur, simple superposition (aucune distorsion
+    // de l'image) : voile tiède sur la dalle + larges effluves lentes et courtes ; intensité --fk (départ C2)
+    const [fx0, fy0, fx1, fy1] = FLOOR, fw = fx1 - fx0, fh = fy1 - fy0, FR = rng(53);
+    const wisps = Array.from({ length: 14 }, (_, i) => {
+      const x = fx0 + 40 + (fw - 80) * (i + FR() * 0.7) / 14, y = fy0 + fh * (0.45 + FR() * 0.4), d = 6 + FR() * 4;
+      return `<ellipse class="fwisp" cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" rx="${(50 + FR() * 34).toFixed(0)}" ry="${(22 + FR() * 14).toFixed(0)}"
+        style="--d:${d.toFixed(2)}s;--dl:${(-FR() * d).toFixed(2)}s"/>`;
+    }).join("");
+    const floorHeat = `<defs>
+        <radialGradient id="fveilGrad" cx=".62" cy=".7" r=".6"><stop offset="0" stop-color="#ff8a3a" stop-opacity=".75"/><stop offset=".55" stop-color="#ff9e58" stop-opacity=".36"/><stop offset="1" stop-color="#ffb878" stop-opacity="0"/></radialGradient>
+        <radialGradient id="fwispGrad"><stop offset="0" stop-color="#ff9a50" stop-opacity=".9"/><stop offset=".6" stop-color="#ffc290" stop-opacity=".25"/><stop offset="1" stop-color="#ffd0a8" stop-opacity="0"/></radialGradient>
+        <filter id="fwispBlur" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
+      </defs>
+      <g class="fheat" data-layer="c2">
+        <rect class="fveil" x="${fx0}" y="${fy0}" width="${fw}" height="${fh}" fill="url(#fveilGrad)"/>
+        ${wisps}
+      </g>`;
     // eau du ballon : teinte qui se stratifie + panaches de convection (serpentin) / foyer + bulles (résistance)
     const [tx0, ty0, tx1, ty1] = TANK, tw = tx1 - tx0, th = ty1 - ty0, [hx, hy0, hy1] = HEATER, TR = rng(77);
     const bub = (n, x0, w, y0, y1, cls, dmin, dvar) => Array.from({ length: n }, () => {
@@ -3189,6 +3219,14 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .layer.ecs_serpentin.on, .layer.ecs_resistance.on, .layer.c2.on { animation:breath 3.2s ease-in-out infinite; }
   .layer.c1_radiateur.on { animation:breath 4.5s ease-in-out infinite; }
   .heat { opacity:0; transition:opacity 1.5s ease; } .heat.on { opacity:1; }
+  .fheat { opacity:0; transition:opacity 2.5s ease; } .fheat.on { opacity:1; }
+  .fveil { opacity:0; } .fheat.on .fveil { animation:fveil 7s ease-in-out infinite; }
+  @keyframes fveil { 0%,100% { opacity:calc(.3 + .4 * var(--fk, 1)) } 50% { opacity:calc(.45 + .55 * var(--fk, 1)) } }
+  .fwisp { fill:url(#fwispGrad); filter:url(#fwispBlur); opacity:0; mix-blend-mode:normal; transform-box:fill-box; transform-origin:50% 100%; }
+  .fheat.on .fwisp { animation:fwisp var(--d) ease-in-out var(--dl) infinite; }
+  @keyframes fwisp { 0% { opacity:0; transform:translateY(12px) scale(.7,.6) }
+                     35% { opacity:calc(.25 + .45 * var(--fk, 1)) } 100% { opacity:0; transform:translateY(-95px) scale(1.6,1.4) } }
+  @media (prefers-reduced-motion: reduce) { .fheat.on .fwisp, .fheat.on .fveil { animation:none; } .fheat.on .fveil { opacity:.6; } }
   .veil { opacity:0; } .heat.on .veil { animation:veil 4s ease-in-out infinite; }
   @keyframes veil { 0%,100% { opacity:calc(.3 + .5 * var(--hk, 1)) } 50% { opacity:calc(.4 + .6 * var(--hk, 1)) } }
   .rib { fill:none; stroke:url(#ribGrad); stroke-linecap:round; filter:url(#ribBlur); opacity:0; mix-blend-mode:normal;
@@ -3319,7 +3357,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     ${Object.entries(PATCHES).filter(([n]) => this._patchOn(n)).map(([n, [px, py, pw, ph]]) =>
       `<img class="patch" data-patch="${n}" alt="" src="${this._patch(n, wx0.variant)}" style="left:${(px / FLOWS.width * 100).toFixed(3)}%;top:${(py / FLOWS.height * 100).toFixed(3)}%;width:${(pw / FLOWS.width * 100).toFixed(3)}%;height:${(ph / FLOWS.height * 100).toFixed(3)}%">`).join("")}
     ${LAYERS.map((l) => `<img class="layer ${l}" data-layer="${l}" src="${this._img("calque_" + l)}" alt="">`).join("")}
-    <svg class="fx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${fan}${heat}${flows}</svg>
+    <svg class="fx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${fan}${heat}${floorHeat}${flows}</svg>
     ${logoFor(c) ? (() => { const lg = logoFor(c), [lx, ly, lw] = lg.box;  // image HTML : haut calé, hauteur selon le format du logo
       return `<img class="logo" alt="" src="${String(lg.url).replace(/"/g, "&quot;")}" style="left:${(lx / FLOWS.width * 100).toFixed(3)}%;top:${(ly / FLOWS.height * 100).toFixed(3)}%;width:${(lw / FLOWS.width * 100).toFixed(3)}%">`; })() : ""}
     ${L.ecs ? `<svg class="fx tankfx" viewBox="0 0 ${FLOWS.width} ${FLOWS.height}" preserveAspectRatio="none">${tank}</svg>` : ""}
@@ -3503,6 +3541,11 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     if (f.c1 || f.c1_radiateur) hk = Math.max(hk, 0.85);  // forçage debug : visible même PAC arrêtée (départ froid)
     r.querySelector(".heat")?.style.setProperty("--hk", hk.toFixed(2));
     r.getElementById("hazeDisp")?.setAttribute("scale", (6 + 16 * hk).toFixed(1));
+    // plancher : départ C2 après la vanne (22 °C discret -> 34 °C plein), plus doux que le radiateur
+    let tF = parseFloat(this._v(`${L.floor || "c2"}_flow`));
+    let fk = isNaN(tF) ? 0.6 : Math.max(0.3, Math.min(1, (tF - 22) / 12));
+    if (f.c2) fk = Math.max(fk, 0.85);
+    r.querySelector(".fheat")?.style.setProperty("--fk", fk.toFixed(2));
     const vent = r.querySelector(".layer.ventilateur"); if (vent) vent.classList.toggle("defrost", !!defrost);
     // vitesse des flux selon la modulation compresseur
     // cible de vitesse de l'helice (degres/s) : arret si compresseur arrete ou degivrage

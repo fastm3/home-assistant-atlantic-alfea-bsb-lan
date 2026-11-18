@@ -78,7 +78,7 @@ class AlfeaOverrideDurationNumber(RestoreNumber):
             identifiers={(DOMAIN, entry.entry_id)},
             name="Atlantic Alfea BSB-LAN",
             manufacturer="Atlantic",
-            model="Alfea via BSB-LAN",
+            model="Alféa (RVS21)",
         )
 
     async def async_added_to_hass(self) -> None:

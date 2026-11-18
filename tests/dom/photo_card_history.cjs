@@ -38,23 +38,25 @@ const base = { type: "custom:pac-synoptique-photo-card", device: "d", power_enti
   ok(!$("#hist").hidden && $("#hist_t").textContent === "Unité extérieure", "clic Unité extérieure : popup ouvert, titré");
   const c = made.at(-1).conf;
   ok(c.type === "history-graph" && c.hours_to_show === 24, "carte history-graph, 24 h par défaut");
-  ok(JSON.stringify(c.entities) === JSON.stringify([`sensor.${X}_pac_t_exterieure`, `sensor.${X}_comp_modulation`, `binary_sensor.${X}_comp_etat`, `binary_sensor.${X}_pac_degivrage_di6`]),
-    "entités du panneau, absentes ignorées : " + c.entities.join(", "));
+  ok(JSON.stringify(c.entities.map((e) => e.entity)) === JSON.stringify([`sensor.${X}_pac_t_exterieure`, `sensor.${X}_comp_modulation`, `binary_sensor.${X}_comp_etat`, `binary_sensor.${X}_pac_degivrage_di6`]),
+    "entités du panneau, absentes ignorées : " + c.entities.map((e) => e.entity).join(", "));
   ok(made.at(-1).hass && $("#hist_body").firstChild === made.at(-1), "carte insérée et alimentée (hass)");
 
   $('#hist [data-h="48"]').click(); await tick(); await tick();
   ok(made.at(-1).conf.hours_to_show === 48 && $('#hist [data-h="48"]').classList.contains("on"), "bouton 48 h : historique rechargé");
+  $('#hist [data-h="1"]').click(); await tick(); await tick();
+  ok(made.at(-1).conf.hours_to_show === 1 && $('#hist [data-h="1"]').textContent === "1 h", "bouton 1 h : historique rechargé");
 
   $('#hist [data-act="close"]').click();
   ok($("#hist").hidden && !$("#hist_body").firstChild, "fermeture (bouton)");
 
   $("#k_pac").click(); await tick(); await tick();
-  ok(made.at(-1).conf.entities.includes("sensor.compteur_power") && made.at(-1).conf.hours_to_show === 24, "panneau PAC : puissance incluse, durée revenue à 24 h");
+  ok(made.at(-1).conf.entities.some((e) => e.entity === "sensor.compteur_power") && made.at(-1).conf.hours_to_show === 24, "panneau PAC : puissance incluse, durée revenue à 24 h");
   w.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape" }));
   ok($("#hist").hidden, "fermeture (Échap)");
 
   $("#k_c1").click(); await tick(); await tick();
-  ok($("#hist_t").textContent === "Circuit 1 · Étage" && made.at(-1).conf.entities[0] === `climate.${X}_c1_circuit_1` && made.at(-1).conf.entities.includes(`sensor.${X}_pac_t_depart`),
+  ok($("#hist_t").textContent === "Circuit 1 · Étage" && made.at(-1).conf.entities[0].entity === `climate.${X}_c1_circuit_1` && made.at(-1).conf.entities.some((e) => e.entity === `sensor.${X}_pac_t_depart`),
     "circuit 1 : nom du circuit, thermostat + départ PAC (circuit direct sans sonde 8743)");
   $('#hist [data-act="more"]').click();
   ok($("#hist").hidden && moreInfo === `climate.${X}_c1_circuit_1`, "bouton fiche : ferme le popup, ouvre la fiche du thermostat");

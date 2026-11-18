@@ -31,7 +31,7 @@ photo.
 
 ![Synoptique photo — jour](images/synoptique-photo-jour.webp)
 
-Vue photoréaliste en coupe de l'installation Alféa Extensa Duo : groupe
+Vue photoréaliste en coupe d'une installation Alféa Duo : groupe
 extérieur et liaisons frigorifiques, module intérieur avec ballon ECS 180 L et
 appoint électrique, circuit 1 sur radiateur, circuit 2 sur plancher chauffant.
 Des panneaux en surimpression donnent les valeurs près de chaque élément ; un
@@ -147,7 +147,7 @@ titres, noms, jeu d'images, météo, onglets et réglages avancés.
 | `dhw_setpoint_step` | `0.5`, `1`, `2`, `5` | `1` | pas des boutons ± de la consigne ECS dans les commandes |
 | `emitters` | `auto`, `c1_radiateur_c2_plancher`, `c1_plancher_c2_radiateur`, `c1_radiateur`, `c1_plancher`, `c2_radiateur`, `c2_plancher` | `auto` | émetteurs des circuits, parmi les configurations que le dessin sait représenter (une zone radiateurs à l'étage, une zone plancher au rez-de-chaussée ; chaque zone suit son circuit, une zone sans circuit est effacée). `auto` suit l'intégration |
 | `panel_click` | `history`, `more-info` | `history` | clic sur un panneau : popup d'historique de ses entités (températures, modulation, puissance, états, circulateurs) ou fiche de l'entité principale |
-| `history_hours` | `6`, `24`, `48`, `168` | `24` | durée affichée à l'ouverture du popup (boutons 6 h / 24 h / 48 h / 7 j dans le popup) |
+| `history_hours` | `1`, `6`, `24`, `48`, `168` | `24` | durée affichée à l'ouverture du popup (boutons 1 h / 6 h / 24 h / 2 j / 7 j dans le popup) |
 | `weather_entity` | entity_id `weather.*` | options de l'intégration | active la météo |
 | `show_weather` | booléen | `true` | encart météo dans le ciel |
 | `weather_sync` | booléen | `true` | fond neige / pluie / brouillard |

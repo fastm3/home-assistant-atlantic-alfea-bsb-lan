@@ -133,7 +133,7 @@ class AlfeaCircuitClimate(ClimateEntity):
             identifiers={(DOMAIN, entry.entry_id)},
             name="Atlantic Alfea BSB-LAN",
             manufacturer="Atlantic",
-            model="Alfea via BSB-LAN",
+            model="Alféa (RVS21)",
         )
 
     def _source(self, key: str, parameter: int | None = None) -> str | None:

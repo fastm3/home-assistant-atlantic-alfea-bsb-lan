@@ -47,7 +47,7 @@ class AlfeaGlobalModeSelect(SelectEntity, RestoreEntity):
             identifiers={(DOMAIN, entry.entry_id)},
             name="Atlantic Alfea BSB-LAN",
             manufacturer="Atlantic",
-            model="Alfea via BSB-LAN",
+            model="Alféa (RVS21)",
         )
 
     @property

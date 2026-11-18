@@ -1,8 +1,10 @@
 # Atlantic Alféa BSB-LAN pour Home Assistant
 
 Intégration Home Assistant pour **piloter, mesurer et comprendre** une pompe à
-chaleur **Atlantic Alféa Extensa Duo** à travers une passerelle
-[BSB-LAN](https://docs.bsb-lan.de/fr/index.html).
+chaleur **Atlantic Alféa** (régulateur Siemens RVS21) à travers une passerelle
+[BSB-LAN](https://docs.bsb-lan.de/fr/index.html). Validée sur une Alféa Excellia
+Duo A.I. ; d'autres PAC à régulateur RVS21 / RVS61 devraient fonctionner, voir
+[Compatibilité](#compatibilité).
 
 ![Carte PAC Synoptique photo dans Home Assistant](docs/images/synoptique-photo-jour.webp)
 
@@ -29,11 +31,43 @@ La programmation horaire reste dans la PAC, qui reste la référence pour les
 régimes Confort/Réduit : l'intégration importe les programmes natifs et permet
 de les modifier, mais ne les remplace pas par des automatisations.
 
-## Matériel validé
+## Compatibilité
 
-Atlantic Alféa Extensa / Excellia Duo, régulateur **RVS21.831F** (famille 211,
-variante 127), BSB-LAN **5.1** (5.1.42) sur ESP32. D'autres variantes Siemens RVS
-peuvent fonctionner mais ne sont pas validées.
+Le nom du projet indique sur quoi il a été mis au point, pas une limite
+technique. L'intégration lit les paramètres que BSB-LAN publie, repérés par leur
+**numéro Siemens** (circuits 700 / 1000, ECS 1600, compresseur 8400 à 8413, état
+de la PAC 8006, programmes 501…). Elle s'adresse donc aux **pompes à chaleur
+air/eau dont le régulateur est un Siemens de la gamme Albatros2 pour PAC**
+(RVS21, RVS61), raccordé à BSB-LAN par le bus BSB ou LPB.
+
+| PAC | Régulateur | Statut |
+|---|---|---|
+| **Atlantic Alféa Excellia Duo A.I.** (groupe extérieur Fujitsu, R410A) | RVS21.831F (famille 211, variante 127), BSB-LAN 5.1.42 sur ESP32 | **validée** |
+| Autres Atlantic Alféa : Extensa, Extensa Duo, Excellia (A.I.) | RVS21 | probable (même gamme, même régulateur) ; variantes déjà rencontrées chez d'autres utilisateurs et prises en charge (programmes numérotés 501.1…, BSB-LAN en français) |
+| Autres PAC du groupe Atlantic sur le même module hydraulique | RVS21 | probable, non vérifiée |
+| Brötje, Elco (PAC à régulateur RVS21 / ISR) | RVS21 | possible, non vérifiée ; certains modèles récents n'ont plus de bus BSB |
+| Weishaupt (WWP / WTU) | RVS23 (LPB) | incertaine |
+| **Chaudières** (régulateurs LMS, RVS4x) | — | **non prévues** : pas de paramètres compresseur, dégivrage ni état PAC |
+
+Points à vérifier sur une autre PAC :
+
+- **Bus et régulateur** : le type est indiqué sur l'étiquette du régulateur et,
+  une fois BSB-LAN branché, dans ses informations (`/JI`, champ `busdevices`) ; il
+  figure aussi dans les diagnostics de l'intégration (section `bsb_lan`).
+- **Numérotation** : quelques paramètres varient selon le fabricant ou le firmware
+  (programmes horaires 502… ou 501.1…, détectés automatiquement). L'export du
+  tableau du régulateur par BSB-LAN (`/QD`) permet de comparer.
+- **Schéma hydraulique** : la détection (circuits, émetteurs, rafraîchissement, ECS
+  par vanne Q3) s'adapte, mais seules les configurations dessinables sont
+  proposées ; les réglages restent forçables dans les options.
+- **Dérogation native** : elle utilise les paramètres « custom » 10990 à 10993
+  s'ils existent, sinon la consigne Confort (repli automatique).
+- **Carte synoptique** : dessinée d'après une Alféa Duo (module avec ballon
+  intégré) ; elle fonctionne avec une autre PAC mais ne lui ressemblera pas.
+
+Un paramètre que le régulateur ne fournit pas (`---`) est ignoré. Les retours sur
+d'autres modèles sont les bienvenus (voir
+[Retour d'expérience bienvenu](#retour-dexpérience-bienvenu)).
 
 ## Prérequis
 
@@ -339,7 +373,7 @@ sauf les commandes listées dans *Pilotage* (dont l'écriture des programmes).
 
 ## Retour d'expérience bienvenu
 
-L'intégration est validée sur une seule installation (Alféa Extensa Duo,
+L'intégration est validée sur une seule installation (Alféa Excellia Duo A.I.,
 RVS21.831F). Si vous l'utilisez, même brièvement, un retour aide à l'étendre à
 d'autres PAC et régulateurs :
 

@@ -40,7 +40,7 @@ def _device(entry: ConfigEntry) -> dict:
         "identifiers": [f"{DOMAIN}_{entry.entry_id}"],
         "name": "Atlantic Alféa BSB-LAN",
         "manufacturer": "Atlantic",
-        "model": "Alféa Extensa Duo",
+        "model": "Alféa (RVS21)",
     }
 
 
