@@ -1,7 +1,7 @@
 /* pac-synoptique-photo-card — synoptique photo Alfea Duo (calques lumineux + flux animés)
  * Généré par build_card.py — ne pas éditer FLOWS à la main (relancer build_flows.py + build_card.py)
  */
-const VERSION = "2.5.8";
+const VERSION = "2.5.9";
 const FLOWS = __FLOWS__;
 const DEFAULT_ENTITIES = {};  // tout est résolu depuis l'appareil PAC (ou surchargé par config.entities)
 // ---------- résolution des entités depuis l'appareil PAC (intégration atlantic_alfea_controller) ----------
@@ -520,6 +520,28 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     this._root.getElementById("wx_d").textContent = det.join(" · ");
   }
 
+  // passerelle BSB-LAN déconnectée : état « BSB-LAN hors ligne » de l'intégration, ou, à défaut,
+  // presque toutes les entités BSB-LAN de la carte « unavailable » (MQTT : BSB-LAN absent)
+  _offline() {
+    const s = this._s("installation");
+    const fmtT = (iso) => { const d = iso ? new Date(iso) : null;
+      if (!d || isNaN(d)) return "";
+      const today = new Date().toDateString() === d.toDateString();
+      return today ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+        : d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
+    if (s && (s.state === "BSB-LAN hors ligne" || s.attributes?.bsb_lan_hors_ligne)) return { since: fmtT(s.attributes?.hors_ligne_depuis) };
+    // intégration plus ancienne : sources requises listées comme indisponibles par le capteur d'installation
+    const listed = (s?.attributes?.sources_indisponibles || []).map((x) => String(x).split("→").pop().trim());
+    const ids = [...new Set([...listed, ...Object.values(this._e || {}).filter((id) => typeof id === "string" && /bsb_lan_\d/.test(id))])];
+    const st = ids.map((id) => this._hass?.states?.[id]).filter(Boolean);
+    const down = st.filter((x) => x.state === "unavailable");
+    if (st.length >= 3 && down.length >= Math.ceil(st.length * 0.6)) {
+      const first = down.map((x) => x.last_changed).filter(Boolean).sort()[0];
+      return { since: fmtT(first) };
+    }
+    return null;
+  }
+
   // ---------- build ----------
   _build() {
     if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
@@ -643,7 +665,11 @@ class PacSynoptiquePhotoCard extends HTMLElement {
   .top .sp { flex:1 }
   .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:13px; font-weight:600;
           background:rgba(255,255,255,.07); border:1px solid var(--line); cursor:pointer; white-space:nowrap; }
-  .pill.ok { color:var(--ok); } .pill.warn { color:var(--warn); } .pill.hot { color:#ffb08a; border-color:rgba(255,90,42,.5); }
+  .pill.ok { color:var(--ok); } .pill.warn { color:var(--warn); } .pill.err { color:#ff6b6b; border-color:rgba(255,80,80,.55); background:rgba(255,60,60,.12); }
+  .offline { position:absolute; left:50%; top:3%; transform:translateX(-50%); z-index:5; max-width:92%; padding:8px 16px;
+             border-radius:10px; background:rgba(120,10,10,.82); border:1px solid rgba(255,120,120,.6); color:#fff;
+             font-size:clamp(11px, 1.6cqw, 15px); font-weight:600; text-align:center; backdrop-filter:blur(4px); pointer-events:none; }
+  .offline small { display:block; font-weight:400; opacity:.85; } .pill.hot { color:#ffb08a; border-color:rgba(255,90,42,.5); }
   .dot { width:8px; height:8px; border-radius:50%; background:currentColor; }
   .stage { position:relative; container-type:inline-size; background:#000; }
   .pic { position:relative; aspect-ratio:${FLOWS.width}/${FLOWS.height}; }
@@ -786,6 +812,7 @@ class PacSynoptiquePhotoCard extends HTMLElement {
     <span class="pill" id="p_power"></span>
   </div>
   <div class="stage">
+   <div class="offline" id="offline" hidden></div>
    <div class="pic">
     <img id="baseImg" src="${this._img("base", wx0.variant)}" alt="">
     ${Object.entries(PATCHES).filter(([n]) => this._patchOn(n)).map(([n, [px, py, pw, ph]]) =>
@@ -992,8 +1019,16 @@ class PacSynoptiquePhotoCard extends HTMLElement {
 
     // entête
     const inst = this._v("installation"); const ps = $("p_status");
-    ps.className = "pill " + (inst === "OK" ? "ok" : "warn");
-    ps.lastElementChild.textContent = inst === "OK" ? "Fonctionnement normal" : (inst || "État inconnu");
+    const off = this._offline();
+    ps.className = "pill " + (off ? "err" : inst === "OK" ? "ok" : "warn");
+    ps.lastElementChild.textContent = off ? `BSB-LAN hors ligne${off.since ? " depuis " + off.since : ""}`
+      : inst === "OK" ? "Fonctionnement normal" : (inst || "État inconnu");
+    const ob = $("offline");
+    if (ob) {
+      ob.hidden = !off;
+      if (off) ob.innerHTML = `BSB-LAN ne répond plus${off.since ? " depuis " + off.since : ""}`
+        + `<small>Valeurs figées ou absentes, commandes impossibles. Vérifier l'alimentation et le Wi-Fi de la passerelle BSB-LAN.</small>`;
+    }
     $("p_mode").textContent = this._v("mode") || "—";
     $("p_mode").className = "pill" + (/chauff/i.test(this._v("mode") || "") ? " hot" : "");
     const pw = parseFloat(this._v("power"));

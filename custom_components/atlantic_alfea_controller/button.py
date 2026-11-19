@@ -15,7 +15,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .clock import async_sync_pac_clock, clock_is_writable, clock_source_ids, clock_write_state
+from .clock import async_sync_pac_clock, clock_expected, clock_is_writable, clock_source_ids, clock_write_state
 from .const import DOMAIN
 from .helpers import async_select_option, source_entity, track_entities
 from .polling import async_poll_parameters
@@ -39,7 +39,7 @@ async def async_setup_entry(
         AlfeaForceEcsCycleButton(hass, entry),
     ]
 
-    if all(clock_source_ids(hass, entry)):
+    if clock_expected(hass, entry):
         entities.append(AlfeaSyncClockButton(hass, entry))
 
     # Only expose a cancel button when BSB-LAN discovered the native override

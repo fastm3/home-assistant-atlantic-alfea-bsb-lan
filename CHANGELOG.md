@@ -1,5 +1,48 @@
 # Changelog
 
+## 2.5.9 — Ressources des cartes automatiques, BSB-LAN hors ligne, corrections
+
+### Intégration
+
+- **Ressources des cartes gérées automatiquement** : au démarrage de Home Assistant,
+  l'intégration ajoute les ressources de ses deux cartes si elles manquent et met leur
+  `?v=` à sa version. Après une mise à jour, plus besoin de modifier les ressources à la
+  main : redémarrer puis rafraîchir la page. Ressources en YAML : inchangées, rappel dans
+  le journal.
+- **Correction : rechargement de l'intégration impossible** (« Error unloading entry … a coroutine
+  was expected, got True ») : un rappel de déchargement renvoyait une valeur. L'intégration restait
+  alors déchargée, toutes ses entités indisponibles, jusqu'au redémarrage de Home Assistant.
+- **Correction : entités d'horloge absentes après un redémarrage** (*Horloge PAC - Synchroniser*,
+  *Date et heure*, décalage, alarme de désynchronisation) quand Home Assistant mettait
+  l'intégration en place avant que les entités MQTT de BSB-LAN soient chargées. Elles sont créées
+  dès qu'une source d'horloge est configurée ou que l'adresse HTTP de BSB-LAN est renseignée, et
+  deviennent disponibles avec la source.
+- **Correction** : erreur « calls async_write_ha_state from a thread other than the event
+  loop » au démarrage (masquage des consignes et programmes de rafraîchissement) ; ces mises
+  à jour s'exécutent maintenant dans la boucle de Home Assistant.
+
+### BSB-LAN hors ligne
+
+- **Message explicite quand la passerelle BSB-LAN ne répond plus** : le capteur *Installation -
+  État* passe à « BSB-LAN hors ligne » (attributs `bsb_lan_hors_ligne`, `hors_ligne_depuis`, conseil
+  de vérification) au lieu d'« Incomplet » quand presque toutes les entités BSB-LAN sont
+  indisponibles. La carte synoptique affiche une pastille rouge « BSB-LAN hors ligne depuis HH:MM »
+  et un bandeau sur l'image (valeurs figées, commandes impossibles) ; elle le détecte aussi
+  d'elle-même si le capteur n'est pas encore à jour.
+
+### Documentation
+
+- README : résumé en anglais (mots-clés pour la recherche), badges version et HACS.
+
+### Traductions et validation
+
+- **Traduction anglaise** (`translations/en.json`) : Home Assistant s'en sert aussi de repli,
+  les textes manquants n'apparaissent plus sous forme de clés brutes.
+- **Traduction française complétée** : 134 libellés manquants (association manuelle des
+  entités BSB-LAN, étapes de configuration avancée).
+- **CI** : validations **HACS action** et **hassfest** (prérequis du catalogue par défaut) ;
+  clés du `manifest.json` triées comme l'exige hassfest.
+
 ## 2.5.8 — Effet chaleur plancher, historique 1 h et noms courts, compatibilité
 
 ### Documentation

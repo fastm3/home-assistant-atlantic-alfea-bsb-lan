@@ -6,12 +6,14 @@ et servies par Home Assistant sous `/alfea-synoptique/`.
 ## Installation
 
 1. Redémarrer Home Assistant après l'installation ou la mise à jour.
-2. **Paramètres → Tableaux de bord → Ressources** → ajouter une fois, type
-   *Module JavaScript* :
+2. L'intégration déclare elle-même les ressources des deux cartes (type *Module
+   JavaScript*) et met leur `?v=` à sa version à chaque démarrage :
    - `/alfea-synoptique/pac-synoptique-photo-card.js?v=<version>`
    - `/alfea-synoptique/pac-programmes-card.js?v=<version>`
-3. À chaque mise à jour, changer la valeur `?v=` puis recharger la page
-   (`Ctrl+Maj+R`).
+3. Recharger la page (`Ctrl+Maj+R`).
+
+Ressources déclarées en YAML (`lovelace: resources:`) : l'intégration ne peut pas
+les modifier ; les ajouter et changer `?v=` à la main à chaque mise à jour.
 
 ### Depuis la 1.5.x
 
@@ -21,7 +23,7 @@ photo.
 
 1. Supprimer la ressource `/alfea-synoptique/pac-synoptique-card.js` (et toute
    ancienne copie `/local/pac-synoptique-card.js`).
-2. Ajouter la ressource de la carte photo (ci-dessus).
+2. La ressource de la carte photo est ajoutée par l'intégration au redémarrage.
 3. Remplacer chaque carte `custom:pac-synoptique-card` par
    `custom:pac-synoptique-photo-card` (voir la correspondance des options plus bas).
 4. Renseigner les noms des circuits dans les **options de l'intégration** : ils
@@ -237,8 +239,9 @@ défaut 1 °C), aussi réglables dans l'éditeur visuel.
 - **Carte inconnue** : vérifier qu'une seule ressource par carte est déclarée
   et que Home Assistant a redémarré après l'installation.
 - **Erreur 404 sur le fichier** : l'intégration n'est pas chargée.
-- **Ancien affichage** : changer `?v=` sur la ressource et vider le cache du
-  navigateur.
+- **Ancien affichage** : redémarrer Home Assistant (l'intégration remet `?v=` à sa
+  version), puis recharger la page (`Ctrl+Maj+R`) ; en mode YAML, changer `?v=` à la
+  main.
 - **Image manquante** : vérifier `image_path` (par défaut
   `/alfea-synoptique/pac_synoptique/`).
 - **Valeur « — »** : entité absente, désactivée ou paramètre non publié par

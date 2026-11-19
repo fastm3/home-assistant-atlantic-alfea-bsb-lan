@@ -6,6 +6,17 @@ chaleur **Atlantic Alféa** (régulateur Siemens RVS21) à travers une passerell
 Duo A.I. ; d'autres PAC à régulateur RVS21 / RVS61 devraient fonctionner, voir
 [Compatibilité](#compatibilité).
 
+[![Release](https://img.shields.io/github/v/release/fastm3/home-assistant-atlantic-alfea-bsb-lan)](https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/releases)
+[![HACS personnalisé](https://img.shields.io/badge/HACS-d%C3%A9p%C3%B4t%20personnalis%C3%A9-41BDF5)](#hacs-dépôt-personnalisé)
+
+> **English** — Home Assistant custom integration for **Atlantic Alféa air-to-water
+> heat pumps** (Siemens **RVS21** / RVS61 controller) through a
+> [BSB-LAN](https://github.com/fredlcore/BSB-LAN) gateway over MQTT: heat pump mode,
+> heating/cooling circuits, comfort/eco setpoints, domestic hot water, native weekly
+> schedules (read and write), heating curve, compressor cycles, defrost, faults,
+> electricity split between DHW and heating, DHW COP, and a photorealistic synoptic
+> Lovelace card. Documentation is in French; issues in English are welcome.
+
 ![Carte PAC Synoptique photo dans Home Assistant](docs/images/synoptique-photo-jour.webp)
 
 > **2.0.0** : nouvelle carte synoptique photoréaliste (jour, nuit, météo), écriture des
@@ -117,17 +128,22 @@ Copier `custom_components/atlantic_alfea_controller/` dans le dossier
 
 ### Cartes Lovelace
 
-Les deux cartes sont servies par l'intégration. Ajouter une fois chaque
-ressource (**Paramètres → Tableaux de bord → Ressources**, type *Module
-JavaScript*) :
+Les deux cartes sont servies par l'intégration, qui **déclare et tient à jour
+elle-même leurs ressources** : au démarrage de Home Assistant, elle ajoute si besoin
 
 ```text
 /alfea-synoptique/pac-synoptique-photo-card.js?v=<version>
 /alfea-synoptique/pac-programmes-card.js?v=<version>
 ```
 
-Changer `?v=` à chaque mise à jour pour forcer le rechargement par les
-navigateurs. Détails : [docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md).
+et remplace `?v=` par sa version après chaque mise à jour. Il suffit de redémarrer
+Home Assistant puis de rafraîchir la page (Ctrl+Maj+R) pour voir les nouvelles
+cartes. Seules ces deux ressources sont concernées.
+
+Si les ressources sont déclarées en **YAML** (`lovelace: resources:`),
+l'intégration ne peut pas les modifier : les ajouter et changer `?v=` à la main
+(un message le rappelle dans le journal). Détails :
+[docs/CARTE_SYNOPTIQUE.md](docs/CARTE_SYNOPTIQUE.md).
 
 ### Mise à jour depuis la 1.5.x
 

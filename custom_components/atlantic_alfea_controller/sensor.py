@@ -7,7 +7,7 @@ from typing import Callable
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er
@@ -17,7 +17,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
-from .clock import clock_offset_seconds, clock_source_age_seconds, clock_source_ids, pac_clock_datetime
+from .clock import clock_expected, clock_offset_seconds, clock_source_age_seconds, clock_source_ids, pac_clock_datetime
 from .const import circuit_name
 from .const import (
     BSB_REFRESH_ECS_INTERVAL_SECONDS,
@@ -799,14 +799,22 @@ class AlfeaInstallationStatusSensor(SensorEntity):
         missing: list[str] = []
         unavailable: list[str] = []
         advices: list[str] = []
+        mapped = 0
+        offline_since = []          # entités BSB-LAN passées « unavailable » (MQTT : BSB-LAN déconnecté)
         for key, (parameter, label) in _INSTALLATION_REQUIRED.items():
             entity = self._entry.data.get(key)
             if not entity:
                 missing.append(f"{key} ({parameter} — {label})")
                 continue
+            mapped += 1
             state = self.hass.states.get(str(entity))
             if state is None or str(state.state).lower() in ("unknown", "unavailable", "none"):
                 unavailable.append(f"{key} → {entity}")
+            if state is not None and str(state.state).lower() == "unavailable":
+                offline_since.append(state.last_changed)
+        # toutes (ou presque) les sources indisponibles : c'est la passerelle BSB-LAN qui ne répond plus,
+        # pas un mapping à corriger
+        offline = mapped >= 3 and len(offline_since) >= max(3, int(mapped * 0.8))
         water_heater = self._water_heater_entity()
         water_heater_state = self.hass.states.get(water_heater) if water_heater else None
         water_heater_ok = bool(
@@ -844,8 +852,15 @@ class AlfeaInstallationStatusSensor(SensorEntity):
             if self.hass.states.get(entity_id)
         ]
         ok = not missing and not unavailable and water_heater_ok and bsb_json
+        since = min(offline_since).isoformat() if offline and offline_since else None
+        if offline:
+            url = str(self._entry.options.get("bsb_base_url", "")).strip()
+            advices.insert(0, "BSB-LAN ne répond plus (entités MQTT indisponibles) : vérifier l'alimentation"
+                           " et le Wi-Fi de la passerelle" + (f" ({url})" if url else "") + ", puis le broker MQTT.")
         return {
-            "state": "OK" if ok else "Incomplet",
+            "state": "BSB-LAN hors ligne" if offline else ("OK" if ok else "Incomplet"),
+            "bsb_lan_hors_ligne": offline,
+            "hors_ligne_depuis": since,
             "manquants": missing,
             "sources_indisponibles": unavailable,
             "water_heater_atlantic": water_heater,
@@ -914,7 +929,7 @@ async def async_setup_entry(
             AlfeaCalculatedSensor(entry, entry.runtime_data, desc)
             for desc in CALCULATED_DESCRIPTIONS
         )
-    if all(clock_source_ids(hass, entry)):
+    if clock_expected(hass, entry):
         entities.extend(
             [
                 AlfeaClockDateTimeSensor(hass, entry),
@@ -1055,6 +1070,8 @@ class AlfeaWeeklyProgramSensor(SensorEntity):
             from .installation_config import async_sync_cooling_visibility, installation_signal
 
             # programme de rafraîchissement masqué sur un circuit sans rafraîchissement
+            # @callback : exécuté dans la boucle (sinon le dispatcher le lance dans un thread)
+            @callback
             def sync() -> None:
                 async_sync_cooling_visibility(self.hass, self._entry, self.entity_id, self._circuit)
                 self.async_write_ha_state()

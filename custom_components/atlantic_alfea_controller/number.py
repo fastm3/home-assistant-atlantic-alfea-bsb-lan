@@ -7,7 +7,7 @@ import asyncio
 from homeassistant.components.number import NumberEntity, RestoreNumber
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -198,6 +198,8 @@ class AlfeaProgrammedSetpointNumber(NumberEntity):
         )
         if self._cooling:
             # consignes froid masquées sur un circuit sans rafraîchissement
+            # @callback : exécuté dans la boucle (sinon le dispatcher le lance dans un thread)
+            @callback
             def sync() -> None:
                 async_sync_cooling_visibility(self.hass, self._entry, self.entity_id, self._circuit)
 

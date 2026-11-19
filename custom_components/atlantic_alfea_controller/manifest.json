@@ -1,21 +1,23 @@
 {
   "domain": "atlantic_alfea_controller",
   "name": "Atlantic Alfea BSB-LAN",
-  "codeowners": ["@fastm3"],
-  "config_flow": true,
-  "integration_type": "device",
-  "iot_class": "local_polling",
-  "requirements": [],
   "after_dependencies": [
     "mqtt"
   ],
+  "codeowners": [
+    "@fastm3"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan#readme",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/issues",
+  "requirements": [],
+  "version": "2.5.9",
   "zeroconf": [
     {
       "name": "bsb-lan*",
       "type": "_http._tcp.local."
     }
-  ],
-  "version": "2.5.8",
-  "documentation": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan#readme",
-  "issue_tracker": "https://github.com/fastm3/home-assistant-atlantic-alfea-bsb-lan/issues"
+  ]
 }

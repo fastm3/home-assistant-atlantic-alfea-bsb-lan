@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .clock import CLOCK_REFUSED_HINT, clock_offset_seconds, clock_source_ids, clock_source_is_fresh, clock_write_state
+from .clock import CLOCK_REFUSED_HINT, clock_expected, clock_offset_seconds, clock_source_ids, clock_source_is_fresh, clock_write_state
 from .const import CLOCK_DESYNC_THRESHOLD_SECONDS, DOMAIN
 from .helpers import circuit_pump_is_on, source_entity, split_bsb_status, state_is_on, state_value, track_entities
 from .runtime import AlfeaRuntimeMonitor
@@ -77,7 +77,7 @@ async def async_setup_entry(
             AlfeaAlertBinarySensor(entry, entry.runtime_data, description)
             for description in ALERT_DESCRIPTIONS
         )
-    if all(clock_source_ids(hass, entry)):
+    if clock_expected(hass, entry):
         entities.append(AlfeaClockDesyncBinarySensor(hass, entry))
     async_add_entities(entities)
 

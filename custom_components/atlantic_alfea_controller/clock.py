@@ -49,7 +49,9 @@ def _clock_candidate_ids(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
     """
     candidates: list[str] = []
     configured = entry.data.get(CONF_CLOCK_DATETIME)
-    if configured and hass.states.get(configured) is not None:
+    # gardé même si son état n'existe pas encore (MQTT pas encore chargé au démarrage) :
+    # il doit être suivi pour que les entités d'horloge deviennent disponibles ensuite
+    if configured:
         candidates.append(configured)
 
     spec = SPEC_BY_PARAMETER.get(0)
@@ -86,6 +88,19 @@ def clock_source_id(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
         return None
     ranked.sort(reverse=True)
     return ranked[0][2]
+
+
+def clock_expected(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Whether the clock entities must exist (decided at setup, before MQTT may be loaded).
+
+    True with a configured parameter 0 source, an HTTP BSB-LAN address (the clock is then
+    read and written by /JQ and /JS) or a discovered candidate.  Their availability then
+    follows the live source, instead of the entities never being created when Home
+    Assistant starts before the MQTT entities are restored.
+    """
+    return bool(entry.data.get(CONF_CLOCK_DATETIME)) or entry_client(hass, entry) is not None or any(
+        clock_source_ids(hass, entry)
+    )
 
 
 def clock_source_ids(

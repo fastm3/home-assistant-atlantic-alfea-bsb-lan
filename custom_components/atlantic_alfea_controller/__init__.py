@@ -28,6 +28,8 @@ from .polling import async_start_data_polling
 from .bsb_logging import async_start_log_watch
 from .installation_config import async_start_installation_watch
 from .mqtt_ecs import async_setup_ecs_discovery
+from .lovelace_resources import async_sync_card_resources
+from homeassistant.loader import async_get_integration
 from .weekly_programs import (
     WEEKDAYS,
     WRITABLE_PROGRAMS,
@@ -48,8 +50,11 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
       it replaces the former pac-synoptique-card (retired in 2.0.0).
     - pac-programmes-card.js.
 
-    The integration ships its static assets in HACS.  This registers only
-    GET endpoints; it never modifies dashboards, resources, or PAC commands.
+    The integration ships its static assets in HACS.  It registers GET endpoints
+    and, once Home Assistant has started, keeps the Lovelace resources of its own
+    two cards on « ?v=<version> » (created when missing, storage mode only) so a
+    Marketplace update reaches the browsers.  Dashboards and other resources are
+    never touched.
     """
     www = Path(__file__).resolve().parent / "www"
     await hass.http.async_register_static_paths(
@@ -68,6 +73,13 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
             ),
         ]
     )
+
+    version = str((await async_get_integration(hass, DOMAIN)).version)
+
+    async def _sync_resources(_hass: HomeAssistant) -> None:
+        await async_sync_card_resources(hass, version)
+
+    async_at_started(hass, _sync_resources)
 
     slot_schema = vol.Schema({vol.Required("debut"): cv.string, vol.Required("fin"): cv.string})
     schema = vol.Schema({
@@ -196,7 +208,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # without creating a Home Assistant entity via MQTT discovery.
     v3v_feedback = hass.data.setdefault(DOMAIN, {}).setdefault("v3v_feedback", {})
     v3v_feedback[entry.entry_id] = None
-    entry.async_on_unload(lambda: v3v_feedback.pop(entry.entry_id, None))
+    def _clear_v3v_feedback() -> None:
+        # ne rien renvoyer : une valeur (True…) rendue par un rappel de déchargement fait
+        # échouer le déchargement de l'entrée (« a coroutine was expected, got True »)
+        v3v_feedback.pop(entry.entry_id, None)
+
+    entry.async_on_unload(_clear_v3v_feedback)
 
     def _handle_v3v(message) -> None:
         payload = message.payload
