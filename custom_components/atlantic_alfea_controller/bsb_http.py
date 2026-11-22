@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterable
+import re
 import time
 from urllib.parse import urlparse
 
@@ -18,6 +19,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN
 
 _MIN_GAP_SECONDS = 0.2
+CLOCK_VALUE_RE = re.compile(r"\d{2}\.\d{2}\.\d{4}_\d{2}:\d{2}:\d{2}")
 _DEFAULT_TIMEOUT = 8
 
 
@@ -56,6 +58,32 @@ class BsbHttpClient:
                         return await response.json(content_type=None)
             finally:
                 self._last_request = time.monotonic()
+
+    async def _request_text(self, path: str, timeout: float) -> str:
+        """GET returning the raw body (BSB-LAN /S answers with an HTML page)."""
+        async with self._lock:
+            wait = _MIN_GAP_SECONDS - (time.monotonic() - self._last_request)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            try:
+                async with asyncio.timeout(timeout):
+                    async with self._session.get(f"{self._base}{path}") as response:
+                        response.raise_for_status()
+                        return await response.text()
+            finally:
+                self._last_request = time.monotonic()
+
+    async def set_clock(self, value: str, timeout: float = 15) -> bool:
+        """Set parameter 0 with the URL command /S0!0=DD.MM.YYYY_HH:MM:SS.
+
+        On the RVS21 (BSB-LAN 5.0.x) this URL form is applied by the regulator,
+        whereas a /JS JSON write of the date is not. Returns False when BSB-LAN
+        answers "set failed".
+        """
+        if not CLOCK_VALUE_RE.fullmatch(value):
+            raise ValueError(f"Format de date BSB invalide : {value!r}")
+        body = await self._request_text(f"/S0!0={value}", timeout)
+        return "set failed" not in body.lower()
 
     async def get_jq(self, parameters: Iterable[int | str] | int | str,
                      timeout: float = _DEFAULT_TIMEOUT) -> dict:

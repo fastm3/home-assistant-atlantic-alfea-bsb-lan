@@ -204,20 +204,14 @@ def clock_is_writable(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 CLOCK_REFUSED_HINT = (
-    "Le régulateur de la PAC refuse le réglage de l'horloge envoyé par BSB-LAN. "
-    "Avec BSB-LAN 5.0.x, ce refus est connu sur le RVS21 : mettre BSB-LAN à jour (5.1 ou plus, "
-    "réglage accepté), sinon régler la date et l'heure directement sur l'interface de la PAC."
+    "La PAC n'a pas pris l'heure envoyée par BSB-LAN. Si son horloge revient au 01/01/2018 "
+    "après une coupure de courant, c'est l'écran de la PAC (IHM) qui a perdu l'heure et la "
+    "réimpose : régler la date et l'heure sur l'écran de la PAC, puis resynchroniser."
 )
 CLOCK_TOLERANCE_SECONDS = 20
-
-
-def js_status(result: object, parameter: int = 0) -> int | None:
-    """Status returned by BSB-LAN /JS for one parameter (1 = accepted, 0 = refused)."""
-    item = result.get(str(parameter)) if isinstance(result, dict) else None
-    try:
-        return int(item.get("status")) if isinstance(item, dict) else None
-    except (TypeError, ValueError):
-        return None
+# BSB-LAN needs a few seconds to apply a write on the bus: re-read for up to 15 s.
+CLOCK_CONFIRM_SECONDS = 15
+CLOCK_CONFIRM_STEP_SECONDS = 2
 
 
 def clock_write_state(hass: HomeAssistant, entry: ConfigEntry) -> dict | None:
@@ -265,60 +259,97 @@ async def _async_set_value(
     )
 
 
+async def _async_wait_applied(hass: HomeAssistant, entry: ConfigEntry) -> tuple[bool, datetime | None]:
+    """Re-read parameter 0 until it matches Home Assistant's time (or timeout).
+
+    Returns (applied, last time read). Without an HTTP address, nothing can be
+    re-read: (False, None).
+    """
+    import asyncio
+
+    if entry_client(hass, entry) is None:
+        return False, None
+    read: datetime | None = None
+    waited = 0
+    while waited < CLOCK_CONFIRM_SECONDS:
+        await asyncio.sleep(CLOCK_CONFIRM_STEP_SECONDS)
+        waited += CLOCK_CONFIRM_STEP_SECONDS
+        read = await _async_read_back(hass, entry)
+        if read is not None and abs((read - dt_util.now()).total_seconds()) <= CLOCK_TOLERANCE_SECONDS:
+            return True, read
+    return False, read
+
+
+def format_clock_value(value: datetime) -> str:
+    """Official BSB-LAN format for parameter 0: DD.MM.YYYY_HH:MM:SS."""
+    return (
+        f"{value.day:02d}.{value.month:02d}.{value.year:04d}_"
+        f"{value.hour:02d}:{value.minute:02d}:{value.second:02d}"
+    )
+
+
 async def async_sync_pac_clock(
     hass: HomeAssistant,
     entry: ConfigEntry,
     value: datetime | None = None,
 ) -> datetime:
-    """Set the PAC clock from Home Assistant local time using BSB parameter 0."""
-    current = (value or dt_util.now()).replace(microsecond=0)
+    """Set the PAC clock from Home Assistant local time using BSB parameter 0.
+
+    1. MQTT write through the BSB-LAN ``text`` entity, when it exists;
+    2. otherwise, or when the MQTT write is not applied, the URL command
+       ``/S0!0=`` (the /JS JSON write of a date is not applied by the RVS21);
+    3. confirmation by re-reading parameter 0 for up to 15 s.
+    """
     clock_entity = clock_source_id(hass, entry)
-    if clock_entity is None:
+    client = entry_client(hass, entry)
+    if clock_entity is None and client is None:
         raise HomeAssistantError(
             "Le paramètre BSB 0 doit être associé avant la synchronisation."
         )
-
-    # Official BSB-LAN format used by set(0, ...): DD.MM.YYYY_HH:MM:SS.
-    formatted = (
-        f"{current.day:02d}.{current.month:02d}.{current.year:04d}_"
-        f"{current.hour:02d}:{current.minute:02d}:{current.second:02d}"
-    )
-    client = entry_client(hass, entry)
-    if clock_entity.split(".", 1)[0] in _WRITABLE_DOMAINS:
-        method = "MQTT (entité texte)"
-        await _async_set_value(hass, clock_entity, formatted)
-    elif client is not None:
-        method = "HTTP /JS"
-        result = await client.post_js({"parameter": 0, "value": formatted, "type": 1, "destination": 0}, timeout=15)
-        status = js_status(result)
-        if status != 1:
-            _remember(hass, entry, methode=method, resultat="refusé par le régulateur", statut_bsb=status)
-            _LOGGER.warning("Horloge PAC : écriture de %s refusée par BSB-LAN (réponse %r). %s",
-                            formatted, result, CLOCK_REFUSED_HINT)
-            raise HomeAssistantError(CLOCK_REFUSED_HINT + f" (réponse BSB-LAN : statut {status})")
-    else:
+    can_mqtt = clock_entity is not None and clock_entity.split(".", 1)[0] in _WRITABLE_DOMAINS
+    if not can_mqtt and client is None:
         raise HomeAssistantError(
             "L'horloge PAC n'est pas réglable : pas d'entité texte BSB-LAN pour le paramètre 0 "
             "et pas d'adresse HTTP de BSB-LAN dans les options."
         )
-    # relecture : certains régulateurs acquittent sans appliquer
-    if client is not None:
-        import asyncio
 
-        await asyncio.sleep(2)
-        read = await _async_read_back(hass, entry)
-        if read is not None:
-            expected = current + timedelta(seconds=2)
-            if abs((read - expected).total_seconds()) > CLOCK_TOLERANCE_SECONDS:
-                _remember(hass, entry, methode=method, resultat="non appliqué par le régulateur",
-                          heure_relue=read.isoformat())
-                _LOGGER.warning("Horloge PAC : %s envoyé (%s) mais le régulateur affiche %s. %s",
-                                formatted, method, read.isoformat(), CLOCK_REFUSED_HINT)
-                raise HomeAssistantError(CLOCK_REFUSED_HINT + f" (heure relue : {read.strftime('%H:%M:%S')})")
-            _remember(hass, entry, methode=method, resultat="appliqué (relu)")
+    methods: list[str] = []
+    read: datetime | None = None
+    if can_mqtt:
+        methods.append("MQTT (entité texte)")
+        current = (value or dt_util.now()).replace(microsecond=0)
+        await _async_set_value(hass, clock_entity, format_clock_value(current))
+        if client is None:
+            _remember(hass, entry, methode=methods[0], resultat="commande envoyée (non relue)")
             return current
-    _remember(hass, entry, methode=method, resultat="commande envoyée (non relue)")
-    return current
+        applied, read = await _async_wait_applied(hass, entry)
+        if applied:
+            _remember(hass, entry, methode=methods[0], resultat="appliqué (relu)")
+            return current
+
+    # URL command, as first method or as fallback after an MQTT write not applied.
+    methods.append("HTTP /S0!0=")
+    current = (value or dt_util.now()).replace(microsecond=0)
+    formatted = format_clock_value(current)
+    try:
+        accepted = await client.set_clock(formatted)
+    except Exception as err:  # noqa: BLE001 - reported to the user below
+        _remember(hass, entry, methode=" puis ".join(methods), resultat="BSB-LAN injoignable")
+        raise HomeAssistantError(f"BSB-LAN injoignable pour régler l'horloge : {err}") from err
+    if not accepted:
+        _remember(hass, entry, methode=" puis ".join(methods), resultat="refusé par BSB-LAN")
+        _LOGGER.warning("Horloge PAC : BSB-LAN a répondu « set failed » pour %s", formatted)
+        raise HomeAssistantError(f"BSB-LAN a refusé la date {formatted}. " + CLOCK_REFUSED_HINT)
+    applied, read = await _async_wait_applied(hass, entry)
+    if applied:
+        _remember(hass, entry, methode=" puis ".join(methods), resultat="appliqué (relu)")
+        return current
+    shown = read.strftime("%d/%m/%Y %H:%M:%S") if read is not None else "illisible"
+    _remember(hass, entry, methode=" puis ".join(methods), resultat="non appliqué par le régulateur",
+              heure_relue=read.isoformat() if read is not None else None)
+    _LOGGER.warning("Horloge PAC : %s envoyé (%s) mais la PAC affiche %s. %s",
+                    formatted, " puis ".join(methods), shown, CLOCK_REFUSED_HINT)
+    raise HomeAssistantError(CLOCK_REFUSED_HINT + f" (heure relue sur la PAC : {shown})")
 
 
 async def async_poll_pac_clock(hass: HomeAssistant) -> bool:

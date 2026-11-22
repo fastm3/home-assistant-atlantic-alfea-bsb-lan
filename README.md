@@ -203,7 +203,7 @@ Chaque option est expliquée dans le formulaire.
 | | BSB-LAN 5.0.x | BSB-LAN 5.1 |
 |---|---|---|
 | Lecture, modes, consignes, programmes | oui | oui |
-| Réglage de l'horloge de la PAC (RVS21) | refusé (« set failed ») | **oui** |
+| Réglage de l'horloge de la PAC (RVS21) | oui (MQTT ou URL `/S0!0=` ; pas en `/JS`) | oui |
 | Reconnexion après une coupure Wi-Fi complète | non garantie | corrigée |
 | `/JI` : indicateur `buswritable` | toujours 0 (bug d'affichage) | juste |
 
@@ -266,7 +266,7 @@ comme erreur.
 | Dérogation temporaire native | consigne du `climate` + durée `number` + bouton *Annuler dérogation* | 701/1001, 10990–10993 |
 | ECS : mode et consignes | `water_heater` *Eau chaude sanitaire* | 1600, 1610, 1612 |
 | Forçage d'un cycle ECS | bouton *Forçage cycle ECS* | — |
-| Horloge de la PAC | bouton *Horloge PAC - Synchroniser* : envoie l'heure de Home Assistant (entité texte BSB-LAN, sinon HTTP `/JS`), puis la relit. Fonctionne sur le RVS21.831F avec **BSB-LAN 5.1** ; avec BSB-LAN 5.0.x, le réglage était refusé (« set failed ») : mettre BSB-LAN à jour, ou régler l'heure sur la PAC. En cas de refus, le bouton l'indique | 0 |
+| Horloge de la PAC | bouton *Horloge PAC - Synchroniser* : envoie l'heure de Home Assistant par l'entité texte BSB-LAN (MQTT), sinon ou en secours par l'URL `/S0!0=`, puis relit l'horloge jusqu'à 15 s. Vérifié sur le RVS21.831F avec BSB-LAN 5.0.49. Si la PAC revient au 01/01/2018 après une coupure, c'est l'écran de la PAC (IHM) qui a perdu l'heure et la réimpose : régler l'heure sur l'écran, puis resynchroniser | 0 |
 | Programmes horaires chauffage C1/C2 et ECS | service `set_weekly_program`, mode édition de la carte Programmes | 501–507, 521–527, 561–567 |
 
 Garde-fous :

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.5.10 — Synchronisation de l'horloge PAC fiabilisée
+
+- **Faux refus corrigé** : le bouton *Horloge PAC - Synchroniser* relisait l'horloge
+  2 s après l'envoi, avant que BSB-LAN ait appliqué la valeur sur le bus, et annonçait
+  un refus alors que l'heure était bien réglée. La relecture se répète désormais toutes
+  les 2 s pendant 15 s.
+- **Écriture par l'URL `/S0!0=`** : quand l'entité texte BSB-LAN n'existe pas, ou si
+  l'écriture MQTT n'est pas appliquée, l'heure est envoyée par la commande URL
+  `/S0!0=JJ.MM.AAAA_HH:MM:SS` (réponse « set failed » détectée). L'écriture JSON `/JS`
+  d'une date, non appliquée par le RVS21, n'est plus utilisée pour l'horloge.
+- **Message corrigé** : BSB-LAN 5.0.x accepte le réglage de l'heure (vérifié en 5.0.49).
+  Si la PAC revient au 01/01/2018 après une coupure, l'écran de la PAC (IHM) a perdu
+  l'heure et la réimpose : le message indique de la régler sur l'écran.
+- Manifest **2.5.10**.
+
 ## 2.5.9 — Ressources des cartes automatiques, BSB-LAN hors ligne, corrections
 
 ### Intégration
