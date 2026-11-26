@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.5.11 — Résistance ECS comptée dans l'ECS
+
+- **Répartition de l'énergie corrigée** : la résistance électrique du ballon ECS (~1,7 kW)
+  peut chauffer en dehors d'une charge PAC, pendant que 8003 indique « Chargé ». Sa
+  consommation partait dans *C1+C2 - Énergie consommée*, même avec les deux circuits à
+  l'arrêt. Elle va maintenant dans *ECS - Énergie consommée* : 8821 à « On » (valeur de
+  moins de 5 min), ou plus de 800 W sur le capteur de puissance des options, compresseur
+  arrêté et PAC « Pas de demande » (8006 = 51). L'appoint électrique du chauffage, qui
+  ne fonctionne qu'avec une demande, reste dans C1+C2.
+- Attribut `derniere_attribution` sur les deux capteurs : raison du dernier incrément.
+- Manifest **2.5.11**.
+
 ## 2.5.10 — Synchronisation de l'horloge PAC fiabilisée
 
 - **Faux refus corrigé** : le bouton *Horloge PAC - Synchroniser* relisait l'horloge

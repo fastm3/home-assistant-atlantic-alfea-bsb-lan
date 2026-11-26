@@ -326,14 +326,17 @@ RVS21.831F).
 
 | Capteur | Contenu |
 |---|---|
-| *ECS - Énergie consommée* | énergie électrique consommée pendant les charges ECS |
-| *C1+C2 - Énergie consommée* | énergie électrique consommée hors charge ECS |
+| *ECS - Énergie consommée* | énergie électrique consommée par l'ECS : charges PAC et résistance électrique du ballon |
+| *C1+C2 - Énergie consommée* | énergie électrique consommée hors ECS (circuits et veille) |
 | *ECS - COP session* | COP de la dernière charge ECS (historique des 4 dernières en attributs) |
 | *PAC - Énergie totale* | index 3113 de la PAC (arrondi au kWh) |
 
 Les deux capteurs d'énergie se partagent chaque incrément du **compteur
-électrique global** choisi dans les options (compteur précis de la ligne PAC) : à l'ECS pendant une
-charge ECS (état 8003), aux circuits sinon. Ils sont `total_increasing` et
+électrique global** choisi dans les options (compteur précis de la ligne PAC). Il va à l'ECS
+pendant une charge ECS (état 8003) et quand la résistance électrique du ballon chauffe :
+8821 à « On » si ce paramètre est relevé, ou, avec le capteur de puissance des options,
+plus de 800 W compresseur arrêté alors que la PAC est « Pas de demande » (8006 = 51).
+Il va aux circuits sinon, veille comprise. Ils sont `total_increasing` et
 utilisables dans le tableau de bord Énergie. Les compteurs internes de la PAC
 3124/3125/3126, arrondis au kWh, ne sont pas utilisés.
 

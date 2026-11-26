@@ -585,10 +585,14 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
     """Precise ECS / C1+C2 electrical energy split from the global meter.
 
     Every increment of the configured global energy sensor is attributed to
-    the ECS when a DHW charge is in progress (8003 not in 51/99/100), and to
-    the heating/cooling circuits C1+C2 otherwise. The PAC counters
-    3124/3125/3126, rounded to the kWh, are deliberately not used.
+    the ECS when a DHW charge is in progress (8003 not in 51/99/100) or when
+    the DHW electric immersion heater runs (8821 on, or a resistive load
+    >= 800 W with the compressor off and the PAC in "No request"), and to the
+    heating/cooling circuits C1+C2 otherwise (standby included). The PAC
+    counters 3124/3125/3126, rounded to the kWh, are deliberately not used.
     """
+
+    _HEATER_MAX_AGE_S = 300  # 8821 is not always polled: ignore stale values
 
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
@@ -605,6 +609,7 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
         self._energy_entity = energy_entity(hass, entry)
         self._total = 0.0
         self._last_reading: float | None = None
+        self._last_label: str | None = None
         key = "ecs" if ecs else "circuits"
         self._attr_name = "ECS - Énergie consommée" if ecs else "C1+C2 - Énergie consommée"
         self._attr_icon = "mdi:water-boiler" if ecs else "mdi:radiator"
@@ -618,9 +623,28 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
             or self._last_reading is not None
         )
 
-    def _dhw_active(self) -> bool:
-        code = _ecs_state_code(state_value(self.hass, self._state_entity))
-        return code is not None and code not in (51, 99, 100)
+    def _heater_on(self) -> bool | None:
+        entity_id = self._entry.data.get("dhw_electric_heater")
+        state = self.hass.states.get(entity_id) if entity_id else None
+        if state is None:
+            return None
+        seen = getattr(state, "last_reported", None) or state.last_updated
+        if (dt_util.utcnow() - seen).total_seconds() > self._HEATER_MAX_AGE_S:
+            return None
+        return state_is_on(self.hass, entity_id)
+
+    def _bucket(self) -> str:
+        from .const import CONF_POWER_ENTITY
+        from .energy_split import classify
+
+        data = self._entry.data
+        return classify(
+            dhw_code=_ecs_state_code(state_value(self.hass, self._state_entity)),
+            pac_code=_ecs_state_code(state_value(self.hass, source_entity(self.hass, self._entry, "pac_state", 8006))),
+            compressor_on=state_is_on(self.hass, data.get("compressor_state")),
+            power_w=state_float(self.hass, self._entry.options.get(CONF_POWER_ENTITY) or None),
+            heater_on=self._heater_on(),
+        )
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -652,8 +676,12 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
         self._last_reading = reading
         if previous is not None:
             delta = reading - previous
-            if 0 < delta <= self._MAX_STEP_KWH and self._dhw_active() == self._ecs:
-                self._total += delta
+            if 0 < delta <= self._MAX_STEP_KWH:
+                from .energy_split import is_ecs
+
+                self._last_label = self._bucket()
+                if is_ecs(self._last_label) == self._ecs:
+                    self._total += delta
         self._publish()
 
     def _publish(self) -> None:
@@ -661,7 +689,12 @@ class AlfeaEnergySplitSensor(SensorEntity, RestoreEntity):
         self._attr_extra_state_attributes = {
             "energy_entity": self._energy_entity,
             "derniere_lecture_kwh": self._last_reading,
-            "repartition": "ECS active (8003)" if self._ecs else "hors charge ECS",
+            "repartition": (
+                "charge ECS (8003) ou résistance ECS"
+                if self._ecs
+                else "hors ECS : circuits et veille"
+            ),
+            "derniere_attribution": self._last_label,
         }
         self.hass.loop.call_soon_threadsafe(self.async_write_ha_state)
 
